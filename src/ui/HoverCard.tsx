@@ -2,8 +2,8 @@ import type { HoverInfo, Project } from '../app/project';
 import { propLabel, valueLabel } from '../blocks/names';
 import { css, num } from './format';
 
-/** Details of the block under the cursor. */
-export function HoverDetails({ project: p, hover: h, pinned }: { project: Project; hover: HoverInfo; pinned: boolean }) {
+/** Details of the block under the cursor (or under the finger that tapped it). */
+export function HoverDetails({ project: p, hover: h, pinned, touch = false }: { project: Project; hover: HoverInfo; pinned: boolean; touch?: boolean }) {
   const entry = p.model.entries[h.palette];
   const type = p.model.types[h.typeId];
   const props = Object.entries(entry.state.props).filter(([k]) => k !== 'waterlogged' || entry.state.props[k] === 'true');
@@ -55,7 +55,13 @@ export function HoverDetails({ project: p, hover: h, pinned }: { project: Projec
       ) : p.outlineInfo.value.limit === 'off' ? (
         <p class="hc-hint">Zu viele für Umrisse: die Färbung zeigt alle {num(p.outlineInfo.value.total)}.</p>
       ) : null}
-      <p class="hc-hint">{pinned ? 'Festgehalten. Klick ins Leere löst die Auswahl.' : 'Klick hält alle Blöcke dieses Typs markiert.'}</p>
+      <p class="hc-hint">
+        {touch
+          ? 'Alle Blöcke dieser Sorte sind markiert. Tippe ins Leere, um die Auswahl aufzuheben.'
+          : pinned
+            ? 'Festgehalten. Klick ins Leere löst die Auswahl.'
+            : 'Klick hält alle Blöcke dieses Typs markiert.'}
+      </p>
     </>
   );
 }

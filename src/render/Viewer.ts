@@ -250,24 +250,59 @@ export class Viewer {
     this.onProjectionChange(this.projection);
   }
 
-  private fitDistance(bounds: Bounds): { center: THREE.Vector3; radius: number; distance: number } {
+  /**
+   * Fraction of the view's width and height that is free of overlays (toolbar, layer slider,
+   * info lines), kept symmetric so that the centred model stays clear of them.
+   */
+  private freeFraction(): { fw: number; fh: number } {
+    const w = Math.max(1, this.container.clientWidth);
+    const h = Math.max(1, this.container.clientHeight);
+    const i = this.frameInsets;
+    const fw = (w - 2 * Math.max(i.left, i.right)) / w;
+    const fh = (h - 2 * Math.max(i.top, i.bottom)) / h;
+    return { fw: Math.min(1, Math.max(0.35, fw)), fh: Math.min(1, Math.max(0.35, fh)) };
+  }
+
+  /**
+   * Camera distance at which the bounding box, seen from direction `dir`, just fits into the
+   * free part of the view. Fits the box's eight corners, which is much tighter than the
+   * bounding sphere for tall towers on a narrow phone screen.
+   */
+  private fitDistance(bounds: Bounds, dir: THREE.Vector3): { center: THREE.Vector3; radius: number; distance: number } {
     const center = new THREE.Vector3((bounds.minX + bounds.maxX) / 2, (bounds.minY + bounds.maxY) / 2, (bounds.minZ + bounds.maxZ) / 2);
     const radius = 0.5 * Math.hypot(bounds.maxX - bounds.minX, bounds.maxY - bounds.minY, bounds.maxZ - bounds.minZ);
-    const fov = THREE.MathUtils.degToRad(FOV);
-    const fitH = radius / Math.sin(fov / 2);
-    const fitW = radius / Math.sin(Math.atan(Math.tan(fov / 2) * this.perspective.aspect));
-    return { center, radius, distance: Math.max(fitH, fitW) * 1.05 };
+    const { fw, fh } = this.freeFraction();
+    const tanV = Math.tan(THREE.MathUtils.degToRad(FOV) / 2) * fh;
+    const tanH = Math.tan(THREE.MathUtils.degToRad(FOV) / 2) * this.perspective.aspect * fw;
+    const forward = dir.clone().negate();
+    const right = new THREE.Vector3().crossVectors(forward, new THREE.Vector3(0, 1, 0)).normalize();
+    const up = new THREE.Vector3().crossVectors(right, forward).normalize();
+    const v = new THREE.Vector3();
+    let distance = 0;
+    for (const x of [bounds.minX, bounds.maxX]) {
+      for (const y of [bounds.minY, bounds.maxY]) {
+        for (const z of [bounds.minZ, bounds.maxZ]) {
+          v.set(x, y, z).sub(center);
+          const along = v.dot(dir);
+          distance = Math.max(distance, Math.abs(v.dot(right)) / tanH + along, Math.abs(v.dot(up)) / tanV + along);
+        }
+      }
+    }
+    return { center, radius, distance: Math.max(distance * 1.04, radius * 0.6 + 2) };
   }
+
+  /** Space taken by overlays at the edges of the view, in CSS pixels (set by the UI). */
+  frameInsets = { top: 0, right: 0, bottom: 0, left: 0 };
 
   /** Perspective overview of the whole build. */
   frame(bounds: Bounds): void {
-    const { center, radius, distance } = this.fitDistance(bounds);
+    const dir = new THREE.Vector3(1, 0.85, 1.25).normalize();
+    const { center, radius, distance } = this.fitDistance(bounds, dir);
     if (this.projection !== 'perspective') {
       this.cam = this.perspective;
       this.controls.object = this.cam;
       this.onProjectionChange('perspective');
     }
-    const dir = new THREE.Vector3(1, 0.85, 1.25).normalize();
     this.perspective.position.copy(center).addScaledVector(dir, distance);
     this.perspective.up.set(0, 1, 0);
     this.perspective.near = Math.max(0.05, radius / 500);
@@ -287,7 +322,8 @@ export class Viewer {
     const w = bounds.maxX - bounds.minX;
     const d = bounds.maxZ - bounds.minZ;
     const aspect = this.perspective.aspect;
-    this.orthoHeight = Math.max(d, w / aspect) * 1.15 + 2;
+    const { fw, fh } = this.freeFraction();
+    this.orthoHeight = Math.max(d / fh, w / (aspect * fw)) * 1.06 + 1;
     this.orthographic.zoom = 1;
     this.updateOrthoFrustum();
     const y = layer === null ? bounds.maxY : layer + 1;

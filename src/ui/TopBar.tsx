@@ -39,13 +39,18 @@ export function TopBar({ onOpen }: { onOpen: () => void }) {
             <span class="tab-busy" />
           </div>
         ))}
-        <button class="btn btn-ghost open-btn" onClick={onOpen} title="Schematic öffnen (Strg+O)">
-          <IconOpen /> Öffnen
+        <button class="btn btn-ghost open-btn" onClick={onOpen} title="Schematic öffnen (Strg+O)" aria-label="Schematic öffnen">
+          <IconOpen /> <span class="btn-label">Öffnen</span>
         </button>
       </nav>
       <div class="topbar-actions">
-        <button class="btn btn-ghost" onClick={() => (debugOpen.value = true)} title="Debug-Paket für Claude exportieren">
-          <IconPackage /> Debug-Paket
+        <button
+          class="btn btn-ghost"
+          onClick={() => (debugOpen.value = true)}
+          title="Debug-Paket für Claude exportieren"
+          aria-label="Debug-Paket"
+        >
+          <IconPackage /> <span class="btn-label">Debug-Paket</span>
         </button>
         <button class="btn btn-icon btn-ghost" onClick={() => (helpOpen.value = true)} title="Bedienung (?)" aria-label="Bedienung">
           <IconHelp />

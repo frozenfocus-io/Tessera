@@ -71,6 +71,11 @@ Sie läuft unter <http://localhost:4173>. Gespeicherte Tabs hängen an der Adres
 - „Debug-Paket“ oben rechts speichert eine ZIP-Datei, die du Claude direkt geben kannst: Protokoll mit Fehlern und Warnungen samt Zeitstempel, Tessera-Version, Browser, Grafik, Leistungswerte, unbekannte Blöcke und auf Wunsch die Projektdateien. Das Protokoll läuft ab dem Start mit.
 - Offene Tabs bleiben nach dem Schließen des Browsers erhalten. Tessera speichert sie im Browser (IndexedDB) und fordert dafür dauerhaften Speicher an. Einen geschlossenen Tab kannst du 10 Sekunden lang wiederherstellen.
 
+**Handy und Tablet**
+
+- Auf schmalen Bildschirmen wird die Seitenleiste zu einem Blatt am unteren Rand. Zugeklappt zeigt es nur, was du beim Bauen brauchst: aktuelle Ebene, Abhaken und Ansicht. Aufgeklappt zeigt es Materialliste und Projektdaten. Im Querformat sitzt es rechts.
+- Bedienung mit den Fingern: mit einem Finger drehen, mit zwei Fingern verschieben und zoomen, auf einen Block tippen statt mit der Maus darüberfahren, ins Leere tippen hebt die Auswahl auf.
+
 ## Bedienung
 
 | Eingabe | Wirkung |
@@ -107,6 +112,7 @@ Tessera lädt nichts aus dem Internet nach und sendet nichts. Schriften und Bibl
 | `npm test` | Tests (Vitest) |
 | `npm run typecheck` | TypeScript prüfen |
 | `npm run build` | prüfen und bauen, Ergebnis in `dist/` |
+| `npm run build:artifact -- --out <ordner>` | Version zum Veröffentlichen als Claude-Artefakt, z. B. als Testversion fürs Handy |
 
 Die Tests erzeugen ihre Testdateien selbst. Eigene Schematics zum Ausprobieren gehören in den Ordner `samples/`; er wird nicht eingecheckt. Der Test gegen die Beispieldatei aus Etappe 1 (`a05cccd2-32011.schem`) läuft nur, wenn du ihren Pfad angibst:
 
@@ -132,6 +138,8 @@ src/
   app/         Projekte, Tabs, Import, Speicherung
   ui/          Oberfläche (Preact)
   debug/       Protokoll, Umgebung, Debug-Paket
+  platform/    Speichern von Dateien und Beispieldateien, je nach Umgebung
+scripts/       Build-Hilfen (Artefakt-Version)
 test/          Tests
 ```
 

@@ -203,4 +203,10 @@ export class Project {
     this.pinned.value = this.pinned.value === item ? null : item;
     this.touch();
   }
+
+  setPinned(item: string | null): void {
+    if (this.pinned.value === item) return;
+    this.pinned.value = item;
+    this.touch();
+  }
 }

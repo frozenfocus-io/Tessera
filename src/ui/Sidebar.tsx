@@ -1,12 +1,14 @@
-import { useState } from 'preact/hooks';
+import { useRef, useState } from 'preact/hooks';
 import type { MaterialMode, Project, ViewMode } from '../app/project';
-import { activeProject, showToast } from '../app/workspace';
+import { activeProject, compactLayout, sheetExpanded, sheetTab, showToast, sideSheet, touchFirst } from '../app/workspace';
 import { describeSlots, formatShulkers, formatStacks, type MaterialSummary } from '../materials/materialList';
 import { IconCheck, IconCopy } from './icons';
+import { PerfLine } from './Viewport';
 import { bytes, css, num } from './format';
 
 export function Sidebar() {
   const p = activeProject.value;
+  if (compactLayout.value) return p ? <Sheet project={p} /> : null;
   if (!p) {
     return (
       <aside class="sidebar is-empty">
@@ -20,6 +22,139 @@ export function Sidebar() {
       <LayerPanel project={p} />
       <MaterialPanel project={p} />
     </aside>
+  );
+}
+
+const SHEET_TABS: { id: 'material' | 'project'; label: string }[] = [
+  { id: 'material', label: 'Material' },
+  { id: 'project', label: 'Projekt' },
+];
+
+/**
+ * Phone and tablet layout: the project panel as a sheet. Folded, it shows only what you need
+ * while building (current layer, done button, view mode); unfolded, material list and project
+ * data. In landscape it sits on the right and stays unfolded. Its top edge fills with moss as
+ * the building progresses.
+ */
+function Sheet({ project: p }: { project: Project }) {
+  const side = sideSheet.value;
+  const expanded = side || sheetExpanded.value;
+  const tab = sheetTab.value;
+  const swipe = useRef<{ y: number; moved: boolean } | null>(null);
+  const progress = p.data.analysis.nonAir ? (p.doneBlocks() / p.data.analysis.nonAir) * 100 : 0;
+  return (
+    <aside
+      class={`sheet${expanded ? ' is-expanded' : ''}${side ? ' is-side' : ''}`}
+      aria-label="Projekt"
+      style={{ '--progress': `${progress}%` }}
+    >
+      {side ? null : (
+        <button
+          class="sheet-grip"
+          aria-expanded={expanded}
+          aria-label={expanded ? 'Material und Projektdaten ausblenden' : 'Material und Projektdaten zeigen'}
+          onPointerDown={(e) => {
+            swipe.current = { y: e.clientY, moved: false };
+            (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
+          }}
+          onPointerMove={(e) => {
+            const s = swipe.current;
+            if (!s || s.moved) return;
+            const dy = e.clientY - s.y;
+            if (Math.abs(dy) > 24) {
+              s.moved = true;
+              sheetExpanded.value = dy < 0;
+            }
+          }}
+          onPointerUp={() => {
+            const s = swipe.current;
+            swipe.current = null;
+            if (s && !s.moved) sheetExpanded.value = !expanded;
+          }}
+          onPointerCancel={() => (swipe.current = null)}
+          onKeyDown={(e) => {
+            if (e.key === 'Enter' || e.key === ' ') {
+              e.preventDefault();
+              sheetExpanded.value = !expanded;
+            }
+          }}
+        >
+          <span />
+        </button>
+      )}
+      <LayerStrip project={p} />
+      {expanded ? (
+        <>
+          <div class="sheet-tabs" role="tablist" aria-label="Bereich">
+            {SHEET_TABS.map((t) => (
+              <button
+                key={t.id}
+                role="tab"
+                aria-selected={tab === t.id}
+                class={tab === t.id ? 'is-on' : ''}
+                onClick={() => (sheetTab.value = t.id)}
+              >
+                {t.label}
+              </button>
+            ))}
+          </div>
+          <div class="sheet-body" role="tabpanel">
+            {tab === 'material' ? (
+              <MaterialPanel project={p} />
+            ) : (
+              <>
+                <ProjectInfo project={p} />
+                <section class="panel">
+                  <h3 class="panel-title">Leistung</h3>
+                  <PerfLine project={p} inline />
+                </section>
+              </>
+            )}
+          </div>
+        </>
+      ) : null}
+    </aside>
+  );
+}
+
+/** Current layer, done button and view mode: always visible in the sheet. */
+function LayerStrip({ project: p }: { project: Project }) {
+  const layer = p.layer.value;
+  const mode = p.viewMode.value;
+  const done = p.done.value;
+  const isDone = done.has(layer);
+  const total = p.layerCount;
+  const doneCount = [...done].filter((y) => y >= p.minLayer && y <= p.maxLayer).length;
+  const inLayer = p.data.analysis.layerCounts[layer] ?? 0;
+  return (
+    <section class="layer-strip" aria-label="Ebene">
+      <div class="strip-row">
+        <div class="strip-text">
+          <div>
+            <span class="layer-big">Ebene {p.displayLayer(layer)}</span>
+            <span class="muted"> von {num(total)}</span>
+          </div>
+          <div class="strip-sub">
+            {num(inLayer)} Blöcke · {num(doneCount)} von {num(total)} Ebenen fertig
+          </div>
+        </div>
+        <button
+          class={`btn btn-done${isDone ? ' is-done' : ''}`}
+          aria-pressed={isDone}
+          onClick={() => p.toggleDone()}
+          title="Ebene als fertig gebaut abhaken"
+        >
+          <IconCheck /> {isDone ? 'Fertig' : 'Abhaken'}
+        </button>
+      </div>
+      <div class="segmented segmented-wide" role="radiogroup" aria-label="Ansicht der Ebenen">
+        {VIEW_MODES.map((m) => (
+          <button key={m.id} role="radio" aria-checked={mode === m.id} class={mode === m.id ? 'is-on' : ''} onClick={() => p.setViewMode(m.id)}>
+            {m.label}
+          </button>
+        ))}
+      </div>
+    </section>
   );
 }
 
@@ -275,7 +410,11 @@ function MaterialPanel({ project: p }: { project: Project }) {
                   <tr
                     key={r.item}
                     class={isPinned ? 'is-pinned' : ''}
-                    onClick={() => p.togglePinned(key)}
+                    onClick={() => {
+                      // A block selected by tapping would otherwise keep its card next to the new marking.
+                      p.hover.value = null;
+                      p.togglePinned(key);
+                    }}
                     title={isPinned ? 'Markierung aufheben' : 'Alle Blöcke dieser Sorte im Modell markieren'}
                   >
                     <td class="c-name">
@@ -296,7 +435,9 @@ function MaterialPanel({ project: p }: { project: Project }) {
           </table>
         </div>
       )}
-      <p class="material-scope muted">Umfang: {scopeText}. Klick auf eine Zeile markiert die Blöcke im Modell.</p>
+      <p class="material-scope muted">
+        Umfang: {scopeText}. {touchFirst.value ? 'Tippe auf eine Zeile' : 'Klick auf eine Zeile'}, um die Blöcke im Modell zu markieren.
+      </p>
     </section>
   );
 }

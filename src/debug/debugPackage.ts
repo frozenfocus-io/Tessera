@@ -1,5 +1,7 @@
 import { strToU8, zipSync } from 'fflate';
 import type { Project } from '../app/project';
+import { compactLayout, sideSheet, touchFirst } from '../app/workspace';
+import { inArtifactViewer } from '../platform/save';
 import { BUILD_TIME, STAGE, VERSION } from '../version';
 import { collectEnvironment, browserLabel } from './environment';
 import { formatLogLine, log } from './log';
@@ -99,6 +101,13 @@ export async function buildDebugPackage(opts: DebugPackageOptions): Promise<{ bl
           return { usedMb: Math.round(m.usedJSHeapSize / 1e6), totalMb: Math.round(m.totalJSHeapSize / 1e6), limitMb: Math.round(m.jsHeapSizeLimit / 1e6) };
         })()
       : null,
+    ui: {
+      compactLayout: compactLayout.value,
+      sideSheet: sideSheet.value,
+      touchFirst: touchFirst.value,
+      artifactViewer: inArtifactViewer(),
+      viewport: { width: window.innerWidth, height: window.innerHeight, pixelRatio: window.devicePixelRatio },
+    },
     activeProject: opts.activeId,
     projects: opts.projects.map(projectReport),
     logCounts: { ...log.counts },
@@ -144,15 +153,4 @@ export async function buildDebugPackage(opts: DebugPackageOptions): Promise<{ bl
   log.info('debug', `Debug-Paket erstellt: ${fileName}`, { bytes: zip.length, projectFiles: include.length });
   const summary = `${report.projects.length} Projekt(e), ${log.all().length} Log-Einträge`;
   return { blob: new Blob([zip as BlobPart], { type: 'application/zip' }), fileName, summary };
-}
-
-export function downloadBlob(blob: Blob, fileName: string): void {
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement('a');
-  a.href = url;
-  a.download = fileName;
-  document.body.appendChild(a);
-  a.click();
-  a.remove();
-  setTimeout(() => URL.revokeObjectURL(url), 5000);
 }

@@ -10,6 +10,8 @@ import { restoreWorkspace } from './app/importer';
 import { getPool, getViewer } from './app/viewController';
 import { activeProject, projects } from './app/workspace';
 import { log } from './debug/log';
+import { loadExamples } from './platform/examples';
+import { prepareSaving } from './platform/save';
 import { App } from './ui/App';
 import { BUILD_TIME, STAGE, VERSION } from './version';
 
@@ -53,4 +55,6 @@ const root = document.getElementById('app');
 if (root) {
   render(<App />, root);
   void restoreWorkspace();
+  void loadExamples();
+  prepareSaving();
 }

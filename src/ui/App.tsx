@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'preact/hooks';
 import { openFiles } from '../app/importer';
 import { getViewer } from '../app/viewController';
-import { activeProject, debugOpen, helpOpen } from '../app/workspace';
+import { activeProject, debugOpen, helpOpen, touchFirst } from '../app/workspace';
 import { Dialogs } from './Dialogs';
 import { Sidebar } from './Sidebar';
 import { Toasts } from './Toasts';
@@ -133,7 +133,8 @@ export function App() {
       <input
         ref={fileInput}
         type="file"
-        accept={ACCEPT}
+        // Phone file pickers grey out unknown extensions; the format is recognised by content anyway.
+        accept={touchFirst.value ? undefined : ACCEPT}
         multiple
         hidden
         onChange={(e) => {

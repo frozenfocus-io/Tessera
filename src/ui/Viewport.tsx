@@ -1,25 +1,47 @@
 import { useEffect, useRef, useState } from 'preact/hooks';
 import type { Project } from '../app/project';
 import { attachViewer, getPool, getViewer, hoverAt } from '../app/viewController';
-import { activeProject, lastBenchmark, markUnknown, projection, showToast } from '../app/workspace';
+import { readableName } from '../blocks/names';
+import { activeProject, compactLayout, examples, lastBenchmark, markUnknown, projection, showToast, touchFirst } from '../app/workspace';
 import { log } from '../debug/log';
-import { downloadBlob } from '../debug/debugPackage';
+import { openExample } from '../platform/examples';
+import { saveFile } from '../platform/save';
 import { HoverDetails } from './HoverCard';
-import { IconCamera, IconFrame, IconGauge, IconOpen, IconStripes, IconTop, Mark } from './icons';
+import { IconCamera, IconClose, IconFrame, IconGauge, IconOpen, IconStripes, IconTop, Mark } from './icons';
 import { LayerRail } from './LayerRail';
 import { compact, ms, num, num1 } from './format';
 
+/** A touch counts as a tap if the finger moved less than this (CSS pixels) … */
+const TAP_SLOP = 10;
+/** … and was lifted within this time (ms). */
+const TAP_MS = 600;
+
+/** Selects the block under a finger: info card plus all blocks of its kind; empty space clears. */
+function selectAt(clientX: number, clientY: number): void {
+  const p = activeProject.value;
+  if (!p) return;
+  hoverAt(p, clientX, clientY);
+  const h = p.hover.value;
+  p.setPinned(h ? `type:${h.typeId}` : null);
+}
+
+export function clearSelection(p: Project): void {
+  p.hover.value = null;
+  p.setPinned(null);
+}
+
 export function Viewport({ onOpen }: { onOpen: () => void }) {
   const hostRef = useRef<HTMLDivElement>(null);
-  const pointer = useRef<{ x: number; y: number; pending: boolean; downX: number; downY: number; down: boolean }>({
-    x: 0,
-    y: 0,
-    pending: false,
-    downX: 0,
-    downY: 0,
-    down: false,
-  });
+  const pointer = useRef({ x: 0, y: 0, pending: false, downX: 0, downY: 0, down: false });
+  // Touch gestures: OrbitControls rotates/zooms; a short single-finger tap selects a block.
+  const touch = useRef({ active: 0, multi: false, startX: 0, startY: 0, startT: 0 });
   useEffect(() => attachViewer(hostRef.current!), []);
+  const compactUi = compactLayout.value;
+  useEffect(() => {
+    // Keep framed models clear of the toolbar, the layer slider and the info line (see app.css).
+    const viewer = getViewer();
+    if (viewer) viewer.frameInsets = compactUi ? { top: 54, right: 58, bottom: 10, left: 10 } : { top: 48, right: 52, bottom: 40, left: 12 };
+  }, [compactUi]);
   const p = activeProject.value;
 
   const scheduleHover = () => {
@@ -38,20 +60,53 @@ export function Viewport({ onOpen }: { onOpen: () => void }) {
         class="viewer-host"
         ref={hostRef}
         onPointerMove={(e) => {
+          if (e.pointerType === 'touch') return;
           pointer.current.x = e.clientX;
           pointer.current.y = e.clientY;
           scheduleHover();
         }}
-        onPointerLeave={() => {
+        onPointerLeave={(e) => {
+          // A lifted finger "leaves" too; the tapped block stays selected.
+          if (e.pointerType === 'touch') return;
           const proj = activeProject.value;
           if (proj) proj.hover.value = null;
         }}
         onPointerDown={(e) => {
+          if (e.pointerType === 'touch') {
+            const t = touch.current;
+            t.active++;
+            if (t.active > 1) {
+              t.multi = true;
+            } else {
+              t.multi = false;
+              t.startX = e.clientX;
+              t.startY = e.clientY;
+              t.startT = performance.now();
+            }
+            return;
+          }
           pointer.current.down = true;
           pointer.current.downX = e.clientX;
           pointer.current.downY = e.clientY;
         }}
+        onPointerCancel={(e) => {
+          if (e.pointerType !== 'touch') return;
+          const t = touch.current;
+          t.active = Math.max(0, t.active - 1);
+          t.multi = true;
+        }}
         onPointerUp={(e) => {
+          if (e.pointerType === 'touch') {
+            const t = touch.current;
+            t.active = Math.max(0, t.active - 1);
+            const tap =
+              !t.multi &&
+              t.active === 0 &&
+              Math.hypot(e.clientX - t.startX, e.clientY - t.startY) < TAP_SLOP &&
+              performance.now() - t.startT < TAP_MS;
+            if (tap) selectAt(e.clientX, e.clientY);
+            return;
+          }
           const ptr = pointer.current;
           const wasClick = ptr.down && e.button === 0 && Math.hypot(e.clientX - ptr.downX, e.clientY - ptr.downY) < 5;
           ptr.down = false;
@@ -90,34 +145,39 @@ function ViewToolbar({ project: p }: { project: Project }) {
       <button
         class={`btn btn-float${projection.value === 'perspective' ? ' is-current' : ''}`}
         title="Ganzes Modell perspektivisch zeigen (F)"
+        aria-label="Übersicht"
         onClick={() => p.bounds && viewer?.frame(p.bounds)}
       >
-        <IconFrame /> Übersicht
+        <IconFrame /> <span class="btn-label">Übersicht</span>
       </button>
       <button
         class={`btn btn-float${projection.value === 'orthographic' ? ' is-current' : ''}`}
         title="Bauplan: senkrecht von oben, ohne Perspektive, Norden oben (T)"
+        aria-label="Draufsicht"
         onClick={() => p.bounds && viewer?.topView(p.bounds, p.viewMode.value === 'all' ? null : p.layer.value)}
       >
-        <IconTop /> Draufsicht
+        <IconTop /> <span class="btn-label">Draufsicht</span>
       </button>
       <button
         class="btn btn-float"
         title="Screenshot als PNG speichern"
+        aria-label="Screenshot"
         onClick={async () => {
           const blob = await viewer?.screenshot();
           if (!blob) return;
           const label = p.viewMode.value === 'all' ? 'gesamt' : `ebene-${p.displayLayer(p.layer.value)}`;
-          downloadBlob(blob, `${p.name}-${label}.png`);
-          log.info('view', 'Screenshot gespeichert');
+          const outcome = await saveFile(blob, `${p.name}-${label}.png`);
+          if (outcome === 'saved') log.info('view', 'Screenshot gespeichert');
+          else if (outcome === 'unavailable') showToast('error', 'Screenshots lassen sich in dieser Ansicht nicht speichern.');
         }}
       >
-        <IconCamera /> Screenshot
+        <IconCamera /> <span class="btn-label">Screenshot</span>
       </button>
       <button
         class="btn btn-float"
         disabled={busy}
         title="Die Kamera fünf Sekunden um das Modell drehen und die Bildrate messen"
+        aria-label="Leistungstest"
         onClick={async () => {
           if (!viewer) return;
           setBusy(true);
@@ -142,16 +202,17 @@ function ViewToolbar({ project: p }: { project: Project }) {
           }
         }}
       >
-        <IconGauge /> {busy ? 'Messe …' : 'Leistungstest'}
+        <IconGauge /> <span class="btn-label">{busy ? 'Messe …' : 'Leistungstest'}</span>
       </button>
       {hasUnknown ? (
         <button
           class={`btn btn-float${markUnknown.value ? ' is-on' : ''}`}
           aria-pressed={markUnknown.value}
           title="Unbekannte und Mod-Blöcke rot schraffieren"
+          aria-label={`Unbekannte Blöcke markieren (${p.unknownBlocks.length})`}
           onClick={() => (markUnknown.value = !markUnknown.value)}
         >
-          <IconStripes /> Unbekannte ({p.unknownBlocks.length})
+          <IconStripes /> <span class="btn-label">Unbekannte ({p.unknownBlocks.length})</span>
         </button>
       ) : null}
     </div>
@@ -161,14 +222,25 @@ function ViewToolbar({ project: p }: { project: Project }) {
 function HoverCard({ project: p }: { project: Project }) {
   const h = p.hover.value;
   const pin = p.pinned.value;
+  const touchUi = touchFirst.value;
+  const close = touchUi ? (
+    <button class="hc-close btn btn-icon btn-ghost" aria-label="Auswahl aufheben" onClick={() => clearSelection(p)}>
+      <IconClose size={14} />
+    </button>
+  ) : null;
   if (!h) {
-    if (pin?.startsWith('type:')) {
-      const t = p.model.types[Number(pin.slice(5))];
+    if (pin) {
+      const isType = pin.startsWith('type:');
+      // On desktop the material table shows an item marking; on touch the table may be folded away.
+      if (!isType && !touchUi) return null;
+      const label = isType ? p.model.types[Number(pin.slice(5))]?.displayName : readableName(pin.slice(5));
+      if (!label) return null;
       return (
         <div class="hover-card is-compact">
           <span class="pin-note">
-            Festgehalten: <strong>{t?.displayName}</strong>. Klick ins Leere löst.
+            Markiert: <strong>{label}</strong>. {touchUi ? 'Tippe ins Leere, um sie aufzuheben.' : 'Klick ins Leere löst.'}
           </span>
+          {close}
         </div>
       );
     }
@@ -176,12 +248,13 @@ function HoverCard({ project: p }: { project: Project }) {
   }
   return (
     <div class="hover-card">
-      <HoverDetails project={p} hover={h} pinned={pin === `type:${h.typeId}`} />
+      {close}
+      <HoverDetails project={p} hover={h} pinned={pin === `type:${h.typeId}`} touch={touchUi} />
     </div>
   );
 }
 
-function PerfLine({ project: p }: { project: Project }) {
+export function PerfLine({ project: p, inline = false }: { project: Project; inline?: boolean }) {
   const [, setTick] = useState(0);
   useEffect(() => {
     const id = setInterval(() => setTick((t) => t + 1), 500);
@@ -192,7 +265,10 @@ function PerfLine({ project: p }: { project: Project }) {
   const fps = viewer?.frameStats.fps;
   const triangles = stats ? (stats.opaqueQuads + stats.translucentQuads) * 2 : 0;
   return (
-    <div class="perf-line" title="Leistung der 3D-Ansicht. Die Bildrate wird nur gemessen, solange sich etwas bewegt.">
+    <div
+      class={`perf-line${inline ? ' is-inline' : ''}`}
+      title="Leistung der 3D-Ansicht. Die Bildrate wird nur gemessen, solange sich etwas bewegt."
+    >
       <span>
         <em>Bildrate</em> {fps ? `${Math.round(fps)} fps` : '–'}
       </span>
@@ -270,6 +346,7 @@ const MOSAIC = [
 ];
 
 function EmptyState({ onOpen }: { onOpen: () => void }) {
+  const list = examples.value;
   return (
     <div class="empty">
       <div class="empty-mosaic" aria-hidden="true">
@@ -279,11 +356,19 @@ function EmptyState({ onOpen }: { onOpen: () => void }) {
       </div>
       <h1>Schematic öffnen</h1>
       <p>
-        Zieh eine Schematic hierher oder wähle sie aus. Jede Datei bekommt einen eigenen Tab, und nichts verlässt deinen PC.
+        {touchFirst.value ? 'Wähle eine Schematic aus.' : 'Zieh eine Schematic hierher oder wähle sie aus.'} Jede Datei bekommt einen eigenen
+        Tab, und nichts verlässt dein Gerät.
       </p>
-      <button class="btn btn-primary" onClick={onOpen}>
-        <IconOpen /> Datei auswählen
-      </button>
+      <div class="empty-actions">
+        <button class="btn btn-primary" onClick={onOpen}>
+          <IconOpen /> Datei auswählen
+        </button>
+        {list.map((ex) => (
+          <button key={ex.name} class="btn" onClick={() => void openExample(ex)}>
+            Beispiel: {ex.label}
+          </button>
+        ))}
+      </div>
       <p class="fine">
         Liest <strong>.schem</strong> (WorldEdit, Sponge v1 bis v3), <strong>.litematic</strong> (Litematica) und <strong>.nbt</strong>{' '}
         (Strukturblöcke, Create).

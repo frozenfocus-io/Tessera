@@ -23,6 +23,10 @@ export function getPool(): MeshPool | null {
 
 const modeNumber = (m: ViewMode): number => (m === 'all' ? MODE_ALL : m === 'slice' ? MODE_SLICE : MODE_SINGLE);
 
+/** Whether blocks in layer `y` are visible in the given view. */
+const layerShown = (mode: ViewMode, layer: number, y: number): boolean =>
+  mode === 'all' || (mode === 'slice' ? y <= layer : y === layer);
+
 /** Item key for pins: "item:<id>" from the material list, "type:<n>" from clicking a block. */
 export function highlightTypesFor(p: Project): { types: number[]; pinned: boolean } {
   const pin = p.pinned.value;
@@ -56,6 +60,9 @@ function ensureScene(p: Project): ProjectScene {
     effect(() => {
       scene.setView(modeNumber(p.viewMode.value), p.layer.value);
       p.outlineInfo.value = { ...scene.outlineInfo };
+      // A block that the new view hides loses its info card and outline (the marking of its kind stays).
+      const h = p.hover.peek();
+      if (h && !layerShown(p.viewMode.value, p.layer.value, h.y)) p.hover.value = null;
     }),
     effect(() => {
       scene.setDoneLayers(p.done.value);

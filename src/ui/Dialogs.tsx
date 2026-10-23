@@ -1,8 +1,9 @@
 import { useEffect, useRef, useState } from 'preact/hooks';
 import { Fragment, type ComponentChildren } from 'preact';
 import { getPool, getViewer } from '../app/viewController';
-import { activeId, activeProject, debugOpen, helpOpen, lastBenchmark, projects, showToast } from '../app/workspace';
-import { buildDebugPackage, downloadBlob } from '../debug/debugPackage';
+import { activeId, activeProject, debugOpen, helpOpen, lastBenchmark, projects, showToast, touchFirst } from '../app/workspace';
+import { buildDebugPackage } from '../debug/debugPackage';
+import { saveFile } from '../platform/save';
 import { browserLabel, collectEnvironment, type EnvironmentInfo } from '../debug/environment';
 import { log } from '../debug/log';
 import { BUILD_TIME, STAGE, VERSION } from '../version';
@@ -57,33 +58,61 @@ const SHORTCUTS: [string, string][] = [
   ['Strg + O', 'Schematic öffnen'],
 ];
 
+const GESTURES: [string, string][] = [
+  ['Mit einem Finger ziehen', 'drehen'],
+  ['Mit zwei Fingern ziehen', 'verschieben'],
+  ['Zwei Finger spreizen', 'zoomen'],
+  ['Auf einen Block tippen', 'Infos zeigen und alle Blöcke dieser Sorte markieren'],
+  ['Ins Leere tippen', 'Auswahl aufheben'],
+  ['Ebenen-Regler rechts', 'Ebene wechseln: ziehen oder die Pfeile antippen'],
+  ['Griff am unteren Blatt', 'Materialliste und Projektdaten auf- und zuklappen'],
+];
+
 function HelpDialog() {
+  const touch = touchFirst.value;
   return (
     <Dialog title="Bedienung" onClose={() => (helpOpen.value = false)}>
-      <h3>Maus</h3>
-      <dl class="keys">
-        <dt>Linke Maustaste ziehen</dt>
-        <dd>drehen</dd>
-        <dt>Rechte Maustaste ziehen</dt>
-        <dd>verschieben</dd>
-        <dt>Mausrad</dt>
-        <dd>zoomen (zum Mauszeiger hin)</dd>
-        <dt>Klick auf einen Block</dt>
-        <dd>alle Blöcke dieser Sorte markieren</dd>
-        <dt>Mausrad über dem Ebenen-Regler</dt>
-        <dd>Ebene wechseln</dd>
-      </dl>
-      <h3>Tastatur</h3>
-      <dl class="keys">
-        {SHORTCUTS.map(([k, v]) => (
-          <Fragment key={k}>
-            <dt>
-              <kbd>{k}</kbd>
-            </dt>
-            <dd>{v}</dd>
-          </Fragment>
-        ))}
-      </dl>
+      {touch ? (
+        <>
+          <h3>Finger</h3>
+          <dl class="keys">
+            {GESTURES.map(([k, v]) => (
+              <Fragment key={k}>
+                <dt>{k}</dt>
+                <dd>{v}</dd>
+              </Fragment>
+            ))}
+          </dl>
+        </>
+      ) : null}
+      {touch ? null : (
+        <>
+          <h3>Maus</h3>
+          <dl class="keys">
+            <dt>Linke Maustaste ziehen</dt>
+            <dd>drehen</dd>
+            <dt>Rechte Maustaste ziehen</dt>
+            <dd>verschieben</dd>
+            <dt>Mausrad</dt>
+            <dd>zoomen (zum Mauszeiger hin)</dd>
+            <dt>Klick auf einen Block</dt>
+            <dd>alle Blöcke dieser Sorte markieren</dd>
+            <dt>Mausrad über dem Ebenen-Regler</dt>
+            <dd>Ebene wechseln</dd>
+          </dl>
+          <h3>Tastatur</h3>
+          <dl class="keys">
+            {SHORTCUTS.map(([k, v]) => (
+              <Fragment key={k}>
+                <dt>
+                  <kbd>{k}</kbd>
+                </dt>
+                <dd>{v}</dd>
+              </Fragment>
+            ))}
+          </dl>
+        </>
+      )}
       <p class="muted fine">
         Tessera {VERSION}, {STAGE}. Gebaut {BUILD_TIME ? new Date(BUILD_TIME).toLocaleString('de-DE') : 'lokal'}.
       </p>
@@ -115,9 +144,13 @@ function DebugDialog() {
         benchmark: lastBenchmark.value,
         meshPool: pool ? { mode: pool.mode, workers: pool.workerCount, pending: pool.pending } : null,
       });
-      downloadBlob(blob, fileName);
-      showToast('success', `${fileName} gespeichert.`);
-      debugOpen.value = false;
+      const outcome = await saveFile(blob, fileName);
+      if (outcome === 'saved') {
+        showToast('success', `${fileName} gespeichert.`);
+        debugOpen.value = false;
+      } else if (outcome === 'unavailable') {
+        showToast('error', 'Das Debug-Paket lässt sich in dieser Ansicht nicht speichern.');
+      }
     } catch (e) {
       log.error('debug', 'Debug-Paket konnte nicht erstellt werden', e);
       showToast('error', 'Debug-Paket konnte nicht erstellt werden.', e instanceof Error ? e.message : String(e));
