@@ -1,0 +1,23 @@
+# Abhängigkeiten und Build
+node_modules/
+dist/
+coverage/
+*.tsbuildinfo
+.vite/
+
+# Eigene Testdateien gehören nicht ins öffentliche Repo
+samples/*
+!samples/LIESMICH.md
+
+# Logs und Systemdateien
+*.log
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# Editor und lokale Einstellungen
+.idea/
+.vscode/
+*.local
+.env
+.env.*
