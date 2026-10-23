@@ -2,12 +2,21 @@ import { log } from '../debug/log';
 import type { PersistedState } from './project';
 
 /**
- * Browser storage for the open projects (IndexedDB). Stage 1 keeps imported schematics here so
- * tabs, progress and camera survive closing the browser. From stage 3 on, projects live as
- * .tess files in the project folder; catalog and scans stay in IndexedDB.
+ * Browser storage for the open tabs (IndexedDB): view state, progress and a copy of the file, so
+ * tabs survive closing the browser. Building plans additionally live as .tess files in the
+ * project folder; a tab linked to such a file reads it from there on restart and keeps the copy
+ * here only as a fallback. The folder handle itself is stored here too.
  */
 const DB_NAME = 'tessera';
 const DB_VERSION = 1;
+
+/** A tab's link to a .tess file in the project folder. */
+export interface FileLink {
+  /** File name inside the folder "projekte". */
+  name: string;
+  size: number;
+  lastModified: number;
+}
 
 export interface StoredProject {
   id: string;
@@ -16,12 +25,42 @@ export interface StoredProject {
   createdAt: number;
   updatedAt: number;
   state: PersistedState;
+  link?: FileLink | null;
 }
 
 interface WorkspaceMeta {
   key: 'workspace';
   order: string[];
   activeId: string | null;
+}
+
+interface FolderMeta {
+  key: 'folder';
+  handle: FileSystemDirectoryHandle;
+}
+
+export async function saveFolderHandle(handle: FileSystemDirectoryHandle): Promise<void> {
+  try {
+    const db = await openDb();
+    const tx = db.transaction('meta', 'readwrite');
+    const meta: FolderMeta = { key: 'folder', handle };
+    tx.objectStore('meta').put(meta);
+    await done(tx);
+  } catch (e) {
+    log.warn('storage', 'Projektordner konnte nicht gemerkt werden', e);
+  }
+}
+
+export async function loadFolderHandle(): Promise<FileSystemDirectoryHandle | null> {
+  try {
+    const db = await openDb();
+    const tx = db.transaction('meta', 'readonly');
+    const meta = await request(tx.objectStore('meta').get('folder') as IDBRequest<FolderMeta | undefined>);
+    return meta?.handle ?? null;
+  } catch (e) {
+    log.warn('storage', 'Gemerkter Projektordner konnte nicht gelesen werden', e);
+    return null;
+  }
 }
 
 let dbPromise: Promise<IDBDatabase> | null = null;

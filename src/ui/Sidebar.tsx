@@ -4,7 +4,9 @@ import { activeProject, catalogDialogOpen, compactLayout, sheetExpanded, sheetTa
 import { catalogContents } from '../catalog/runtime';
 import type { Catalog } from '../catalog/types';
 import { describeSlots, formatShulkers, formatStacks, type MaterialSummary } from '../materials/materialList';
-import { IconCheck, IconCopy } from './icons';
+import { saveToFolder } from '../app/planFiles';
+import { folderStatus } from '../platform/folder';
+import { IconCheck, IconCopy, IconFolder, IconSave } from './icons';
 import { RawMaterials } from './RawMaterials';
 import { PerfLine } from './Viewport';
 import { bytes, css, num } from './format';
@@ -209,6 +211,7 @@ function ProjectInfo({ project: p }: { project: Project }) {
           </>
         ) : null}
       </dl>
+      {p.isPlan ? <PlanFile project={p} /> : null}
       {p.unknownBlocks.length || warnings.length ? (
         <div class="notice">
           <button class="notice-toggle" aria-expanded={open} onClick={() => setOpen(!open)}>
@@ -242,6 +245,39 @@ function ProjectInfo({ project: p }: { project: Project }) {
         </div>
       ) : null}
     </section>
+  );
+}
+
+/** Building plans: where the file lives, saving into the project folder, build errors of the last change. */
+function PlanFile({ project: p }: { project: Project }) {
+  const link = p.link.value;
+  const issue = p.fileIssue.value;
+  const unsupported = folderStatus.value === 'unsupported';
+  return (
+    <div class="plan-file">
+      {link && !p.fileMissing.value ? (
+        <p class="plan-path" title="Änderungen an dieser Datei übernimmt Tessera von selbst">
+          <IconFolder size={14} /> <code>projekte/{link.name}</code>
+        </p>
+      ) : (
+        <>
+          <p class="muted">{p.fileMissing.value ? 'Die Datei fehlt im Projektordner.' : 'Dieser Bauplan liegt noch nicht im Projektordner.'}</p>
+          <button class="btn btn-ghost" onClick={() => void saveToFolder(p)}>
+            <IconSave /> {unsupported ? 'Als Datei speichern' : 'Im Projektordner speichern'}
+          </button>
+        </>
+      )}
+      {issue ? (
+        <div class="notice notice-open" role="alert">
+          <div class="notice-body">
+            <p>
+              <strong>{issue.message}</strong> Angezeigt wird die letzte fehlerfreie Fassung.
+            </p>
+            {issue.detail ? <pre class="plan-errors">{issue.detail}</pre> : null}
+          </div>
+        </div>
+      ) : null}
+    </div>
   );
 }
 

@@ -3,6 +3,7 @@ import { batch } from '@preact/signals';
 import { deleteStoredCatalog, loadStoredCatalog, storeCatalog } from '../catalog/store';
 import { CATALOG_FORMAT, type Catalog } from '../catalog/types';
 import { log } from '../debug/log';
+import { recompilePlans } from './planFiles';
 import { Project } from './project';
 import { getViewer, releaseProject } from './viewController';
 import { activeId, catalog, catalogOrigin, projects, showToast } from './workspace';
@@ -77,6 +78,9 @@ export function rebuildProjects(): void {
     const fresh = new Project({ id: p.id, name: p.name, fileName: p.fileName, createdAt: p.createdAt, source: p.source, data: p.data, catalog: catalog.value });
     fresh.restore(state);
     fresh.camera = state.camera;
+    fresh.link.value = p.link.value;
+    fresh.fileIssue.value = p.fileIssue.value;
+    fresh.fileMissing.value = p.fileMissing.value;
     return fresh;
   });
   batch(() => {
@@ -85,4 +89,6 @@ export function rebuildProjects(): void {
     projects.value = list;
     activeId.value = active;
   });
+  // Building plans pick their stairs and slabs from the catalog: build them again.
+  void recompilePlans();
 }

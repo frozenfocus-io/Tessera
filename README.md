@@ -1,8 +1,8 @@
 # Tessera
 
-Lokale Bauhilfe für Minecraft Java 1.21.1: Schematics in 3D ansehen und Ebene für Ebene nachbauen, wie in einem Slicer. Tessera läuft komplett im Browser, ohne Server. Keine Datei verlässt deinen PC.
+Lokale Bauhilfe für Minecraft Java 1.21.1: Gebäude als Bauplan beschreiben oder Schematics öffnen, in 3D ansehen und Ebene für Ebene nachbauen, wie in einem Slicer. Tessera läuft komplett im Browser, ohne Server. Keine Datei verlässt deinen PC.
 
-**Stand:** Etappe 2 von 6 – Block-Katalog (Version 0.2.0)
+**Stand:** Etappe 3 von 6 – Bau-Sprache, Testlauf (Version 0.3.0)
 
 ## Starten
 
@@ -28,9 +28,24 @@ Sie läuft unter <http://localhost:4173>. Gespeicherte Tabs hängen an der Adres
 
 ## Was Tessera kann
 
+**Baupläne (`.tess`)**
+
+- Ein Bauplan beschreibt ein Gebäude in der Bau-Sprache statt Block für Block: Formen (box, zylinder, linie), Bauteile (Fenster mit Bank, Sturz und Läden, Türen mit Rahmen, Sattel-, Walm- und Kegeldach, Zinnen) und Rollen-Paletten („mauer“ = 60 % Steinziegel, 20 % bemoost, 20 % rissig). Tessera übersetzt ihn in Blöcke und zeigt ihn wie eine Schematic. Die Sprache ist für Claude gemacht; du musst sie nicht lesen, kannst sie aber ändern. Referenz: [docs/bau-sprache.md](docs/bau-sprache.md), Beispiel: [beispiele/haus-mit-rundturm.tess](beispiele/haus-mit-rundturm.tess).
+- Bauteile rechnen Lage und Ausrichtung selbst. Tessera prüft beim Übersetzen, ob Fenster und Türen in einer Wand sitzen, keinen Pfosten oder Balken schneiden und sich nicht überschneiden; solche Hinweise stehen mit Zeilennummer in den Projektdaten.
+- Zäune, Mauern, Glasscheiben, Gitter und Treppen-Ecken bekommen ihre Verbindungen nach den Regeln des Spiels, alle Blöcke ihre vollständigen Zustände.
+- Fehler im Bauplan meldet Tessera mit Zeilennummer, alle auf einmal, z. B. „Zeile 12: Rolle „zier“ ist nicht festgelegt“.
+- Mit eingelesenem Katalog nimmt Tessera Treppen und Stufen aus dessen Blockfamilien, auch für Mod-Blöcke, und markiert Blöcke, die im Modpack fehlen.
+
+**Projektordner**
+
+- Oben rechts „Projekte“: Du wählst einmal einen Ordner, z. B. `Tessera` in deinen Dokumenten. Tessera legt darin `projekte/` an und speichert Baupläne dort als `.tess`-Dateien. Der Dialog listet die Baupläne im Ordner; ein Klick öffnet sie.
+- Einen Bauplan, der woanders liegt (z. B. von Claude heruntergeladen), öffnest du mit „Öffnen“ und legst ihn mit „Im Projektordner speichern“ (Projektdaten rechts) im Ordner ab.
+- Ein Tab bleibt mit seiner Datei verbunden: Ersetzt oder änderst du die Datei im Ordner, baut Tessera den Tab innerhalb von zwei Sekunden neu auf; Kamera, Ebene und Fortschritt bleiben. Hat die neue Fassung Fehler, bleibt die letzte fehlerfreie stehen und die Fehler stehen darunter.
+- Nach einem Neustart des Browsers fragt dieser einmal nach, ob Tessera den Ordner weiter benutzen darf: „Projekte“ ist dann hervorgehoben, dort „Zugriff erlauben“ klicken. Bis dahin zeigen die Tabs die zuletzt gelesene Fassung.
+
 **Öffnen**
 
-- `.schem` (WorldEdit/Sponge, ab 1.13) in allen drei Format-Versionen, auch Dateien von Bau-Websites. Tessera erkennt das Format am Inhalt, nicht an der Dateiendung.
+- `.tess` (Tessera-Baupläne), dazu `.schem` (WorldEdit/Sponge, ab 1.13) in allen drei Format-Versionen, auch Dateien von Bau-Websites. Tessera erkennt das Format am Inhalt, nicht an der Dateiendung.
 - Schon jetzt zusätzlich: `.litematic` (Litematica, auch mit mehreren Bereichen) und `.nbt` (Strukturblock, Create-Schematics).
 - Öffnen über den Knopf „Öffnen“, mit Strg + O oder indem du Dateien ins Fenster ziehst; mehrere Dateien auf einmal gehen auch.
 - Jede Datei bekommt einen eigenen Tab mit eigenem Zustand: Kamera, Ebene, Markierung, Materialliste, abgehakte Ebenen. Ein Import überschreibt nie einen bestehenden Tab. Die Größe ergibt sich aus dem Inhalt, leere Ränder der Datei werden abgeschnitten.
@@ -113,18 +128,18 @@ Sie läuft unter <http://localhost:4173>. Gespeicherte Tabs hängen an der Adres
 | Esc | Gesamtansicht, Markierung lösen |
 | F | ganzes Modell zeigen |
 | T | Draufsicht als Bauplan |
-| Strg + O | Schematic öffnen |
+| Strg + O | Bauplan oder Schematic öffnen |
 | ? | Bedienung anzeigen |
 
-## Brave: Ordner-Zugriff prüfen
+## Brave: Ordner-Zugriff einschalten
 
-Ab Etappe 3 speichert Tessera Projekte als `.tess`-Dateien in einem Ordner auf der Festplatte. Dafür braucht es die File System Access API, die in Brave abgeschaltet sein kann. Bis dahin wird sie nicht gebraucht; auch das Einlesen des Modpacks kommt ohne sie aus.
+Für den Projektordner braucht Tessera die File System Access API, die in Brave abgeschaltet sein kann. Das Einlesen des Modpacks und das Öffnen von Dateien kommen ohne sie aus.
 
-So prüfst du es: In Tessera oben rechts „Debug-Paket“ öffnen und die Zeile „Ordner-Zugriff“ lesen. Steht dort „abgeschaltet“, öffne `brave://flags`, suche nach „File System Access API“, stelle den Eintrag auf „Enabled“ und starte Brave neu.
+So prüfst du es: In Tessera oben rechts „Projekte“ öffnen. Steht dort, dass der Browser keinen Ordner erlaubt, öffne `brave://flags`, suche nach „File System Access API“, stelle den Eintrag auf „Enabled“ und starte Brave neu. Ohne die API lädt „Speichern“ den Bauplan als Datei herunter; Chrome und Edge haben die API immer an.
 
 ## Datenschutz
 
-Tessera lädt nichts aus dem Internet nach und sendet nichts. Schriften und Bibliotheken sind eingebaut. Geöffnete Dateien und eingelesene Jars werden nur im Browser verarbeitet; im Browser-Speicher landen die Tabs und der fertige Katalog, nicht die Jars selbst. Wenn du die Website-Daten für `localhost` löschst, sind gespeicherte Tabs und Katalog weg; die Schematic-Dateien und dein Modpack bleiben, wo sie waren.
+Tessera lädt nichts aus dem Internet nach und sendet nichts. Schriften und Bibliotheken sind eingebaut. Geöffnete Dateien und eingelesene Jars werden nur im Browser verarbeitet; im Browser-Speicher landen die Tabs, der fertige Katalog und der Verweis auf den Projektordner, nicht die Jars selbst. Tessera schreibt nur in den Unterordner `projekte/` des gewählten Ordners. Wenn du die Website-Daten für `localhost` löschst, sind gespeicherte Tabs, Katalog und Ordner-Verweis weg; Baupläne im Projektordner, Schematics und dein Modpack bleiben, wo sie waren.
 
 Spieldateien von Mojang und den Mod-Autoren gehören nicht in dieses Repository. Tessera bringt keine mit, sondern liest sie bei dir ein.
 
@@ -149,11 +164,18 @@ In der Windows-PowerShell:
 $env:TESSERA_SAMPLE_SCHEM = "samples\a05cccd2-32011.schem"; $env:TESSERA_MC_ROOT = "$env:APPDATA\.minecraft"; npm test
 ```
 
+Ein dritter optionaler Test prüft jeden Blockzustand, den die Bau-Sprache erzeugt, gegen die Vanilla-Daten von 1.21.1. Die Datei kommt aus [misode/mcmeta](https://github.com/misode/mcmeta) (Zweig `1.21.1-summary`, `blocks/data.min.json`) und gehört nicht ins Repository:
+
+```sh
+TESSERA_MCMETA_BLOCKS=pfad/zu/data.min.json npm test
+```
+
 **Aufbau**
 
 ```text
 src/
-  core/        NBT lesen und schreiben, Formate (.schem, .litematic, .nbt), Versionen, Umbenennungen
+  tess/        Bau-Sprache: Syntax, Rollen, Compiler, verbundene Blöcke
+  core/        NBT lesen und schreiben, Formate (.tess, .schem, .litematic, .nbt), Versionen, Umbenennungen
   blocks/      Blockwissen: Farben, Formen, Namen, Items (eingebaute Tabelle und Anbindung an den Katalog)
   catalog/     Block-Katalog: Jars lesen, PNG dekodieren, Modelle und Blockzustände auflösen, Tags, Rezepte, Familien
   render/      Chunk-Meshing, Shader, Raycast, Outlines, Kamera
@@ -162,7 +184,9 @@ src/
   app/         Projekte, Tabs, Import, Speicherung
   ui/          Oberfläche (Preact)
   debug/       Protokoll, Umgebung, Debug-Paket
-  platform/    Speichern von Dateien und Beispieldateien, je nach Umgebung
+  platform/    Projektordner, Speichern von Dateien und Beispieldateien, je nach Umgebung
+beispiele/     Baupläne zum Ausprobieren
+docs/          Referenz der Bau-Sprache
 scripts/       Build-Hilfen (Artefakt-Version)
 test/          Tests
 ```
@@ -173,7 +197,7 @@ Technik: TypeScript, Three.js, Preact, Vite, fflate.
 
 1. [x] **Viewer:** `.schem` laden, 3D-Ansicht mit Grundformen, Ebenen, Hover mit Wireframe-Highlight, Materialliste, Baufortschritt, Debug-Export
 2. [x] **Block-Katalog:** Minecraft-Jar und `mods`-Ordner einlesen; echte Namen, Farben, Familien, Rezepte; Rohstoff-Aufschlüsselung
-3. [ ] **Bau-Sprache, Testlauf:** kleines Haus mit Fenstern, Dach und einem Rundturm
+3. [x] **Bau-Sprache, Testlauf:** kleines Haus mit Fenstern, Dach und einem Rundturm; `.tess`-Dateien im Projektordner
 4. [ ] **Bau-Sprache, Ausbau:** alle Bauteile, Module, Rollen-Paletten, Farmen; Bearbeiten mit Undo/Redo und Versionen
 5. [ ] **Gelände-Scan:** Welt-Tab, Objekte platzieren, Erdarbeiten, Ingame-Koordinaten
 6. [ ] **Export:** `.schem`, `.nbt`, `.litematic` mit korrekt verbundenen Blöcken
@@ -189,4 +213,5 @@ Eine Desktop-App mit Tauri ist vorerst nicht geplant.
 - Noch nicht aufgeschlüsselt werden Chipped (Varianten aus den Chipped-Werkbänken), FramedBlocks und Domum Ornamentum (das Material steckt dort im einzelnen Block). Diese Blöcke stehen vorerst selbst als Rohstoff in der Liste.
 - Alte `.schematic`-Dateien (vor 1.13) liest Tessera noch nicht.
 - Kisteninhalte, Schildertexte und Objekte wie Rüstungsständer oder Rahmen werden nicht angezeigt.
-- Verbundene Blöcke (Zäune, Mauern, Scheiben) erscheinen so, wie sie in der Datei gespeichert sind.
+- Verbundene Blöcke (Zäune, Mauern, Scheiben) aus Schematics erscheinen so, wie sie in der Datei gespeichert sind; nur Baupläne rechnet Tessera selbst. Mod-Blöcke mit eigenen Verbindungsregeln sind dabei nur abgedeckt, wenn sie den Vanilla-Namen folgen.
+- Die Bau-Sprache ist im Testlauf-Umfang: noch keine Module, Wiederholungen, Spiegelungen, ASCII-Ebenen, Bögen, Kuppeln oder Farmen, und Baupläne lassen sich in Tessera noch nicht bearbeiten (nur die Datei selbst).

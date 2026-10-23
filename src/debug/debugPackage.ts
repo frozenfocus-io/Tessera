@@ -1,6 +1,7 @@
 import { strToU8, zipSync } from 'fflate';
 import type { Project } from '../app/project';
 import { catalog, catalogOrigin, compactLayout, sideSheet, touchFirst } from '../app/workspace';
+import { folderFiles, folderName, folderStatus } from '../platform/folder';
 import { inArtifactViewer } from '../platform/save';
 import { BUILD_TIME, STAGE, VERSION } from '../version';
 import { collectEnvironment, browserLabel } from './environment';
@@ -51,6 +52,14 @@ function projectReport(p: Project): Record<string, unknown> {
     warnings: r.info.warnings,
     renames: r.info.renames,
     unknownBlocks: p.unknownBlocks,
+    plan: p.isPlan
+      ? {
+          diagnostics: r.diagnostics ?? [],
+          link: p.link.value,
+          fileMissing: p.fileMissing.value,
+          lastFileError: p.fileIssue.value,
+        }
+      : undefined,
     importTimingsMs: Object.fromEntries(Object.entries(r.timings).map(([k, v]) => [k, Math.round(v * 10) / 10])),
     meshing: stats
       ? {
@@ -123,6 +132,7 @@ export async function buildDebugPackage(opts: DebugPackageOptions): Promise<{ bl
           sources: catalog.value.sources,
         }
       : null,
+    projectFolder: { status: folderStatus.value, name: folderName.value, files: folderFiles.value.length },
     activeProject: opts.activeId,
     projects: opts.projects.map(projectReport),
     logCounts: { ...log.counts },

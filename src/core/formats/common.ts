@@ -6,7 +6,7 @@ import type { Volume } from '../volume';
 /** Largest volume we accept (cells). Beyond that the browser would run out of memory. */
 export const MAX_CELLS = 256 * 1024 * 1024;
 
-export type FormatId = 'schem' | 'litematic' | 'structure';
+export type FormatId = 'schem' | 'litematic' | 'structure' | 'tess';
 
 /** What a format parser knows about the file besides the blocks. */
 export interface FormatInfo {

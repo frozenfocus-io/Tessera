@@ -1,8 +1,10 @@
 import { useEffect, useRef, useState } from 'preact/hooks';
 import { Fragment, type ComponentChildren } from 'preact';
 import { getPool, getViewer } from '../app/viewController';
-import { activeId, activeProject, catalogDialogOpen, debugOpen, helpOpen, lastBenchmark, projects, showToast, touchFirst } from '../app/workspace';
+import { activeId, activeProject, catalogDialogOpen, debugOpen, folderDialogOpen, helpOpen, lastBenchmark, projects, showToast, touchFirst } from '../app/workspace';
+import { folderName, folderStatus } from '../platform/folder';
 import { CatalogContent } from './CatalogDialog';
+import { FolderContent } from './FolderDialog';
 import { buildDebugPackage } from '../debug/debugPackage';
 import { saveFile } from '../platform/save';
 import { browserLabel, collectEnvironment, type EnvironmentInfo } from '../debug/environment';
@@ -48,6 +50,11 @@ export function Dialogs() {
           <CatalogContent />
         </Dialog>
       ) : null}
+      {folderDialogOpen.value ? (
+        <Dialog title="Projekte" onClose={() => (folderDialogOpen.value = false)} wide>
+          <FolderContent onOpened={() => (folderDialogOpen.value = false)} />
+        </Dialog>
+      ) : null}
     </>
   );
 }
@@ -61,7 +68,7 @@ const SHORTCUTS: [string, string][] = [
   ['Esc', 'Gesamtansicht, Markierung lösen'],
   ['F', 'ganzes Modell zeigen'],
   ['T', 'Draufsicht als Bauplan (ohne Perspektive)'],
-  ['Strg + O', 'Schematic öffnen'],
+  ['Strg + O', 'Bauplan oder Schematic öffnen'],
 ];
 
 const GESTURES: [string, string][] = [
@@ -208,6 +215,16 @@ function DebugDialog() {
               : env.isBrave
                 ? 'abgeschaltet – in Brave unter brave://flags „File System Access API“ aktivieren'
                 : 'nicht verfügbar in diesem Browser'}
+        </dd>
+        <dt>Projektordner</dt>
+        <dd>
+          {folderStatus.value === 'ready'
+            ? `${folderName.value}, verbunden`
+            : folderStatus.value === 'needs-permission'
+              ? `${folderName.value}, Zugriff noch nicht erneut erlaubt`
+              : folderStatus.value === 'none'
+                ? 'noch keiner gewählt'
+                : '–'}
         </dd>
         <dt>Speicher</dt>
         <dd>

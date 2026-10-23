@@ -1,6 +1,10 @@
 import { batch } from '@preact/signals';
+import { looksLikeTess } from '../core/formats/tess';
 import { importFile, ImportError, type ImportResult } from '../core/importFile';
+import type { Catalog } from '../catalog/types';
 import { log } from '../debug/log';
+import { folderStatus, readProjectFile } from '../platform/folder';
+import type { BlockHints } from '../tess/palette';
 import type { ParseRequest, ParseResponse } from '../workers/parseWorker';
 import {
   deleteStoredProject,
@@ -9,6 +13,7 @@ import {
   saveProjectSource,
   saveProjectState,
   saveWorkspace,
+  type FileLink,
   type StoredProject,
 } from './persistence';
 import { Project, type PersistedState } from './project';
@@ -16,8 +21,26 @@ import { activeId, catalog, importing, projects, showToast } from './workspace';
 
 let parseId = 1;
 
+let hintsCache: { catalog: Catalog; hints: BlockHints } | null = null;
+
+/** What the building language needs from the catalog: known block ids and families. */
+export function hintsFor(c: Catalog | null): BlockHints | undefined {
+  if (!c) return undefined;
+  if (hintsCache?.catalog === c) return hintsCache.hints;
+  const families: Record<string, Partial<Record<string, string>>> = {};
+  for (const [base, f] of Object.entries(c.families)) {
+    const m: Partial<Record<string, string>> = {};
+    for (const role of ['stairs', 'slab', 'wall', 'fence'] as const) if (f.members[role]) m[role] = f.members[role];
+    families[base] = m;
+  }
+  const hints: BlockHints = { known: Object.keys(c.blocks), families };
+  hintsCache = { catalog: c, hints };
+  return hints;
+}
+
 /** Parses a file in a Web Worker (falls back to the main thread if workers are unavailable). */
 export function parseFile(fileName: string, bytes: Uint8Array): Promise<{ result: ImportResult; ms: number }> {
+  const hints = looksLikeTess(bytes) ? hintsFor(catalog.value) : undefined;
   return new Promise((resolve, reject) => {
     let worker: Worker;
     try {
@@ -26,7 +49,7 @@ export function parseFile(fileName: string, bytes: Uint8Array): Promise<{ result
       log.warn('import', 'Parse-Worker nicht verfügbar, lese im Hauptthread', e);
       try {
         const t0 = performance.now();
-        resolve({ result: importFile(fileName, bytes), ms: performance.now() - t0 });
+        resolve({ result: importFile(fileName, bytes, { hints }), ms: performance.now() - t0 });
       } catch (err) {
         reject(err);
       }
@@ -38,7 +61,9 @@ export function parseFile(fileName: string, bytes: Uint8Array): Promise<{ result
       const msg = ev.data;
       if (msg.ok) resolve({ result: msg.result, ms: msg.ms });
       else {
-        const err = msg.error.userFacing ? new ImportError(msg.error.message, msg.error.detail) : new Error(msg.error.message);
+        const err = msg.error.userFacing
+          ? new ImportError(msg.error.message, msg.error.detail, msg.error.diagnostics)
+          : new Error(msg.error.message);
         if (msg.error.stack) err.stack = msg.error.stack;
         reject(err);
       }
@@ -48,13 +73,13 @@ export function parseFile(fileName: string, bytes: Uint8Array): Promise<{ result
       log.warn('import', 'Parse-Worker abgestürzt, lese im Hauptthread', { message: ev.message });
       try {
         const t0 = performance.now();
-        resolve({ result: importFile(fileName, bytes), ms: performance.now() - t0 });
+        resolve({ result: importFile(fileName, bytes, { hints }), ms: performance.now() - t0 });
       } catch (err) {
         reject(err);
       }
     };
     // The worker gets a copy; the original bytes stay here for saving and the debug package.
-    const req: ParseRequest = { id, fileName, bytes };
+    const req: ParseRequest = { id, fileName, bytes, hints };
     worker.postMessage(req);
   });
 }
@@ -67,7 +92,7 @@ function baseName(fileName: string): string {
 const saveTimers = new Map<string, ReturnType<typeof setTimeout>>();
 
 export function storedOf(p: Project): StoredProject {
-  return { id: p.id, name: p.name, fileName: p.fileName, createdAt: p.createdAt, updatedAt: Date.now(), state: p.persisted() };
+  return { id: p.id, name: p.name, fileName: p.fileName, createdAt: p.createdAt, updatedAt: Date.now(), state: p.persisted(), link: p.link.value };
 }
 
 /** Saves the project's view state shortly after the last change. */
@@ -100,6 +125,8 @@ export interface OpenOptions {
   state?: Partial<PersistedState>;
   activate?: boolean;
   persist?: boolean;
+  /** The .tess file in the project folder the tab belongs to. */
+  link?: FileLink | null;
 }
 
 /** Reads one file into a new project and opens it in a new tab (never replaces an open tab). */
@@ -118,6 +145,7 @@ export async function openBytes(fileName: string, bytes: Uint8Array, opts: OpenO
       catalog: catalog.value,
     });
     if (opts.state) project.restore(opts.state);
+    if (opts.link) project.link.value = opts.link;
     log.info('import', `${fileName} gelesen`, {
       format: result.formatLabel,
       minecraft: result.minecraftVersion,
@@ -143,8 +171,10 @@ export async function openBytes(fileName: string, bytes: Uint8Array, opts: OpenO
     return project;
   } catch (e) {
     const message = e instanceof Error ? e.message : String(e);
-    log.error('import', `${fileName} konnte nicht geöffnet werden: ${message}`, e);
-    showToast('error', `${fileName} konnte nicht geöffnet werden.`, message);
+    // Building plans: the line-numbered messages are what the person (or Claude) needs.
+    const lines = e instanceof ImportError && e.diagnostics ? e.detail : undefined;
+    log.error('import', `${fileName} konnte nicht geöffnet werden: ${message}`, lines ?? e);
+    showToast('error', `${fileName} konnte nicht geöffnet werden.`, lines ? `${message}\n${lines}` : message, lines ? 20000 : undefined);
     return null;
   } finally {
     importing.value = importing.value.filter((f) => f.fileName !== fileName);
@@ -155,11 +185,23 @@ export async function openFiles(files: Iterable<File>): Promise<void> {
   for (const file of files) {
     try {
       const bytes = new Uint8Array(await file.arrayBuffer());
-      await openBytes(file.name, bytes);
+      await openBytes(file.name, bytes, { link: await sameFileInFolder(file.name, bytes) });
     } catch (e) {
       log.error('import', `${file.name} konnte nicht gelesen werden`, e);
       showToast('error', `${file.name} konnte nicht gelesen werden.`);
     }
+  }
+}
+
+/** A plan opened from elsewhere that is byte for byte the file in the project folder gets linked to it. */
+async function sameFileInFolder(name: string, bytes: Uint8Array): Promise<FileLink | null> {
+  if (folderStatus.value !== 'ready' || !looksLikeTess(bytes)) return null;
+  try {
+    const file = await readProjectFile(name);
+    if (!file || file.bytes.length !== bytes.length || !file.bytes.every((b, i) => b === bytes[i])) return null;
+    return { name, ...file.stamp };
+  } catch {
+    return null;
   }
 }
 
@@ -218,14 +260,36 @@ async function restoreTabs(): Promise<void> {
   if (stored.length === 0) return;
   log.info('workspace', `Stelle ${stored.length} Projekt(e) wieder her`);
   for (const { stored: s, source } of stored) {
-    await openBytes(s.fileName, source, {
+    // A building plan in the project folder is read from there: it may have changed meanwhile.
+    let bytes = source;
+    let link = s.link ?? null;
+    let fromFolder = false;
+    if (link && folderStatus.value === 'ready') {
+      try {
+        const file = await readProjectFile(link.name);
+        if (file) {
+          fromFolder = file.stamp.lastModified !== link.lastModified || file.stamp.size !== link.size;
+          bytes = file.bytes;
+          link = { name: link.name, ...file.stamp };
+        }
+      } catch (e) {
+        log.warn('folder', `${link.name} konnte nicht aus dem Projektordner gelesen werden`, e);
+      }
+    }
+    const p = await openBytes(s.fileName, bytes, {
       id: s.id,
       name: s.name,
       createdAt: s.createdAt,
       state: s.state,
       activate: false,
-      persist: false,
+      persist: fromFolder,
+      link,
     });
+    // The changed file did not build: show the last good copy and keep the problem visible.
+    if (!p && fromFolder) {
+      const fallback = await openBytes(s.fileName, source, { id: s.id, name: s.name, createdAt: s.createdAt, state: s.state, activate: false, persist: false, link: s.link });
+      if (fallback && link) fallback.fileIssue.value = { message: 'Die geänderte Datei ließ sich nicht übersetzen.', stamp: link };
+    }
   }
   const ids = projects.value.map((p) => p.id);
   activeId.value = lastActive && ids.includes(lastActive) ? lastActive : (ids[0] ?? null);

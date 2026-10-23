@@ -1325,7 +1325,79 @@ fieldset.choice input {
 .dialog-actions {
   display: flex;
   justify-content: flex-end;
+  gap: 8px;
   margin-top: 18px;
+}
+
+/* Project folder: building plans */
+.file-list {
+  margin: 12px 0 0;
+  padding: 0;
+  list-style: none;
+  border: 1px solid var(--mortar);
+  border-radius: var(--r-s);
+  max-height: 50vh;
+  overflow: auto;
+}
+.file-list li + li {
+  border-top: 1px solid var(--mortar);
+}
+.file-row {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  width: 100%;
+  padding: 8px 12px;
+  border: 0;
+  background: none;
+  color: var(--limestone);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+.file-row:hover,
+.file-row:focus-visible {
+  background: rgba(255, 255, 255, 0.04);
+}
+.file-name {
+  flex: 1;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+.badge {
+  padding: 1px 6px;
+  border-radius: 999px;
+  background: rgba(70, 177, 166, 0.16);
+  color: var(--prismarine);
+  font-size: 12px;
+}
+.plan-file {
+  margin-top: 10px;
+}
+.plan-file p {
+  margin: 0 0 6px;
+  font-size: 13px;
+}
+.plan-path {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--limestone-2);
+}
+.plan-path code {
+  font-family: var(--font);
+  overflow-wrap: anywhere;
+}
+.notice-open .notice-body {
+  padding-top: 8px;
+}
+.plan-errors {
+  margin: 0;
+  max-height: 160px;
+  overflow: auto;
+  font: 12px/1.45 ui-monospace, Consolas, monospace;
+  white-space: pre-wrap;
+  color: var(--limestone);
 }
 
 .toasts {
@@ -1364,6 +1436,9 @@ fieldset.choice input {
   margin-top: 2px;
   font-size: 12.5px;
   color: var(--limestone-2);
+  white-space: pre-line;
+  max-height: 40vh;
+  overflow: auto;
 }
 
 .drop-overlay {

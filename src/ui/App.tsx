@@ -8,7 +8,7 @@ import { Toasts } from './Toasts';
 import { TopBar } from './TopBar';
 import { Viewport } from './Viewport';
 
-const ACCEPT = '.schem,.schematic,.litematic,.nbt';
+const ACCEPT = '.tess,.schem,.schematic,.litematic,.nbt';
 
 function isTyping(target: EventTarget | null): boolean {
   const el = target as HTMLElement | null;

@@ -1,0 +1,45 @@
+# Testlauf Etappe 3: Fachwerkhaus mit Satteldach und angebautem Rundturm.
+# Koordinaten: x nach Osten, y nach oben, z nach Süden. Der Boden draußen liegt bei y=-1.
+tess 1
+projekt "Haus mit Rundturm"
+samen 7
+
+rolle wand white_terracotta
+rolle balken dark_oak_log
+rolle sockel cobblestone:3 mossy_cobblestone:1
+rolle boden spruce_planks
+rolle dach spruce_planks
+rolle rahmen spruce_planks
+rolle glas glass_pane
+rolle laden spruce_trapdoor
+rolle tuer spruce_door
+rolle mauer stone_bricks:6 mossy_stone_bricks:2 cracked_stone_bricks:2
+rolle zier stone_bricks
+rolle turmdach deepslate_tiles
+
+# Haus: 11 × 8 Blöcke, Sockel auf y=0, Fachwerk bis y=5
+box haus 0,0,0 10,5,7 wand hohl sockel=sockel fachwerk=balken raster=4 boden=boden
+dach sattel haus first=x ueberstand=1
+
+fenster haus s y=2 x=2 laeden=laden
+tür haus s x=6
+block 6,0,8 spruce_stairs[facing=north]
+fenster haus n y=2 x=2 anzahl=2 abstand=4 laeden=laden
+fenster haus w y=2 z=2
+fenster haus w y=7 z=3 b=2 bank=nein sturz=nein   # Giebelfenster
+fenster haus o y=2 z=2
+
+# Schornstein durch den Südhang
+box 7,6,5 7,11,5 sockel
+
+# Rundturm an der Südostecke, 7 Blöcke Durchmesser, höher als der First
+zylinder turm 12,0,9 r=3 h=13 mauer hohl sockel=sockel kranz=zier boden=boden
+dach kegel turm ueberstand=1 steil=2 rolle=turmdach spitze=spruce_fence
+
+tür turm s rahmen=zier
+block 12,0,13 stone_brick_stairs[facing=north]
+fenster turm s y=6 rahmen=zier
+fenster turm o y=3 rahmen=zier
+fenster turm o y=8 rahmen=zier
+fenster turm w y=9 rahmen=zier
+fenster turm n y=6 rahmen=zier

@@ -1,6 +1,7 @@
 import { closeProject } from '../app/importer';
-import { activeId, catalog, catalogDialogOpen, debugOpen, helpOpen, importing, projects } from '../app/workspace';
-import { IconCatalog, IconClose, IconHelp, IconOpen, IconPackage, Mark } from './icons';
+import { activeId, catalog, catalogDialogOpen, debugOpen, folderDialogOpen, helpOpen, importing, projects } from '../app/workspace';
+import { folderStatus } from '../platform/folder';
+import { IconCatalog, IconClose, IconFolder, IconHelp, IconOpen, IconPackage, Mark } from './icons';
 
 export function TopBar({ onOpen }: { onOpen: () => void }) {
   const list = projects.value;
@@ -39,11 +40,19 @@ export function TopBar({ onOpen }: { onOpen: () => void }) {
             <span class="tab-busy" />
           </div>
         ))}
-        <button class="btn btn-ghost open-btn" onClick={onOpen} title="Schematic öffnen (Strg+O)" aria-label="Schematic öffnen">
+        <button class="btn btn-ghost open-btn" onClick={onOpen} title="Bauplan oder Schematic öffnen (Strg+O)" aria-label="Datei öffnen">
           <IconOpen /> <span class="btn-label">Öffnen</span>
         </button>
       </nav>
       <div class="topbar-actions">
+        <button
+          class={`btn btn-ghost${folderStatus.value === 'needs-permission' ? ' needs-catalog' : ''}`}
+          onClick={() => (folderDialogOpen.value = true)}
+          title={folderStatus.value === 'needs-permission' ? 'Projektordner: Zugriff erneut erlauben' : 'Baupläne im Projektordner'}
+          aria-label="Projekte"
+        >
+          <IconFolder /> <span class="btn-label">Projekte</span>
+        </button>
         <button
           class={`btn btn-ghost${catalog.value ? '' : ' needs-catalog'}`}
           onClick={() => (catalogDialogOpen.value = true)}

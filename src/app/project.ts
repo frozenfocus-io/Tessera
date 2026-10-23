@@ -7,6 +7,8 @@ import type { Bounds } from '../core/volume';
 import { MaterialIndex } from '../materials/materialList';
 import type { OutlineInfo, ProjectScene, SceneStats } from '../render/ProjectScene';
 import type { CameraState } from '../render/Viewer';
+import type { FileStamp } from '../platform/folder';
+import type { FileLink } from './persistence';
 
 export type ViewMode = 'all' | 'slice' | 'single';
 export type MaterialMode = 'all' | 'layer' | 'from' | 'open';
@@ -81,6 +83,12 @@ export class Project {
   readonly outlineInfo = signal<OutlineInfo>({ shown: 0, total: 0, limit: 'none' });
   /** Revision counter, bumped on every saved-state change (drives persistence). */
   readonly revision = signal(0);
+  /** Building plans: the .tess file in the project folder this tab belongs to. */
+  readonly link = signal<FileLink | null>(null);
+  /** The linked file changed but could not be built; the tab still shows the last good version. */
+  readonly fileIssue = signal<{ message: string; detail?: string; stamp: FileStamp } | null>(null);
+  /** The linked file is gone from the folder. */
+  readonly fileMissing = signal(false);
 
   camera: CameraState | null = null;
   scene: ProjectScene | null = null;
@@ -121,6 +129,11 @@ export class Project {
       .filter((t: BlockTypeInfo) => t.marked && (byType.get(t.typeId) ?? 0) > 0)
       .map((t) => ({ name: t.name, displayName: t.displayName, count: byType.get(t.typeId) ?? 0 }))
       .sort((a, b) => b.count - a.count);
+  }
+
+  /** A building plan (.tess) rather than an imported schematic. */
+  get isPlan(): boolean {
+    return this.data.format === 'tess';
   }
 
   get layerCount(): number {

@@ -28,6 +28,7 @@ export const projection = signal<'perspective' | 'orthographic'>('perspective');
 export const helpOpen = signal(false);
 export const debugOpen = signal(false);
 export const catalogDialogOpen = signal(false);
+export const folderDialogOpen = signal(false);
 
 /** A signal that follows a media query. The queries match the breakpoints in app.css. */
 function mediaSignal(query: string) {

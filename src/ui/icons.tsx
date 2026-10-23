@@ -122,6 +122,17 @@ export function Mark({ size = 20 }: { size?: number }) {
     </svg>
   );
 }
+export const IconFolder = (p: IconProps) => (
+  <Svg {...p}>
+    <path d="M2.5 12.5v-9h4l1.5 1.5h5.5v7.5z" />
+  </Svg>
+);
+export const IconSave = (p: IconProps) => (
+  <Svg {...p}>
+    <path d="M3 2.5h8l2.5 2.5v8.5h-10.5z" />
+    <path d="M5.5 2.5v3h4.5v-3M5 13.5v-4h6v4" />
+  </Svg>
+);
 export const IconCatalog = (p: IconProps) => (
   <Svg {...p}>
     <rect x="2.5" y="2.5" width="4.5" height="4.5" rx="0.8" />
