@@ -1,6 +1,6 @@
 import { closeProject } from '../app/importer';
-import { activeId, debugOpen, helpOpen, importing, projects } from '../app/workspace';
-import { IconClose, IconHelp, IconOpen, IconPackage, Mark } from './icons';
+import { activeId, catalog, catalogDialogOpen, debugOpen, helpOpen, importing, projects } from '../app/workspace';
+import { IconCatalog, IconClose, IconHelp, IconOpen, IconPackage, Mark } from './icons';
 
 export function TopBar({ onOpen }: { onOpen: () => void }) {
   const list = projects.value;
@@ -44,6 +44,14 @@ export function TopBar({ onOpen }: { onOpen: () => void }) {
         </button>
       </nav>
       <div class="topbar-actions">
+        <button
+          class={`btn btn-ghost${catalog.value ? '' : ' needs-catalog'}`}
+          onClick={() => (catalogDialogOpen.value = true)}
+          title={catalog.value ? 'Block-Katalog: eingelesenes Modpack' : 'Modpack einlesen: echte Namen, Farben und Rezepte'}
+          aria-label="Block-Katalog"
+        >
+          <IconCatalog /> <span class="btn-label">{catalog.value ? 'Katalog' : 'Modpack einlesen'}</span>
+        </button>
         <button
           class="btn btn-ghost"
           onClick={() => (debugOpen.value = true)}

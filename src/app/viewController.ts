@@ -90,6 +90,14 @@ function ensureScene(p: Project): ProjectScene {
   return scene;
 }
 
+/** Drops a project's scene and its bindings (before the project object is replaced). */
+export function releaseProject(p: Project): void {
+  bindings.get(p.id)?.();
+  bindings.delete(p.id);
+  p.scene?.dispose();
+  p.scene = null;
+}
+
 /** Creates the viewer inside the given element and wires it to the workspace. */
 export function attachViewer(container: HTMLElement): () => void {
   viewer = new Viewer(container);

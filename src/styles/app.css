@@ -956,12 +956,12 @@ table.material td {
 }
 th.c-num,
 td.c-num {
-  width: 74px;
+  width: 60px;
   text-align: right;
 }
 th.c-stack,
 td.c-stack {
-  width: 108px;
+  width: 96px;
   text-align: right;
   color: var(--limestone-2);
   font-size: 12.5px;
@@ -996,6 +996,242 @@ td.c-sk {
   padding: 16px 0;
   border-top: 1px solid var(--mortar);
   margin: 0;
+}
+
+/* Material list or raw materials: two text tabs, the scope switch below them. */
+.view-tabs {
+  display: flex;
+  gap: 16px;
+  margin-bottom: 10px;
+}
+.scope-switch {
+  margin-bottom: 12px;
+}
+.view-tabs button {
+  padding: 2px 0 4px;
+  border: 0;
+  border-bottom: 2px solid transparent;
+  background: none;
+  color: var(--limestone-3);
+  font-size: 15px;
+  font-weight: 600;
+  cursor: pointer;
+}
+.view-tabs button.is-on {
+  color: var(--limestone);
+  border-bottom-color: var(--prismarine);
+}
+@media (hover: hover) {
+  .view-tabs button:hover {
+    color: var(--limestone);
+  }
+}
+table.material tbody tr.is-static {
+  cursor: default;
+}
+/* German names are long: let them wrap onto a second line instead of cutting them off. */
+table.material td.c-name {
+  white-space: normal;
+  line-height: 1.25;
+}
+.cell-name {
+  display: flex;
+  align-items: center;
+  min-width: 0;
+}
+.cell-name .name {
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  overflow-wrap: anywhere;
+  hyphens: auto;
+}
+.raw-empty {
+  display: grid;
+  justify-items: start;
+  gap: 10px;
+  padding: 10px 0;
+  border-top: 1px solid var(--mortar);
+  color: var(--limestone-2);
+}
+.raw-empty p {
+  margin: 0;
+}
+.craft {
+  padding: 14px 4px 6px;
+}
+.craft h4 {
+  margin: 0 0 2px;
+  font-size: 13.5px;
+}
+.craft-note {
+  margin: 0 0 8px;
+  font-size: 12px;
+}
+.craft-list {
+  display: grid;
+  gap: 8px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.craft-list li {
+  display: grid;
+  gap: 4px;
+}
+.craft-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 8px;
+  font-size: 13px;
+}
+.craft-name {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.craft-count {
+  flex: none;
+  font-variant-numeric: tabular-nums;
+  color: var(--limestone-2);
+}
+.craft-select {
+  width: 100%;
+  min-width: 0;
+  padding: 5px 6px;
+  border: 1px solid var(--mortar);
+  border-radius: var(--r-s);
+  background: var(--night);
+  color: var(--limestone-2);
+  font: inherit;
+  font-size: 12.5px;
+}
+
+/* Block catalog dialog */
+.needs-catalog {
+  color: var(--prismarine);
+}
+.catalog-none {
+  margin-top: 0;
+  padding: 10px 12px;
+  border: 1px solid var(--mortar);
+  border-radius: var(--r-s);
+  background: var(--slate-2);
+}
+.catalog-status h3,
+.catalog-import h3 {
+  margin: 0 0 8px;
+  font-size: 15px;
+}
+.catalog-status {
+  padding-bottom: 14px;
+  border-bottom: 1px solid var(--mortar);
+}
+.catalog-status .notice-toggle {
+  margin-top: 8px;
+  padding-left: 0;
+  color: var(--limestone-2);
+}
+.catalog-sources {
+  display: grid;
+  gap: 4px;
+  max-height: 220px;
+  margin: 4px 0 0;
+  padding: 0;
+  overflow: auto;
+  list-style: none;
+  font-size: 12.5px;
+}
+.catalog-sources li {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  gap: 2px 10px;
+}
+.src-name {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+.catalog-notes {
+  margin: 8px 0 0;
+  font-size: 12.5px;
+  color: var(--limestone-3);
+  overflow-wrap: anywhere;
+}
+.catalog-warn {
+  margin: 8px 0 0;
+  font-size: 12.5px;
+  color: var(--redstone-soft);
+}
+.catalog-import {
+  padding-top: 14px;
+}
+.catalog-import > p {
+  margin: 0 0 10px;
+  font-size: 13px;
+}
+.catalog-steps {
+  display: grid;
+  gap: 14px;
+  margin: 0;
+  padding-left: 20px;
+}
+.catalog-steps .muted {
+  margin: 2px 0 8px;
+  font-size: 12.5px;
+}
+.catalog-steps code {
+  font-size: 12px;
+  color: var(--limestone-2);
+  overflow-wrap: anywhere;
+}
+.step-title {
+  font-weight: 600;
+}
+.step-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.step-result {
+  margin: 8px 0 0;
+  font-size: 12.5px;
+}
+.step-result.is-ok {
+  color: #c3e4b9;
+}
+.step-result.is-bad {
+  color: var(--redstone-soft);
+}
+.catalog-run {
+  display: grid;
+  gap: 6px;
+  margin-top: 12px;
+}
+.catalog-run p {
+  margin: 0;
+  font-size: 12.5px;
+}
+.catalog-remove {
+  margin: 12px 0 0;
+  text-align: right;
+}
+.link-btn {
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--prismarine);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+.hc-meta {
+  margin: 6px 0 0;
+  font-size: 12px;
+  color: var(--limestone-3);
 }
 
 /* ---------------------------------------------------------------- dialogs, toasts, drop */
@@ -1261,17 +1497,6 @@ fieldset.choice input {
 }
 .sheet-body .material-scroll {
   min-height: 0;
-}
-/* The tab already says "Material": the scope switch gets the whole width. */
-.sheet-body .panel-head h3 {
-  display: none;
-}
-.sheet-body .panel-head .segmented {
-  display: flex;
-  flex: 1;
-}
-.sheet-body .panel-head .segmented button {
-  flex: 1;
 }
 /* While the sheet is open the 3D view is small; the info card would cover all of it. */
 .workspace:has(.sheet.is-expanded:not(.is-side)) .hover-card {

@@ -1,6 +1,6 @@
 import { strToU8, zipSync } from 'fflate';
 import type { Project } from '../app/project';
-import { compactLayout, sideSheet, touchFirst } from '../app/workspace';
+import { catalog, catalogOrigin, compactLayout, sideSheet, touchFirst } from '../app/workspace';
 import { inArtifactViewer } from '../platform/save';
 import { BUILD_TIME, STAGE, VERSION } from '../version';
 import { collectEnvironment, browserLabel } from './environment';
@@ -77,6 +77,8 @@ function projectReport(p: Project): Record<string, unknown> {
       viewMode: p.viewMode.value,
       doneLayers: [...p.done.value].sort((a, b) => a - b),
       materialMode: p.materialMode.value,
+      materialView: p.materialView.value,
+      recipeChoices: p.recipeChoice.value,
       pinned: p.pinned.value,
       camera: p.camera,
     },
@@ -108,6 +110,19 @@ export async function buildDebugPackage(opts: DebugPackageOptions): Promise<{ bl
       artifactViewer: inArtifactViewer(),
       viewport: { width: window.innerWidth, height: window.innerHeight, pixelRatio: window.devicePixelRatio },
     },
+    catalog: catalog.value
+      ? {
+          origin: catalogOrigin.value,
+          minecraft: catalog.value.minecraft,
+          createdAt: catalog.value.createdAt,
+          blocks: Object.keys(catalog.value.blocks).length,
+          models: catalog.value.models.length,
+          recipes: catalog.value.recipes.length,
+          families: Object.keys(catalog.value.families).length,
+          warnings: catalog.value.warnings,
+          sources: catalog.value.sources,
+        }
+      : null,
     activeProject: opts.activeId,
     projects: opts.projects.map(projectReport),
     logCounts: { ...log.counts },

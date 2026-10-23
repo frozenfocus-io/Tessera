@@ -1,7 +1,8 @@
 import { useEffect, useRef, useState } from 'preact/hooks';
 import { Fragment, type ComponentChildren } from 'preact';
 import { getPool, getViewer } from '../app/viewController';
-import { activeId, activeProject, debugOpen, helpOpen, lastBenchmark, projects, showToast, touchFirst } from '../app/workspace';
+import { activeId, activeProject, catalogDialogOpen, debugOpen, helpOpen, lastBenchmark, projects, showToast, touchFirst } from '../app/workspace';
+import { CatalogContent } from './CatalogDialog';
 import { buildDebugPackage } from '../debug/debugPackage';
 import { saveFile } from '../platform/save';
 import { browserLabel, collectEnvironment, type EnvironmentInfo } from '../debug/environment';
@@ -42,6 +43,11 @@ export function Dialogs() {
     <>
       {helpOpen.value ? <HelpDialog /> : null}
       {debugOpen.value ? <DebugDialog /> : null}
+      {catalogDialogOpen.value ? (
+        <Dialog title="Block-Katalog" onClose={() => (catalogDialogOpen.value = false)} wide>
+          <CatalogContent />
+        </Dialog>
+      ) : null}
     </>
   );
 }

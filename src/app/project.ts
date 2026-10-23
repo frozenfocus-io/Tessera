@@ -1,5 +1,7 @@
 import { signal } from '@preact/signals';
 import { buildBlockModel, type BlockModel, type BlockTypeInfo } from '../blocks/blockModel';
+import { itemName } from '../catalog/runtime';
+import type { Catalog } from '../catalog/types';
 import type { ImportResult } from '../core/importFile';
 import type { Bounds } from '../core/volume';
 import { MaterialIndex } from '../materials/materialList';
@@ -17,6 +19,10 @@ export interface PersistedState {
   materialMode: MaterialMode;
   camera: CameraState | null;
   pinned: string | null;
+  /** Raw material breakdown: item -> chosen recipe id or "raw". */
+  recipeChoice?: Record<string, string>;
+  /** Material list or raw materials. */
+  materialView?: 'blocks' | 'raw';
 }
 
 export interface HoverInfo {
@@ -62,6 +68,10 @@ export class Project {
   readonly viewMode = signal<ViewMode>('all');
   readonly done = signal<ReadonlySet<number>>(new Set());
   readonly materialMode = signal<MaterialMode>('all');
+  /** Material list or raw material breakdown. */
+  readonly materialView = signal<'blocks' | 'raw'>('blocks');
+  /** Per item: which recipe the raw material breakdown uses ("raw" = gather it). */
+  readonly recipeChoice = signal<Readonly<Record<string, string>>>({});
   /** Item pinned from the material list (its blocks stay highlighted). */
   readonly pinned = signal<string | null>(null);
   readonly hover = signal<HoverInfo | null>(null);
@@ -75,15 +85,28 @@ export class Project {
   camera: CameraState | null = null;
   scene: ProjectScene | null = null;
 
-  constructor(opts: { id?: string; name: string; fileName: string; createdAt?: number; source: Uint8Array; data: ImportResult }) {
+  /** The catalog the block model was built with (null: built-in tables only). */
+  readonly catalog: Catalog | null;
+
+  constructor(opts: {
+    id?: string;
+    name: string;
+    fileName: string;
+    createdAt?: number;
+    source: Uint8Array;
+    data: ImportResult;
+    catalog?: Catalog | null;
+  }) {
     this.id = opts.id ?? newId();
     this.name = opts.name;
     this.fileName = opts.fileName;
     this.createdAt = opts.createdAt ?? Date.now();
     this.source = opts.source;
     this.data = opts.data;
-    this.model = buildBlockModel(opts.data.volume.palette);
-    this.materials = new MaterialIndex(this.model.entries, opts.data.analysis.layerHist, opts.data.volume.sizeY);
+    this.catalog = opts.catalog ?? null;
+    this.model = buildBlockModel(opts.data.volume.palette, this.catalog);
+    const catalog = this.catalog;
+    this.materials = new MaterialIndex(this.model.entries, opts.data.analysis.layerHist, opts.data.volume.sizeY, (item) => itemName(catalog, item));
     this.bounds = opts.data.analysis.bounds;
     this.minLayer = this.bounds ? this.bounds.minY : 0;
     this.maxLayer = this.bounds ? this.bounds.maxY - 1 : 0;
@@ -146,6 +169,8 @@ export class Project {
       materialMode: this.materialMode.value,
       camera: this.camera,
       pinned: this.pinned.value,
+      recipeChoice: { ...this.recipeChoice.value },
+      materialView: this.materialView.value,
     };
   }
 
@@ -158,6 +183,12 @@ export class Project {
     }
     if (s.camera && Array.isArray(s.camera.position) && Array.isArray(s.camera.target)) this.camera = s.camera;
     if (typeof s.pinned === 'string') this.pinned.value = s.pinned;
+    if (s.recipeChoice && typeof s.recipeChoice === 'object') {
+      const clean: Record<string, string> = {};
+      for (const [k, v] of Object.entries(s.recipeChoice)) if (typeof v === 'string') clean[k] = v;
+      this.recipeChoice.value = clean;
+    }
+    if (s.materialView === 'blocks' || s.materialView === 'raw') this.materialView.value = s.materialView;
   }
 
   touch(): void {
@@ -196,6 +227,19 @@ export class Project {
 
   setMaterialMode(m: MaterialMode): void {
     this.materialMode.value = m;
+    this.touch();
+  }
+
+  setMaterialView(v: 'blocks' | 'raw'): void {
+    this.materialView.value = v;
+    this.touch();
+  }
+
+  chooseRecipe(item: string, choice: string): void {
+    const next = { ...this.recipeChoice.value };
+    if (choice === 'auto') delete next[item];
+    else next[item] = choice;
+    this.recipeChoice.value = next;
     this.touch();
   }
 

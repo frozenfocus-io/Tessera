@@ -12,7 +12,7 @@ import {
   type StoredProject,
 } from './persistence';
 import { Project, type PersistedState } from './project';
-import { activeId, importing, projects, showToast } from './workspace';
+import { activeId, catalog, importing, projects, showToast } from './workspace';
 
 let parseId = 1;
 
@@ -115,6 +115,7 @@ export async function openBytes(fileName: string, bytes: Uint8Array, opts: OpenO
       createdAt: opts.createdAt,
       source: bytes,
       data: result,
+      catalog: catalog.value,
     });
     if (opts.state) project.restore(opts.state);
     log.info('import', `${fileName} gelesen`, {

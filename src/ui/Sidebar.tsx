@@ -1,8 +1,11 @@
 import { useRef, useState } from 'preact/hooks';
 import type { MaterialMode, Project, ViewMode } from '../app/project';
-import { activeProject, compactLayout, sheetExpanded, sheetTab, showToast, sideSheet, touchFirst } from '../app/workspace';
+import { activeProject, catalogDialogOpen, compactLayout, sheetExpanded, sheetTab, showToast, sideSheet, touchFirst } from '../app/workspace';
+import { catalogContents } from '../catalog/runtime';
+import type { Catalog } from '../catalog/types';
 import { describeSlots, formatShulkers, formatStacks, type MaterialSummary } from '../materials/materialList';
 import { IconCheck, IconCopy } from './icons';
+import { RawMaterials } from './RawMaterials';
 import { PerfLine } from './Viewport';
 import { bytes, css, num } from './format';
 
@@ -25,8 +28,9 @@ export function Sidebar() {
   );
 }
 
-const SHEET_TABS: { id: 'material' | 'project'; label: string }[] = [
+const SHEET_TABS: { id: 'material' | 'raw' | 'project'; label: string }[] = [
   { id: 'material', label: 'Material' },
+  { id: 'raw', label: 'Rohstoffe' },
   { id: 'project', label: 'Projekt' },
 ];
 
@@ -99,8 +103,8 @@ function Sheet({ project: p }: { project: Project }) {
             ))}
           </div>
           <div class="sheet-body" role="tabpanel">
-            {tab === 'material' ? (
-              <MaterialPanel project={p} />
+            {tab === 'material' || tab === 'raw' ? (
+              <MaterialPanel project={p} view={tab === 'raw' ? 'raw' : 'blocks'} />
             ) : (
               <>
                 <ProjectInfo project={p} />
@@ -182,6 +186,16 @@ function ProjectInfo({ project: p }: { project: Project }) {
         </dd>
         <dt>Minecraft</dt>
         <dd>{r.minecraftVersion ?? 'unbekannt'}</dd>
+        <dt>Katalog</dt>
+        <dd>
+          {p.catalog ? (
+            catalogLabel(p.catalog)
+          ) : (
+            <button class="link-btn" onClick={() => (catalogDialogOpen.value = true)}>
+              noch keiner – Modpack einlesen
+            </button>
+          )}
+        </dd>
         {r.info.meta?.name && r.info.meta.name !== p.name ? (
           <>
             <dt>Titel</dt>
@@ -209,7 +223,11 @@ function ProjectInfo({ project: p }: { project: Project }) {
               ))}
               {p.unknownBlocks.length ? (
                 <>
-                  <p>Diese Blöcke kennt Tessera noch nicht. Sie sind rot schraffiert; Farben und Namen kommen mit dem Block-Katalog.</p>
+                  <p>
+                    {p.catalog
+                      ? 'Diese Blöcke stehen nicht im Katalog. Sie sind rot schraffiert, Farbe und Form sind geraten. Fehlt ein Mod im eingelesenen Modpack?'
+                      : 'Diese Blöcke kennt Tessera noch nicht. Sie sind rot schraffiert; Farben und Namen kommen mit dem Block-Katalog.'}
+                  </p>
                   <ul>
                     {p.unknownBlocks.map((u) => (
                       <li key={u.name}>
@@ -318,9 +336,10 @@ function summarize(p: Project): MaterialSummary {
   }
 }
 
-function MaterialPanel({ project: p }: { project: Project }) {
+function MaterialPanel({ project: p, view }: { project: Project; view?: 'blocks' | 'raw' }) {
   const s = summarize(p);
   const mode = p.materialMode.value;
+  const v = view ?? p.materialView.value;
   const pinned = p.pinned.value;
   const scopeText =
     mode === 'layer'
@@ -347,23 +366,63 @@ function MaterialPanel({ project: p }: { project: Project }) {
 
   return (
     <section class="panel panel-grow">
-      <div class="panel-head">
-        <h3>Material</h3>
-        <div class="segmented" role="radiogroup" aria-label="Umfang der Materialliste">
-          {MATERIAL_MODES.map((m) => (
-            <button
-              key={m.id}
-              role="radio"
-              aria-checked={mode === m.id}
-              class={mode === m.id ? 'is-on' : ''}
-              title={m.title}
-              onClick={() => p.setMaterialMode(m.id)}
-            >
-              {m.label}
-            </button>
-          ))}
+      {/* In the phone sheet its tabs already switch between material and raw materials. */}
+      {view ? null : (
+        <div class="view-tabs" role="tablist" aria-label="Liste">
+          <button role="tab" aria-selected={v === 'blocks'} class={v === 'blocks' ? 'is-on' : ''} onClick={() => p.setMaterialView('blocks')}>
+            Material
+          </button>
+          <button
+            role="tab"
+            aria-selected={v === 'raw'}
+            class={v === 'raw' ? 'is-on' : ''}
+            onClick={() => p.setMaterialView('raw')}
+            title="Was abgebaut oder gesammelt werden muss, über die Rezepte zurückgerechnet"
+          >
+            Rohstoffe
+          </button>
         </div>
+      )}
+      <div class="segmented segmented-wide scope-switch" role="radiogroup" aria-label="Umfang der Liste">
+        {MATERIAL_MODES.map((m) => (
+          <button
+            key={m.id}
+            role="radio"
+            aria-checked={mode === m.id}
+            class={mode === m.id ? 'is-on' : ''}
+            title={m.title}
+            onClick={() => p.setMaterialMode(m.id)}
+          >
+            {m.label}
+          </button>
+        ))}
       </div>
+      {v === 'raw' ? (
+        <RawMaterials project={p} summary={s} scopeText={scopeText} />
+      ) : (
+        <BlockMaterials project={p} summary={s} scopeText={scopeText} mode={mode} pinned={pinned} copy={copy} />
+      )}
+    </section>
+  );
+}
+
+function BlockMaterials({
+  project: p,
+  summary: s,
+  scopeText,
+  mode,
+  pinned,
+  copy,
+}: {
+  project: Project;
+  summary: MaterialSummary;
+  scopeText: string;
+  mode: MaterialMode;
+  pinned: string | null;
+  copy: () => void;
+}) {
+  return (
+    <>
       <div class="material-totals">
         <div>
           <strong>{num(s.totalItems)}</strong>
@@ -418,10 +477,12 @@ function MaterialPanel({ project: p }: { project: Project }) {
                     title={isPinned ? 'Markierung aufheben' : 'Alle Blöcke dieser Sorte im Modell markieren'}
                   >
                     <td class="c-name">
-                      <span class="swatch" style={{ background: css(r.swatch) }} />
-                      <span class="name">{r.displayName}</span>
-                      {r.marked ? <span class="tag tag-red" title="Unbekannter oder Mod-Block">?</span> : null}
-                      {r.creativeOnly ? <span class="tag" title="Im Survival nicht erhältlich">C</span> : null}
+                      <span class="cell-name">
+                        <span class="swatch" style={{ background: css(r.swatch) }} />
+                        <span class="name">{r.displayName}</span>
+                        {r.marked ? <span class="tag tag-red" title="Unbekannter Block">?</span> : null}
+                        {r.creativeOnly ? <span class="tag" title="Im Survival nicht erhältlich">C</span> : null}
+                      </span>
                     </td>
                     <td class="c-num">{num(r.count)}</td>
                     <td class="c-stack">{r.liquid ? 'Quellblöcke' : formatStacks(r)}</td>
@@ -438,6 +499,14 @@ function MaterialPanel({ project: p }: { project: Project }) {
       <p class="material-scope muted">
         Umfang: {scopeText}. {touchFirst.value ? 'Tippe auf eine Zeile' : 'Klick auf eine Zeile'}, um die Blöcke im Modell zu markieren.
       </p>
-    </section>
+    </>
   );
+}
+
+/** "1.21.1, NeoForge und 12 Mods" */
+function catalogLabel(c: Catalog): string {
+  const { minecraft, neoforge, mods } = catalogContents(c);
+  const parts = [minecraft ?? 'ohne Minecraft', ...(neoforge ? ['NeoForge'] : [])];
+  const text = parts.join(', ');
+  return mods.length ? `${text} und ${num(mods.length)} ${mods.length === 1 ? 'Mod' : 'Mods'}` : text;
 }

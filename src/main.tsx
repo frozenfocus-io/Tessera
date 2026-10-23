@@ -6,6 +6,7 @@ import '@fontsource/barlow-condensed/latin-600.css';
 import './styles/app.css';
 
 import { render } from 'preact';
+import { loadCatalogAtStartup } from './app/catalogState';
 import { restoreWorkspace } from './app/importer';
 import { getPool, getViewer } from './app/viewController';
 import { activeProject, projects } from './app/workspace';
@@ -54,7 +55,8 @@ window.__tessera = {
 const root = document.getElementById('app');
 if (root) {
   render(<App />, root);
-  void restoreWorkspace();
+  // Projects are built with the catalog, so it has to be there before the tabs come back.
+  void loadCatalogAtStartup().then(() => restoreWorkspace());
   void loadExamples();
   prepareSaving();
 }

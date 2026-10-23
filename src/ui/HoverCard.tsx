@@ -1,5 +1,6 @@
 import type { HoverInfo, Project } from '../app/project';
 import { propLabel, valueLabel } from '../blocks/names';
+import { blockName } from '../catalog/runtime';
 import { css, num } from './format';
 
 /** Details of the block under the cursor (or under the finger that tapped it). */
@@ -43,11 +44,13 @@ export function HoverDetails({ project: p, hover: h, pinned, touch = false }: { 
           {num(inProject)} gesamt, {num(inLayer)} in dieser Ebene
         </dd>
       </dl>
+      {type.mod && type.mod !== 'minecraft' ? <p class="hc-meta">Mod: {modName(p, type.mod)}</p> : null}
+      {type.family && type.family !== type.name ? <p class="hc-meta">Familie: {blockName(p.catalog, type.family)}</p> : null}
       {entry.colors.marked ? (
         <p class="hc-warn">
-          {entry.state.name.startsWith('minecraft:')
-            ? 'Unbekannter Block: Farbe ist geraten.'
-            : 'Mod-Block: Farbe und Name kommen mit dem Block-Katalog (Etappe 2).'}
+          {p.catalog
+            ? 'Nicht im Katalog: Farbe und Form sind geraten. Fehlt der Mod im eingelesenen Modpack, oder stammt der Block aus einer anderen Version?'
+            : 'Noch kein Katalog eingelesen: Farbe und Name sind geraten.'}
         </p>
       ) : null}
       {p.outlineInfo.value.limit === 'layer' ? (
@@ -64,4 +67,12 @@ export function HoverDetails({ project: p, hover: h, pinned, touch = false }: { 
       </p>
     </>
   );
+}
+
+function modName(p: Project, id: string): string {
+  for (const s of p.catalog?.sources ?? []) {
+    const m = s.mods.find((x) => x.id === id);
+    if (m) return m.name;
+  }
+  return id;
 }

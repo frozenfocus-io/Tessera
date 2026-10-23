@@ -122,3 +122,11 @@ export function Mark({ size = 20 }: { size?: number }) {
     </svg>
   );
 }
+export const IconCatalog = (p: IconProps) => (
+  <Svg {...p}>
+    <rect x="2.5" y="2.5" width="4.5" height="4.5" rx="0.8" />
+    <rect x="9" y="2.5" width="4.5" height="4.5" rx="0.8" />
+    <rect x="2.5" y="9" width="4.5" height="4.5" rx="0.8" />
+    <path d="M9 11.2h4.5M11.2 9v4.5" />
+  </Svg>
+);

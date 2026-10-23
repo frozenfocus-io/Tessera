@@ -7,10 +7,11 @@
  *   page.html      the page content without doctype/head/body
  *   assets/…       scripts, workers, styles and fonts (without source maps)
  *   examples/      optional examples/index.json with the example files embedded (see src/platform/examples.ts)
+ *   katalog.json   optional test catalog, used while no catalog has been read (see app/catalogState.ts)
  *   files.json     published path -> source path, for the Artifact tool's `files`
  *   index.html     page.html inside a skeleton like the host's, for local tests
  *
- * Usage: node scripts/build-artifact.mjs --out <dir> [--example <file>=<label> …]
+ * Usage: node scripts/build-artifact.mjs --out <dir> [--example <file>=<label> …] [--catalog <katalog.json>]
  * Run `npm run build` first (or use `npm run build:artifact -- --out <dir>`).
  */
 import { copyFileSync, existsSync, mkdirSync, readFileSync, readdirSync, rmSync, writeFileSync } from 'node:fs';
@@ -18,10 +19,13 @@ import { basename, join, resolve } from 'node:path';
 
 const args = process.argv.slice(2);
 let out = null;
+let catalog = null;
 const examples = [];
 for (let i = 0; i < args.length; i++) {
   if (args[i] === '--out') {
     out = resolve(args[++i]);
+  } else if (args[i] === '--catalog') {
+    catalog = resolve(args[++i]);
   } else if (args[i] === '--example') {
     const spec = args[++i] ?? '';
     const eq = spec.indexOf('=');
@@ -70,6 +74,13 @@ if (examples.length) {
   writeFileSync(index, JSON.stringify(list, null, 2) + '\n');
   files['examples/index.json'] = index;
   bytes += readFileSync(index).length;
+}
+
+if (catalog) {
+  const target = join(out, 'katalog.json');
+  copyFileSync(catalog, target);
+  files['katalog.json'] = target;
+  bytes += readFileSync(target).length;
 }
 
 const page = `<title>Tessera</title>

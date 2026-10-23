@@ -64,7 +64,10 @@ export class MaterialIndex {
   private readonly layerBlocks: Uint32Array;
   readonly sizeY: number;
 
-  constructor(entries: readonly PaletteEntryInfo[], hist: LayerHistogram, sizeY: number) {
+  /**
+   * @param nameOf display name of an item (German names from the catalog when one is loaded)
+   */
+  constructor(entries: readonly PaletteEntryInfo[], hist: LayerHistogram, sizeY: number, nameOf: (item: string) => string = readableName) {
     this.sizeY = sizeY;
     const itemIndex = new Map<string, number>();
     // palette index -> list of [itemIndex, multiplier]
@@ -77,7 +80,7 @@ export class MaterialIndex {
           const liquid = LIQUIDS.has(c.item);
           const info: ItemInfo = {
             item: c.item,
-            displayName: readableName(liquid ? c.item.replace(/_bucket$/, '') : c.item),
+            displayName: nameOf(liquid ? c.item.replace(/_bucket$/, '') : c.item),
             stackSize: stackSize(c.item),
             swatch: e.colors.swatch,
             marked: e.colors.marked,

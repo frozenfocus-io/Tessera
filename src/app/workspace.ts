@@ -1,5 +1,15 @@
 import { computed, signal } from '@preact/signals';
+import type { Catalog } from '../catalog/types';
 import type { Project } from './project';
+
+/**
+ * The block catalog in use. It is global (it describes the game and the modpack, not a
+ * project); projects build their block model from it. Without a catalog Tessera falls back to
+ * its built-in colour table and marks every mod block.
+ */
+export const catalog = signal<Catalog | null>(null);
+/** Where the catalog came from: read by the user, or the test catalog of a hosted version. */
+export const catalogOrigin = signal<'none' | 'imported' | 'bundled'>('none');
 
 /** All open projects (one tab each) and the active one. */
 export const projects = signal<Project[]>([]);
@@ -17,6 +27,7 @@ export const projection = signal<'perspective' | 'orthographic'>('perspective');
 
 export const helpOpen = signal(false);
 export const debugOpen = signal(false);
+export const catalogDialogOpen = signal(false);
 
 /** A signal that follows a media query. The queries match the breakpoints in app.css. */
 function mediaSignal(query: string) {
@@ -35,7 +46,7 @@ export const touchFirst = mediaSignal('(pointer: coarse)');
 
 /** State of the sheet in the compact layout (per viewer, not saved with the project). */
 export const sheetExpanded = signal(false);
-export const sheetTab = signal<'material' | 'project'>('material');
+export const sheetTab = signal<'material' | 'raw' | 'project'>('material');
 
 /** Example files published next to the app (only in hosted test versions, see examples.ts). */
 export interface ExampleFile {

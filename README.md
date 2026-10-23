@@ -2,7 +2,7 @@
 
 Lokale Bauhilfe für Minecraft Java 1.21.1: Schematics in 3D ansehen und Ebene für Ebene nachbauen, wie in einem Slicer. Tessera läuft komplett im Browser, ohne Server. Keine Datei verlässt deinen PC.
 
-**Stand:** Etappe 1 von 6 – Viewer (Version 0.1.0)
+**Stand:** Etappe 2 von 6 – Block-Katalog (Version 0.2.0)
 
 ## Starten
 
@@ -26,7 +26,7 @@ npm run preview
 
 Sie läuft unter <http://localhost:4173>. Gespeicherte Tabs hängen an der Adresse: Unter Port 5173 und Port 4173 hat Tessera jeweils einen eigenen Speicher.
 
-## Was Etappe 1 kann
+## Was Tessera kann
 
 **Öffnen**
 
@@ -61,9 +61,30 @@ Sie läuft unter <http://localhost:4173>. Gespeicherte Tabs hängen an der Adres
 - Ebenen als fertig abhaken (Leertaste), mit Fortschritt nach Ebenen und Blöcken.
 - Die Liste lässt sich als Text kopieren.
 
+**Block-Katalog: Modpack einlesen**
+
+- Oben rechts „Modpack einlesen“: Du wählst den Minecraft-Ordner und den `mods`-Ordner deines Modpacks. Tessera liest daraus Blockzustände, Modelle, Texturen, Sprachdateien, Tags, Rezepte und Loot-Tabellen. Es liest nur Daten, Code aus den Jars wird nie ausgeführt.
+- Danach haben alle Blöcke, auch die aus Mods, ihre echten Farben (pro Seite, Gras und Laub eingefärbt wie im Spiel), ihre Form aus dem Blockmodell, ihren deutschen Namen und die Zuordnung zu Mod und Familie (Treppe, Stufe und Mauer gehören zu ihrem Grundblock). Glas und andere durchscheinende Blöcke erkennt Tessera an der Textur.
+- Wo die Dateien liegen:
+
+  | Launcher | Minecraft-Ordner | Mods-Ordner |
+  | --- | --- | --- |
+  | CurseForge | `curseforge\minecraft\Install` | `curseforge\minecraft\Instances\<Modpack>\mods` |
+  | Minecraft-Launcher | `%appdata%\.minecraft` | `%appdata%\.minecraft\mods` oder der Ordner des Profils |
+
+  Im Minecraft-Ordner sucht Tessera `versions/1.21.1/1.21.1.jar`, NeoForge (`libraries/net/neoforged/…/neoforge-…-universal.jar`, liefert die gemeinsamen Tags wie `c:ingots/iron`) und die deutschen Namen aus `assets`. Ohne Ordner-Auswahl, etwa am Handy, gehen auch einzelne Dateien.
+- Einlesen dauert je nach Modpack Sekunden bis etwa eine Minute und läuft im Hintergrund. Der Katalog bleibt im Browser gespeichert, bis du ihn entfernst oder neu einliest; offene Tabs werden mit ihm neu aufgebaut. Nötig ist das nur, wenn sich das Modpack ändert.
+
+**Rohstoffe**
+
+- Neben der Materialliste gibt es den Reiter „Rohstoffe“: Tessera rechnet über die Rezepte zurück, was abgebaut oder gesammelt werden muss, etwa Steinziegeltreppe → Stein → Bruchstein. Der Umfang (*Gesamt*, *Ebene*, *Ab hier*, *Offen*) gilt wie bei der Materialliste.
+- Gleiche Zwischenprodukte werden zusammen hergestellt und angefangene Rezepte aufgerundet, so wie man am Werktisch tatsächlich baut. Unter „Herstellung“ steht jeder Schritt mit Station und Anzahl.
+- Für jeden Block nimmt Tessera den günstigsten Weg: wenig Rohstoffe, wenige Schritte, Vanilla-Stationen vor Mod-Maschinen, Erze nur, wenn es nicht anders geht. Pro Block lässt sich ein anderes Rezept wählen oder festlegen, dass du ihn direkt besorgst (z. B. Stein mit Behutsamkeit). Die Wahl wird pro Projekt gespeichert.
+- Wolle, Kohle, Diamanten, Redstone und ähnliches gelten als gesammelt, nicht als hergestellt. Blöcke, die es im Survival nicht gibt, wählt Tessera nie als Zutat.
+
 **Unbekannte Blöcke**
 
-- Blöcke, die Tessera nicht kennt (z. B. aus Mods), bekommen eine Ersatzfarbe aus ihrer Block-ID. Im Modell sind sie rot schraffiert, in der Materialliste mit „?“ markiert. Der Knopf „Unbekannte“ blendet die Schraffur ein und aus.
+- Blöcke, die weder der Katalog noch die eingebaute Tabelle kennt, bekommen eine Ersatzfarbe aus ihrer Block-ID. Im Modell sind sie rot schraffiert, in der Materialliste mit „?“ markiert. Der Knopf „Unbekannte“ blendet die Schraffur ein und aus. Meist fehlt dann ein Mod im eingelesenen Modpack.
 
 **Leistung, Debug-Paket, Speicherung**
 
@@ -73,7 +94,7 @@ Sie läuft unter <http://localhost:4173>. Gespeicherte Tabs hängen an der Adres
 
 **Handy und Tablet**
 
-- Auf schmalen Bildschirmen wird die Seitenleiste zu einem Blatt am unteren Rand. Zugeklappt zeigt es nur, was du beim Bauen brauchst: aktuelle Ebene, Abhaken und Ansicht. Aufgeklappt zeigt es Materialliste und Projektdaten. Im Querformat sitzt es rechts.
+- Auf schmalen Bildschirmen wird die Seitenleiste zu einem Blatt am unteren Rand. Zugeklappt zeigt es nur, was du beim Bauen brauchst: aktuelle Ebene, Abhaken und Ansicht. Aufgeklappt zeigt es Materialliste, Rohstoffe und Projektdaten. Im Querformat sitzt es rechts.
 - Bedienung mit den Fingern: mit einem Finger drehen, mit zwei Fingern verschieben und zoomen, auf einen Block tippen statt mit der Maus darüberfahren, ins Leere tippen hebt die Auswahl auf.
 
 ## Bedienung
@@ -97,13 +118,15 @@ Sie läuft unter <http://localhost:4173>. Gespeicherte Tabs hängen an der Adres
 
 ## Brave: Ordner-Zugriff prüfen
 
-Ab Etappe 3 speichert Tessera Projekte als `.tess`-Dateien in einem Ordner auf der Festplatte. Dafür braucht es die File System Access API, die in Brave abgeschaltet sein kann. Für Etappe 1 wird sie noch nicht gebraucht.
+Ab Etappe 3 speichert Tessera Projekte als `.tess`-Dateien in einem Ordner auf der Festplatte. Dafür braucht es die File System Access API, die in Brave abgeschaltet sein kann. Bis dahin wird sie nicht gebraucht; auch das Einlesen des Modpacks kommt ohne sie aus.
 
 So prüfst du es: In Tessera oben rechts „Debug-Paket“ öffnen und die Zeile „Ordner-Zugriff“ lesen. Steht dort „abgeschaltet“, öffne `brave://flags`, suche nach „File System Access API“, stelle den Eintrag auf „Enabled“ und starte Brave neu.
 
 ## Datenschutz
 
-Tessera lädt nichts aus dem Internet nach und sendet nichts. Schriften und Bibliotheken sind eingebaut. Geöffnete Dateien werden nur im Browser verarbeitet und im Browser-Speicher abgelegt. Wenn du die Website-Daten für `localhost` löschst, sind die gespeicherten Tabs weg; die Schematic-Dateien selbst bleiben, wo sie waren.
+Tessera lädt nichts aus dem Internet nach und sendet nichts. Schriften und Bibliotheken sind eingebaut. Geöffnete Dateien und eingelesene Jars werden nur im Browser verarbeitet; im Browser-Speicher landen die Tabs und der fertige Katalog, nicht die Jars selbst. Wenn du die Website-Daten für `localhost` löschst, sind gespeicherte Tabs und Katalog weg; die Schematic-Dateien und dein Modpack bleiben, wo sie waren.
+
+Spieldateien von Mojang und den Mod-Autoren gehören nicht in dieses Repository. Tessera bringt keine mit, sondern liest sie bei dir ein.
 
 ## Entwicklung
 
@@ -114,16 +137,16 @@ Tessera lädt nichts aus dem Internet nach und sendet nichts. Schriften und Bibl
 | `npm run build` | prüfen und bauen, Ergebnis in `dist/` |
 | `npm run build:artifact -- --out <ordner>` | Version zum Veröffentlichen als Claude-Artefakt, z. B. als Testversion fürs Handy |
 
-Die Tests erzeugen ihre Testdateien selbst. Eigene Schematics zum Ausprobieren gehören in den Ordner `samples/`; er wird nicht eingecheckt. Der Test gegen die Beispieldatei aus Etappe 1 (`a05cccd2-32011.schem`) läuft nur, wenn du ihren Pfad angibst:
+Die Tests erzeugen ihre Testdateien selbst, auch kleine Jars mit Modellen, Texturen und Rezepten. Eigene Schematics zum Ausprobieren gehören in den Ordner `samples/`; er wird nicht eingecheckt. Zwei Tests laufen nur, wenn du Pfade angibst: der gegen die Beispieldatei aus Etappe 1 und der gegen die echte Minecraft-Jar (liest alle Vanilla-Blöcke und prüft Farben und Namen):
 
 ```sh
-TESSERA_SAMPLE_SCHEM=samples/a05cccd2-32011.schem npm test
+TESSERA_SAMPLE_SCHEM=samples/a05cccd2-32011.schem TESSERA_MC_ROOT=~/.minecraft npm test
 ```
 
 In der Windows-PowerShell:
 
 ```powershell
-$env:TESSERA_SAMPLE_SCHEM = "samples\a05cccd2-32011.schem"; npm test
+$env:TESSERA_SAMPLE_SCHEM = "samples\a05cccd2-32011.schem"; $env:TESSERA_MC_ROOT = "$env:APPDATA\.minecraft"; npm test
 ```
 
 **Aufbau**
@@ -131,10 +154,11 @@ $env:TESSERA_SAMPLE_SCHEM = "samples\a05cccd2-32011.schem"; npm test
 ```text
 src/
   core/        NBT lesen und schreiben, Formate (.schem, .litematic, .nbt), Versionen, Umbenennungen
-  blocks/      Blockwissen: Farben, Formen, Namen, Items
+  blocks/      Blockwissen: Farben, Formen, Namen, Items (eingebaute Tabelle und Anbindung an den Katalog)
+  catalog/     Block-Katalog: Jars lesen, PNG dekodieren, Modelle und Blockzustände auflösen, Tags, Rezepte, Familien
   render/      Chunk-Meshing, Shader, Raycast, Outlines, Kamera
-  workers/     Web Worker für Einlesen und Meshing
-  materials/   Materialliste
+  workers/     Web Worker für Einlesen, Katalog und Meshing
+  materials/   Materialliste und Rohstoff-Aufschlüsselung
   app/         Projekte, Tabs, Import, Speicherung
   ui/          Oberfläche (Preact)
   debug/       Protokoll, Umgebung, Debug-Paket
@@ -156,11 +180,12 @@ Technik: TypeScript, Three.js, Preact, Vite, fflate.
 
 Eine Desktop-App mit Tauri ist vorerst nicht geplant.
 
-## Grenzen von Etappe 1
+## Grenzen
 
-- Die Farben sind Näherungen aus einer eingebauten Tabelle. Echte Texturfarben kommen mit dem Block-Katalog in Etappe 2.
-- Die Blocknamen sind vorerst englisch, aus der Block-ID abgeleitet. Deutsche Namen aus den Sprachdateien kommen ebenfalls mit Etappe 2.
-- Mod-Blöcke (Create, Chipped, Macaw's …) gelten als unbekannt, bis der Katalog sie kennt.
+- Ohne eingelesenen Katalog sind die Farben Näherungen aus einer eingebauten Tabelle, die Namen englisch und Mod-Blöcke unbekannt.
+- Blöcke ohne festes Modell (Kisten, Schilder, Banner, Köpfe) und Mod-Blöcke mit eigenem Modell-Code erscheinen vereinfacht, in der Farbe ihrer Textur.
+- Pro Block zeigt Tessera eine Durchschnittsfarbe pro Seite, keine Texturen.
+- Rezepte von Mod-Maschinen kennt Tessera nur, wenn sie in einem der bekannten Formate vorliegen (Vanilla-Stationen, Create). Was sich nicht herstellen lässt, steht als Rohstoff in der Liste.
 - Alte `.schematic`-Dateien (vor 1.13) liest Tessera noch nicht.
 - Kisteninhalte, Schildertexte und Objekte wie Rüstungsständer oder Rahmen werden nicht angezeigt.
 - Verbundene Blöcke (Zäune, Mauern, Scheiben) erscheinen so, wie sie in der Datei gespeichert sind.

@@ -1,4 +1,6 @@
 import type { BlockState } from '../core/blockstate';
+import { resolveFromCatalog } from '../catalog/runtime';
+import type { Catalog } from '../catalog/types';
 import { resolveColors, type ResolvedColors } from './colors';
 import { itemCosts, type ItemCost } from './items';
 import { readableName } from './names';
@@ -51,6 +53,10 @@ export interface BlockTypeInfo {
   displayName: string;
   marked: boolean;
   swatch: number;
+  /** Mod the block comes from, when the catalog knows it. */
+  mod?: string;
+  /** Family base block id, when the catalog knows it. */
+  family?: string;
 }
 
 export interface BlockModel {
@@ -59,7 +65,47 @@ export interface BlockModel {
   types: BlockTypeInfo[];
 }
 
-export function buildBlockModel(palette: readonly BlockState[]): BlockModel {
+/** How a placed block resolves: from the catalog when one is loaded, else from built-in tables. */
+interface Resolved {
+  colors: ResolvedColors;
+  shape: ShapeSpec;
+  items: ItemCost[];
+  displayName: string;
+  mod?: string;
+  family?: string;
+}
+
+const AIR: Resolved = {
+  colors: { faces: [0, 0, 0, 0, 0, 0], source: 'exact', marked: false, swatch: 0 },
+  shape: { kind: 'none' },
+  items: [],
+  displayName: 'Air',
+};
+
+function resolveBlock(state: BlockState, catalog: Catalog | null): Resolved {
+  if (catalog) {
+    const hit = resolveFromCatalog(state, catalog);
+    if (hit) {
+      const fallback = resolveShape(state);
+      const shape = hit.shape ?? (hit.cross ? (fallback.kind === 'cross' ? fallback : { kind: 'cross' as const, height: 14, translucent: false }) : fallback);
+      return { colors: hit.colors, shape, items: catalogItemCosts(state, hit.block.item), displayName: hit.name, mod: hit.block.mod, family: hit.block.family };
+    }
+    // Not in the catalog: the block is unknown to this game and modpack.
+    const c = resolveColors(state);
+    return { colors: { ...c, source: 'unknown', marked: true }, shape: resolveShape(state), items: itemCosts(state), displayName: readableName(state.name) };
+  }
+  return { colors: resolveColors(state), shape: resolveShape(state), items: itemCosts(state), displayName: readableName(state.name) };
+}
+
+/** Vanilla item rules are exact; for mod blocks the catalog knows the item that places them. */
+function catalogItemCosts(state: BlockState, item: string | null): ItemCost[] {
+  const base = itemCosts(state);
+  if (state.name.startsWith('minecraft:')) return base;
+  if (!item) return [];
+  return base.map((c, i) => (i === 0 ? { item, count: c.count } : c));
+}
+
+export function buildBlockModel(palette: readonly BlockState[], catalog: Catalog | null = null): BlockModel {
   const size = palette.length;
   const kind = new Uint8Array(size);
   const flags = new Uint8Array(size);
@@ -75,16 +121,22 @@ export function buildBlockModel(palette: readonly BlockState[]): BlockModel {
 
   for (let i = 0; i < size; i++) {
     const state = palette[i];
-    const colors: ResolvedColors =
-      i === 0 ? { faces: [0, 0, 0, 0, 0, 0], source: 'exact', marked: false, swatch: 0 } : resolveColors(state);
-    const shape: ShapeSpec = i === 0 ? { kind: 'none' } : resolveShape(state);
-    const items = i === 0 ? [] : itemCosts(state);
+    const r = i === 0 ? AIR : resolveBlock(state, catalog);
+    const { colors, shape, items } = r;
 
     let t = typeByName.get(state.name);
     if (t === undefined) {
       t = types.length;
       typeByName.set(state.name, t);
-      types.push({ typeId: t, name: state.name, displayName: readableName(state.name), marked: colors.marked, swatch: colors.swatch });
+      types.push({
+        typeId: t,
+        name: state.name,
+        displayName: r.displayName,
+        marked: colors.marked,
+        swatch: colors.swatch,
+        ...(r.mod ? { mod: r.mod } : {}),
+        ...(r.family ? { family: r.family } : {}),
+      });
     }
     typeId[i] = t;
     faceColors.set(colors.faces, i * 6);
