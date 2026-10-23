@@ -32,9 +32,14 @@ export async function importCatalog(job: CatalogJob): Promise<void> {
       catalogRun.value = { ...run, error: m.message };
       log.error('catalog', `Einlesen fehlgeschlagen: ${m.message}`);
     } else if (m.type === 'done') {
-      catalogRun.value = { ...run, done: { ms: m.ms, catalog: m.catalog } };
+      // "Fertig" only once the catalog is stored: closing the tab earlier would lose it.
+      catalogRun.value = { ...run, progress: { phase: 'done', done: 0, total: 1 } };
       log.info('catalog', `Eingelesen in ${Math.round(m.ms)} ms`, summary(m.catalog));
-      void useCatalog(m.catalog).then(() => showToast('success', 'Katalog eingelesen. Alle offenen Projekte nutzen ihn jetzt.'));
+      void useCatalog(m.catalog).then(() => {
+        const now = catalogRun.value;
+        if (now) catalogRun.value = { ...now, done: { ms: m.ms, catalog: m.catalog } };
+        showToast('success', 'Katalog eingelesen. Alle offenen Projekte nutzen ihn jetzt.');
+      });
     }
   };
 

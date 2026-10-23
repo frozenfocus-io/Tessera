@@ -83,7 +83,9 @@ if (catalog) {
   bytes += readFileSync(target).length;
 }
 
+// Tells the app that example files and a test catalog may lie next to it (normal builds do not look).
 const page = `<title>Tessera</title>
+<meta name="tessera-extras" content="1">
 <style>:root{color-scheme:dark;background:#171b20}</style>
 <link rel="stylesheet" href="${stylesheet}">
 <div id="app"></div>

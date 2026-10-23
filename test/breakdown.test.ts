@@ -6,9 +6,9 @@ import { breakDown, RecipeBook } from '../src/materials/breakdown';
 import { makeJar, vanillaJar } from './helpers/jarFixtures';
 
 let n = 0;
-function recipe(output: string, count: number, inputs: [string | string[], number][], station = 'Werkbank'): Recipe {
+function recipe(output: string, count: number, inputs: [string | string[], number][], station = 'Werkbank', ns = output.split(':')[0]): Recipe {
   return {
-    id: `test:r${n++}`,
+    id: `${ns}:r${n++}`,
     type: station === 'Ofen' ? 'minecraft:smelting' : station === 'Steinschneider' ? 'minecraft:stonecutting' : 'minecraft:crafting_shaped',
     station,
     inputs: inputs.map(([o, c]) => ({ options: Array.isArray(o) ? o : [o], count: c })),
@@ -45,6 +45,9 @@ const VANILLA = [
   recipe(mc('raw_iron'), 9, [[mc('raw_iron_block'), 1]]),
   recipe(mc('raw_iron_block'), 1, [[mc('raw_iron'), 9]]),
   recipe(mc('white_wool'), 1, [[mc('string'), 4]]),
+  // mods: a machine that makes gravel, a giant block that falls apart into 64 cobblestone
+  recipe(mc('gravel'), 1, [[mc('cobblestone'), 1]], 'Mühlstein (Create)', 'create'),
+  recipe(mc('cobblestone'), 64, [['twilightforest:giant_cobblestone', 1]], 'Werkbank', 'twilightforest'),
   recipe(mc('piston'), 1, [[mc('oak_planks'), 3], [['#c:cobblestones'], 4], [['#c:ingots/iron'], 1], [mc('redstone'), 1]]),
 ];
 const TAGS = {
@@ -84,6 +87,14 @@ describe('raw material breakdown', () => {
     expect([...r.raw]).toEqual([[mc('white_wool'), 5]]);
   });
 
+  it('makes vanilla items the vanilla way; mod recipes are only alternatives', () => {
+    const r = breakDown(new Map([[mc('gravel'), 5], [mc('stone'), 64]]), book);
+    expect([...r.raw].sort()).toEqual([[mc('cobblestone'), 64], [mc('gravel'), 5]]);
+    expect(book.options(mc('gravel')).map((o) => o.recipe.station)).toEqual(['Mühlstein (Create)']);
+    const milled = breakDown(new Map([[mc('gravel'), 5]]), book, { [mc('gravel')]: book.options(mc('gravel'))[0].recipe.id });
+    expect([...milled.raw]).toEqual([[mc('cobblestone'), 5]]);
+  });
+
   it('never picks blocks that survival players cannot get', () => {
     const r = breakDown(new Map([[mc('piston'), 2]]), book);
     expect(r.raw.get(mc('cobblestone'))).toBe(8);
@@ -104,6 +115,20 @@ describe('raw material breakdown', () => {
     // A choice that closes a circle (ingots from blocks, blocks from ingots) ends as raw.
     const r3 = breakDown(new Map([[mc('iron_block'), 1]]), book, { [mc('iron_ingot')]: VANILLA[11].id });
     expect(r3.raw.size).toBe(1);
+  });
+
+  it('starts circles of recipes at the gathered item and keeps what is made from it', () => {
+    const b = new RecipeBook(
+      catalog([
+        recipe('sup:flax_block', 1, [['sup:flax', 9]]),
+        recipe('sup:flax', 9, [['sup:flax_block', 1]]),
+        recipe('sup:rope', 4, [['sup:flax', 3]]),
+        recipe('sup:awning', 2, [['sup:rope', 1], [mc('white_wool'), 2]]),
+      ]),
+    );
+    const r = breakDown(new Map([['sup:awning', 4]]), b);
+    expect([...r.raw].sort()).toEqual([[mc('white_wool'), 4], ['sup:flax', 3]]);
+    expect(b.chosen('sup:flax_block', {})?.inputs[0].options).toEqual(['sup:flax']);
   });
 
   it('lists the ways to make an item, cheapest first', () => {

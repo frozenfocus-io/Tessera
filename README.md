@@ -79,7 +79,7 @@ Sie läuft unter <http://localhost:4173>. Gespeicherte Tabs hängen an der Adres
 
 - Neben der Materialliste gibt es den Reiter „Rohstoffe“: Tessera rechnet über die Rezepte zurück, was abgebaut oder gesammelt werden muss, etwa Steinziegeltreppe → Stein → Bruchstein. Der Umfang (*Gesamt*, *Ebene*, *Ab hier*, *Offen*) gilt wie bei der Materialliste.
 - Gleiche Zwischenprodukte werden zusammen hergestellt und angefangene Rezepte aufgerundet, so wie man am Werktisch tatsächlich baut. Unter „Herstellung“ steht jeder Schritt mit Station und Anzahl.
-- Für jeden Block nimmt Tessera den günstigsten Weg: wenig Rohstoffe, wenige Schritte, Vanilla-Stationen vor Mod-Maschinen, Erze nur, wenn es nicht anders geht. Pro Block lässt sich ein anderes Rezept wählen oder festlegen, dass du ihn direkt besorgst (z. B. Stein mit Behutsamkeit). Die Wahl wird pro Projekt gespeichert.
+- Für jeden Block nimmt Tessera den günstigsten Weg: wenig Rohstoffe, wenige Schritte, Erze nur, wenn es nicht anders geht. Vanilla-Blöcke entstehen auf dem Vanilla-Weg (Kies wird gegraben, nicht im Mühlstein gemahlen); Mod-Maschinen stehen als Alternativen zur Auswahl. Bei Zutaten aus Tags (beliebige Bretter) nimmt Tessera Vanilla-Holz. Pro Block lässt sich ein anderes Rezept wählen oder festlegen, dass du ihn direkt besorgst (z. B. Stein mit Behutsamkeit). Die Wahl wird pro Projekt gespeichert.
 - Wolle, Kohle, Diamanten, Redstone und ähnliches gelten als gesammelt, nicht als hergestellt. Blöcke, die es im Survival nicht gibt, wählt Tessera nie als Zutat.
 
 **Unbekannte Blöcke**
@@ -172,7 +172,7 @@ Technik: TypeScript, Three.js, Preact, Vite, fflate.
 ## Etappenplan
 
 1. [x] **Viewer:** `.schem` laden, 3D-Ansicht mit Grundformen, Ebenen, Hover mit Wireframe-Highlight, Materialliste, Baufortschritt, Debug-Export
-2. [ ] **Block-Katalog:** Minecraft-Jar und `mods`-Ordner einlesen; echte Namen, Farben, Familien, Rezepte; Rohstoff-Aufschlüsselung
+2. [x] **Block-Katalog:** Minecraft-Jar und `mods`-Ordner einlesen; echte Namen, Farben, Familien, Rezepte; Rohstoff-Aufschlüsselung
 3. [ ] **Bau-Sprache, Testlauf:** kleines Haus mit Fenstern, Dach und einem Rundturm
 4. [ ] **Bau-Sprache, Ausbau:** alle Bauteile, Module, Rollen-Paletten, Farmen; Bearbeiten mit Undo/Redo und Versionen
 5. [ ] **Gelände-Scan:** Welt-Tab, Objekte platzieren, Erdarbeiten, Ingame-Koordinaten
@@ -186,6 +186,7 @@ Eine Desktop-App mit Tauri ist vorerst nicht geplant.
 - Blöcke ohne festes Modell (Kisten, Schilder, Banner, Köpfe) und Mod-Blöcke mit eigenem Modell-Code erscheinen vereinfacht, in der Farbe ihrer Textur.
 - Pro Block zeigt Tessera eine Durchschnittsfarbe pro Seite, keine Texturen.
 - Rezepte von Mod-Maschinen kennt Tessera nur, wenn sie in einem der bekannten Formate vorliegen (Vanilla-Stationen, Create). Was sich nicht herstellen lässt, steht als Rohstoff in der Liste.
+- Noch nicht aufgeschlüsselt werden Chipped (Varianten aus den Chipped-Werkbänken), FramedBlocks und Domum Ornamentum (das Material steckt dort im einzelnen Block). Diese Blöcke stehen vorerst selbst als Rohstoff in der Liste.
 - Alte `.schematic`-Dateien (vor 1.13) liest Tessera noch nicht.
 - Kisteninhalte, Schildertexte und Objekte wie Rüstungsständer oder Rahmen werden nicht angezeigt.
 - Verbundene Blöcke (Zäune, Mauern, Scheiben) erscheinen so, wie sie in der Datei gespeichert sind.

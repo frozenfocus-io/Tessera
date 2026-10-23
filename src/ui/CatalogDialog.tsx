@@ -205,7 +205,7 @@ function RunStatus() {
         ? `Löse Modelle auf (${num(p.done)} von ${num(p.total)} Blöcken)`
         : p.phase === 'recipes'
           ? `Lese Rezepte (${num(p.done)} von ${num(p.total)})`
-          : 'Fertig';
+          : 'Speichere den Katalog …';
   return (
     <div class="catalog-run" role="status">
       {run.error ? (

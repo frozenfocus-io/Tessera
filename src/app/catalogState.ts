@@ -1,3 +1,4 @@
+import { hostedExtras } from '../platform/examples';
 import { batch } from '@preact/signals';
 import { deleteStoredCatalog, loadStoredCatalog, storeCatalog } from '../catalog/store';
 import { CATALOG_FORMAT, type Catalog } from '../catalog/types';
@@ -19,6 +20,7 @@ export async function loadCatalogAtStartup(): Promise<void> {
     log.info('catalog', 'Katalog geladen', summary(stored));
     return;
   }
+  if (!hostedExtras()) return;
   try {
     const res = await fetch('katalog.json', { cache: 'no-cache' });
     if (!res.ok) return;

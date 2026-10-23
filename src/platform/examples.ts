@@ -11,6 +11,7 @@ import { log } from '../debug/log';
  * tried without own files.
  */
 export async function loadExamples(): Promise<void> {
+  if (!hostedExtras()) return;
   try {
     const res = await fetch('examples/index.json', { cache: 'no-cache' });
     if (!res.ok) return;
@@ -55,4 +56,9 @@ export async function openExample(example: ExampleFile): Promise<void> {
     log.error('import', `Beispiel ${example.name} konnte nicht geladen werden`, e);
     showToast('error', 'Das Beispiel konnte nicht geladen werden.', e instanceof Error ? e.message : String(e));
   }
+}
+
+/** Only hosted test versions (scripts/build-artifact.mjs) bring example files and a test catalog. */
+export function hostedExtras(): boolean {
+  return typeof document !== 'undefined' && !!document.querySelector('meta[name="tessera-extras"]');
 }
