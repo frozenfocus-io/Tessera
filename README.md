@@ -152,6 +152,8 @@ Spieldateien von Mojang und den Mod-Autoren gehören nicht in dieses Repository.
 | `npm run build` | prüfen und bauen, Ergebnis in `dist/` |
 | `npm run build:artifact -- --out <ordner>` | Version zum Veröffentlichen als Claude-Artefakt, z. B. als Testversion fürs Handy |
 
+Konzept, Spezifikation und Auftrag für die nächste Etappe liegen in `docs/`: [Konzept](docs/konzept.md), [Bau-Sprache (Ist)](docs/bau-sprache.md), [Bau-Sprache 2 (Soll)](docs/bau-sprache-2.md), [Auftrag Etappe 4](docs/etappe-4.md). Hinweise für Claude stehen in [CLAUDE.md](CLAUDE.md).
+
 Die Tests erzeugen ihre Testdateien selbst, auch kleine Jars mit Modellen, Texturen und Rezepten. Eigene Schematics zum Ausprobieren gehören in den Ordner `samples/`; er wird nicht eingecheckt. Zwei Tests laufen nur, wenn du Pfade angibst: der gegen die Beispieldatei aus Etappe 1 und der gegen die echte Minecraft-Jar (liest alle Vanilla-Blöcke und prüft Farben und Namen):
 
 ```sh
@@ -198,7 +200,10 @@ Technik: TypeScript, Three.js, Preact, Vite, fflate.
 1. [x] **Viewer:** `.schem` laden, 3D-Ansicht mit Grundformen, Ebenen, Hover mit Wireframe-Highlight, Materialliste, Baufortschritt, Debug-Export
 2. [x] **Block-Katalog:** Minecraft-Jar und `mods`-Ordner einlesen; echte Namen, Farben, Familien, Rezepte; Rohstoff-Aufschlüsselung
 3. [x] **Bau-Sprache, Testlauf:** kleines Haus mit Fenstern, Dach und einem Rundturm; `.tess`-Dateien im Projektordner
-4. [ ] **Bau-Sprache, Ausbau:** alle Bauteile, Module, Rollen-Paletten, Farmen; Bearbeiten mit Undo/Redo und Versionen
+4. [ ] **Bau-Sprache, Ausbau** ([Auftrag](docs/etappe-4.md), [Spezifikation](docs/bau-sprache-2.md))
+   - [ ] 4a Formen und Dächer: Profile, Vielecke, Dachmaschine mit Verschneidung, Herkunft pro Block
+   - [ ] 4b Anbauten und Zier: Fensterformen, Balkone, Umgänge, Erker, Gauben, Ecktürme, Treppen, Deko, Farmen
+   - [ ] 4c Werkzeuge: Module, ASCII-Freistil, Bauabschnitte, Bearbeiten mit Undo/Redo und Versionen
 5. [ ] **Gelände-Scan:** Welt-Tab, Objekte platzieren, Erdarbeiten, Ingame-Koordinaten
 6. [ ] **Export:** `.schem`, `.nbt`, `.litematic` mit korrekt verbundenen Blöcken
 
