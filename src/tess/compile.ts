@@ -1,5 +1,5 @@
 import { makeState } from '../core/blockstate';
-import { CellSet, ChebDistance, facingTowardsSet, SIDES } from './cells';
+import { CellSet, ChebDistance, facingTowardsSet, sideBit, SIDES } from './cells';
 import { connectBlocks, hasAxis } from './connect';
 import { evalExpr, substitute, type ExprEnv } from './expr';
 import {
@@ -18,7 +18,7 @@ import {
 import { axisOf, ccw, DIR, opposite, parseSide, ringByAngle, sideLabel, type Facing } from './geometry';
 import { Grid, LIMIT_V2, Part } from './grid';
 import { Palette, stringHash, type BlockHints, type BlockSpec, type Member, type RoleRef } from './palette';
-import { insetAt, parseRoofProfile, renderRoofs, renderSkirt, type GableWall, type RoofDef, type RoofProfile, type RoofType } from './roof';
+import { insetAt, parseRoofProfile, renderRoofs, renderSkirt, type GableWall, type HipEnds, type RoofDef, type RoofProfile, type RoofType } from './roof';
 import { asciiKey, classify, detectVersion, FollowUpError, parseStatements2, TessError, tokenText, type Diagnostic, type Statement, type Token } from './syntax';
 import { compileV1 } from './v1';
 
@@ -193,6 +193,8 @@ interface Timber {
   muster: 'gerade' | 'strebe' | 'kreuz' | 'raute';
   streben: RoleRef;
   schraeg: 'block' | 'treppe';
+  /** Extension: beams also run over slanted sides, with posts at the corners of the form. */
+  ring: boolean;
 }
 
 interface FormOpts {
@@ -635,7 +637,7 @@ class Compiler {
   private formCmd(st: Statement): void {
     const kind = st.cmd as FormKind;
     const tokens = this.tokens(st);
-    const common = ['boden', 'decke', 'ecken', 'sockel', 'kranz', 'fachwerk', 'raster', 'riegel', 'muster', 'streben', 'schraeg', 'wand', 'zonen', 'profil', 'konsolen'];
+    const common = ['boden', 'decke', 'ecken', 'sockel', 'kranz', 'fachwerk', 'raster', 'riegel', 'muster', 'streben', 'schraeg', 'ringbalken', 'wand', 'zonen', 'profil', 'konsolen'];
     const keys: Record<FormKind, string[]> = {
       box: common,
       zylinder: [...common, 'r', 'd', 'rx', 'rz', 'h'],
@@ -798,7 +800,7 @@ class Compiler {
   private formOpts(a: Args, kind: FormKind): FormOpts & { profile: ProfileEntry[] } {
     const hollow = a.flag('hohl');
     const wall = a.int('wand', 1, 1, 64);
-    const timberKeys = ['raster', 'riegel', 'muster', 'streben', 'schraeg'];
+    const timberKeys = ['raster', 'riegel', 'muster', 'streben', 'schraeg', 'ringbalken'];
     const fw = a.str('fachwerk');
     if (!fw) for (const k of timberKeys) if (a.has(k)) throw new TessError(a.line, `„${k}=“ gilt nur zusammen mit „fachwerk=“.`);
     if (fw && (kind === 'zylinder' || kind === 'kugel')) throw new TessError(a.line, 'Fachwerk geht nur auf geraden Wänden: bei box, vieleck, umriss und grundriss.');
@@ -820,7 +822,10 @@ class Compiler {
           return parseInt(s, 10);
         });
       const streben = a.str('streben') ? this.ref(a.str('streben')!) : ref;
-      timber = { ref, raster: a.int('raster', 4, 2, 64), riegel, muster: muster as Timber['muster'], streben, schraeg: schraeg as Timber['schraeg'] };
+      const ringArg = a.str('ringbalken')?.toLowerCase();
+      if (ringArg !== undefined && !YES.has(ringArg) && !NO.has(ringArg)) throw new TessError(a.line, `„ringbalken=${ringArg}“: ja oder nein.`);
+      const ring = ringArg !== undefined && YES.has(ringArg);
+      timber = { ref, raster: a.int('raster', 4, 2, 64), riegel, muster: muster as Timber['muster'], streben, schraeg: schraeg as Timber['schraeg'], ring };
       if (schraeg === 'treppe' && muster !== 'gerade' && !this.palette.hasMember(streben.role, 'stairs')) {
         throw new TessError(a.line, `„schraeg=treppe“ braucht Treppen: Die Rolle „${streben.role.name}“ hat keine.`);
       }
@@ -984,9 +989,19 @@ class Compiler {
       }
     }
     // Outer wall cells that no straight piece covers: slanted sides.
+    const covered = new Set<number>();
+    for (const pc of pieces) for (const [x, z] of pc.cells) covered.add(packXZ(x, z));
     let slanted = false;
+    const corners = t.ring && f.kind !== 'grundriss' ? this.cornersAt(f, y) : null;
     O.forEach((x, z) => {
-      if (!slanted && O.at(dist, x, z) === 1 && !cells.has(packXZ(x, z)) && !pieces.some((pc) => pc.cells.some((c) => c[0] === x && c[1] === z))) slanted = true;
+      if (O.at(dist, x, z) !== 1 || covered.has(packXZ(x, z))) return;
+      if (!t.ring) {
+        slanted = true;
+        return;
+      }
+      // ringbalken=ja: posts at the corners of the form, beams around, no pattern.
+      if (corners?.has(x, z)) cells.set(packXZ(x, z), { kind: 'post', axis: 'y' });
+      else if (isBeam) cells.set(packXZ(x, z), { kind: 'beam', axis: O.openSides(x, z) & 5 ? 'x' : 'z' });
     });
     return { cells, slanted };
   }
@@ -1197,7 +1212,6 @@ class Compiler {
     const info = this.grid.cellInfo(p[0], p[1], p[2]);
     if (info?.part === Part.Structure) this.warn(`${what} schneidet bei ${where()} einen Pfosten oder Eckpfeiler (Zeile ${info.line}).`);
     else if (info?.part === Part.Beam && !allowBeam) this.warn(`${what} schneidet bei ${where()} einen waagrechten Balken (Zeile ${info.line}).`);
-    else if (info?.part === Part.Strut) this.warn(`${what} schneidet bei ${where()} eine Strebe des Fachwerks (Zeile ${info.line}).`);
     else if (info?.part === Part.Opening && info.line !== this.line) this.warn(`${what} überschneidet sich bei ${where()} mit Zeile ${info.line}.`);
     return p;
   }
@@ -1461,6 +1475,8 @@ class Compiler {
     const top = this.outlineAt(f, f.y1);
     const vTop = this.offsetAt(f, f.y1);
     let at: (a: number, b: number) => CellSet;
+    // Gable roofs: outline with separate insets at the two gable ends (Krüppelwalm hips).
+    let atEnds: ((a: number, b0: number, b1: number) => CellSet) | null = null;
     let radius: number;
     let crossAxis: 'x' | 'z' | null = null;
     let dirsNormal = 15;
@@ -1477,13 +1493,17 @@ class Compiler {
         const ridge = (ridgeArg ?? (x1 - x0 >= z1 - z0 ? 'x' : 'z')) as 'x' | 'z';
         crossAxis = ridge === 'x' ? 'z' : 'x';
         if (ridge === 'x') {
-          at = (i, b) => CellSet.rect(xa + b, za + i, xb - b, zb - i);
+          const ends = (i: number, b0: number, b1: number) => CellSet.rect(xa + b0, za + i, xb - b1, zb - i);
+          atEnds = ends;
+          at = (i, b) => ends(i, b, b);
           dirsNormal = 1 | 4;
           gables.push({ axis: 'z', fixed: x0, lo: z0, hi: z1, out: 'west' }, { axis: 'z', fixed: x1, lo: z0, hi: z1, out: 'east' });
           verge.push({ axis: 'x', at: xa, towards: 'east' }, { axis: 'x', at: xb, towards: 'west' });
           radius = Math.floor((zb - za) / 2);
         } else {
-          at = (i, b) => CellSet.rect(xa + i, za + b, xb - i, zb - b);
+          const ends = (i: number, b0: number, b1: number) => CellSet.rect(xa + i, za + b0, xb - i, zb - b1);
+          atEnds = ends;
+          at = (i, b) => ends(i, b, b);
           dirsNormal = 2 | 8;
           gables.push({ axis: 'x', fixed: z0, lo: x0, hi: x1, out: 'north' }, { axis: 'x', fixed: z1, lo: x0, hi: x1, out: 'south' });
           verge.push({ axis: 'z', at: za, towards: 'south' }, { axis: 'z', at: zb, towards: 'north' });
@@ -1550,21 +1570,32 @@ class Compiler {
     }
     if (!layers.length) throw new TessError(this.line, 'Das Dach hat keine einzige Lage.');
     let dirs = layers.map(() => dirsNormal);
-    if (type === 'krueppelwalm') {
+    let hip: HipEnds | undefined;
+    if (type === 'krueppelwalm' && atEnds) {
       const K = layers.length - 1;
       const n = a.int('kruppel', 2, 1, 64);
       if (K >= 1) {
+        // The hip takes the top n layers: from layer yh on, the gable ends move inwards by as
+        // much as the eaves have moved since layer yh-1.
         const yh = Math.max(1, K - n + 1);
         const aRef = insets[yh - 1];
-        const next: CellSet[] = [];
-        for (let y = 0; y < layers.length; y++) {
-          const b = y >= yh ? insets[y] - aRef : 0;
-          const O = at(insets[y], b);
-          if (O.isEmpty()) break;
-          next.push(O);
-        }
-        layers = next;
-        dirs = layers.map((_, y) => (y >= yh ? 15 : dirsNormal));
+        const ends = [gables[0], gables[1]] as const;
+        const cut = atEnds;
+        const variant = (first: boolean, second: boolean) => {
+          const out: CellSet[] = [];
+          for (let y = 0; y < insets.length; y++) {
+            const b = y >= yh ? insets[y] - aRef : 0;
+            const O = cut(insets[y], first ? b : 0, second ? b : 0);
+            if (O.isEmpty()) break;
+            out.push(O);
+          }
+          const bits = dirsNormal | (first ? sideBit(ends[0].out) : 0) | (second ? sideBit(ends[1].out) : 0);
+          return { layers: out, dirs: out.map((_, y) => (y >= yh ? bits : dirsNormal)) };
+        };
+        const v = variant(true, true);
+        layers = v.layers;
+        dirs = v.dirs;
+        hip = { from: yh, ends, variant };
       }
     }
     if (a.has('biegung')) {
@@ -1602,6 +1633,7 @@ class Compiler {
       fuellen,
       hasRidgeDeco: deco,
       hasTip: tip,
+      hip,
     };
   }
 

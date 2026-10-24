@@ -59,6 +59,12 @@ const STAIR_QUARTERS = [12, 5, 3, 10, 14, 13, 7, 11, 13, 7, 11, 14, 8, 4, 1, 2, 
 const STAIR_SHAPES = ['straight', 'inner_left', 'inner_right', 'outer_left', 'outer_right'];
 const FACING_2D: Record<string, number> = { south: 0, west: 1, north: 2, east: 3 };
 
+/** Quarters of a stair's step part (1 = NW, 2 = NE, 4 = SW, 8 = SE), as in vanilla's StairBlock. */
+export function stairQuarters(facing: string, shape: string): number {
+  const s = Math.max(0, STAIR_SHAPES.indexOf(shape));
+  return STAIR_QUARTERS[s * 4 + (FACING_2D[facing] ?? 2)];
+}
+
 export function stairBoxes(facing: string, half: string, shape: string): Box[] {
   const top = half === 'top';
   const s = Math.max(0, STAIR_SHAPES.indexOf(shape));

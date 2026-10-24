@@ -1,0 +1,56 @@
+# Zielbau Etappe 4a: Wachturm mit Fachwerk-Obergeschoss, gestaffeltem Helm und L-förmigem Anbau.
+# Koordinaten: x nach Osten, y nach oben, z nach Süden. Der Boden draußen liegt bei y=-1.
+tess 2
+projekt "Wachturm"
+samen 11
+
+rolle stein stone_bricks:5 mossy_stone_bricks:2 cracked_stone_bricks:2 andesite:1 muster=flecken:3
+rolle sockel cobblestone:3 mossy_cobblestone:1 muster=flecken:2
+rolle eckstein deepslate_bricks
+rolle zier stone_bricks
+rolle putz calcite
+rolle balken dark_oak_log
+rolle holz spruce_planks
+rolle rahmen spruce_planks
+rolle dach deepslate_tiles
+rolle glas glass_pane
+rolle laden spruce_trapdoor
+rolle tuer spruce_door
+
+wert r=5        # Radius des Turms (Umkreis r+0,5)
+
+# ---- Anbau: L aus zwei Flügeln in Fachwerk auf Steinsockel, die Dächer verschneiden sich
+box haus 7,0,-3 13,4,3 putz hohl sockel=sockel fachwerk=balken raster=3 boden=holz
+box fluegel 9,0,3 13,4,10 putz hohl sockel=sockel fachwerk=balken raster=3 boden=holz
+dach sattel haus first=x
+dach krueppelwalm fluegel first=z
+
+# ---- Turm: achteckig, unten zwei breiter, verjüngt bis Lage 12, ab Lage 18 einen vorgekragt
+vieleck turm 0,0,0 n=8 r={r} h=24 stein hohl sockel=sockel:2 ecken=eckstein \
+        profil=0:2,3:2~,12:0,18:1 konsolen=zier boden=holz
+
+# Obergeschoss in Fachwerk (Lage 18 bis 23): Schwelle, Riegel, Streben, Balken auch über die Schrägen
+vieleck og 0,18,0 n=8 r={r+1} h=6 putz hohl fachwerk=balken riegel=1 muster=strebe ringbalken=ja boden=holz
+
+# Gestaffelter Helm: Schürze am Fuß des Obergeschosses, darüber der Glockenhelm mit Spitze
+kranzdach og y={og.y0} breite=2
+dach helm og profil=glocke ueberstand=2 spitze=lightning_rod
+
+# Tür und Fenster in mehreren Höhen
+tür turm s rahmen=holz
+block 0,0,7 zier:treppe
+fenster turm w y=3 rahmen=holz
+fenster turm s y=7 rahmen=holz laeden=laden
+fenster turm n y=8 rahmen=holz
+fenster turm n y=14 rahmen=holz
+fenster turm w y=12 rahmen=holz
+fenster turm o y=14 rahmen=holz
+fenster og n y=20 b=3 h=3 bank=nein sturz=nein laeden=laden
+fenster og s y=20 b=3 h=3 bank=nein sturz=nein laeden=laden
+
+# Fenster und Tür am Anbau
+tür fluegel s
+block 11,0,11 zier:treppe
+fenster haus n y=2 x=8 b=2 anzahl=2 abstand=3
+fenster fluegel o y=2 z=4 b=2 anzahl=2 abstand=3 laeden=laden
+fenster fluegel w y=2 z=7 b=2 laeden=laden

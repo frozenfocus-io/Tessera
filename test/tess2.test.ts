@@ -1,7 +1,9 @@
+import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
 import { originLabel, parseTess } from '../src/core/formats/tess';
 import { compileTess } from '../src/tess/compile';
 import { Palette } from '../src/tess/palette';
+import { leaks } from './helpers/leaks';
 
 /**
  * Bau-Sprache 2 (Etappe 4a): every instruction and option checks the behaviour described in
@@ -484,6 +486,21 @@ describe('Bau-Sprache 2: Fachwerk', () => {
     expect(errors(c2('zylinder z 0,0,0 r=4 h=3 putz fachwerk=balken'))[0].message).toContain('Fachwerk');
   });
 
+  it('ringbalken=ja führt die Balken über schräge Seiten, mit Pfosten an den Ecken und ohne Hinweis', () => {
+    const out = c2('vieleck v 0,0,0 n=8 r=5 h=4 putz hohl fachwerk=balken ringbalken=ja');
+    clean(out);
+    expect(name(out, 3, 0, -4)).toBe('dark_oak_log'); // slanted side: sill beam
+    expect(name(out, 3, 3, -4)).toBe('dark_oak_log'); // top beam
+    expect(name(out, 3, 1, -4)).toBe('white_terracotta');
+    expect(at(out, 2, 1, -5)?.props.axis).toBe('y'); // corner post
+  });
+
+  it('ein Fenster im Feld ersetzt die Strebe ohne Hinweis', () => {
+    const out = c2('box b 0,0,0 8,4,4 putz hohl fachwerk=balken muster=kreuz\nfenster b n y=1 x=1 b=3 h=3 bank=nein sturz=nein');
+    clean(out);
+    expect(name(out, 2, 2, 0)).toBe('glass_pane');
+  });
+
   it('auf umriss an allen geraden Wandstücken, auch an der Innenecke', () => {
     const out = c2('umriss l y=0 h=4 punkte=0,0;8,0;8,4;4,4;4,8;0,8 putz hohl fachwerk=balken');
     clean(out);
@@ -586,8 +603,9 @@ describe('Bau-Sprache 2: Dachmaschine', () => {
       const b = layer(c2(`vieleck v 0,0,0 n=8 r=${r - 1} h=1 stein`), 0);
       return new Set([...a].filter((c) => !b.has(c)));
     };
-    expect(layer(roof, 1)).toEqual(ring(6));
-    expect(layer(roof, 2)).toEqual(ring(5));
+    const stairs = (y: number) => new Set(blocksIn(roof, y).filter(([, , , s]) => s.name.endsWith('_stairs')).map(([x, , z]) => `${x},${z}`));
+    expect(stairs(1)).toEqual(ring(6));
+    expect(stairs(2)).toEqual(ring(5));
     const cone = c2('zylinder z 0,0,0 r=3 h=1 stein hohl\ndach kegel z spitze=lightning_rod');
     clean(cone);
     for (let z = -4; z <= 4; z++)
@@ -599,6 +617,20 @@ describe('Bau-Sprache 2: Dachmaschine', () => {
     const helm = c2('box h 0,0,0 6,1,6 stein hohl\ndach helm h ueberstand=0');
     // 1/3: every inset lasts three layers; two of them are vertical (full blocks).
     expect([2, 3, 4].map((y) => name(helm, 0, y, 3))).toEqual(['spruce_planks', 'spruce_planks', 'spruce_stairs']);
+  });
+
+  it('ist auch an schrägen Kanten dicht: kein Blick ins Dachinnere', () => {
+    for (const src of [
+      'vieleck v 0,0,0 n=8 r=6 h=4 stein hohl boden=stein\ndach helm v profil=glocke ueberstand=2',
+      'zylinder z 0,0,0 r=6 h=4 stein hohl boden=stein\ndach kegel z',
+      'vieleck v 0,0,0 n=6 r=5 h=4 stein hohl boden=stein\ndach walm v',
+      'box a 0,0,0 10,3,6 stein hohl boden=stein\ndach sattel a first=x\nbox b 3,0,6 7,3,15 stein hohl boden=stein\ndach sattel b first=z',
+    ]) {
+      const out = c2(src);
+      clean(out);
+      const inside = (x: number, y: number, z: number) => y >= 1 && y <= 3 && Math.abs(x) < 20 && out.grid.has(x, 0, z) && !out.grid.has(x, y, z);
+      expect(leaks(out.grid, inside), src).toEqual([]);
+    }
   });
 
   it('verschneidet Dächer: Vereinigung der Lagen, Kehle als Treppen-Innenecke, innere Giebel entfallen', () => {
@@ -613,6 +645,25 @@ describe('Bau-Sprache 2: Dachmaschine', () => {
     // Roofs that neither overlap nor touch stay apart.
     const apart = c2('box a 0,0,0 4,2,4 stein hohl\ndach walm a\nbox b 20,0,0 24,2,4 stein hohl\ndach walm b');
     same(apart, c2('box a 0,0,0 4,2,4 stein hohl\ndach walm a\nbox b 20,0,0 24,2,4 stein hohl\nbox c 20,0,0 24,2,4 stein hohl\ndach walm c'));
+  });
+
+  it('Krüppelwalm an einem anderen Dach: Walm nur an der freien Giebelseite', () => {
+    const out = c2('box a 0,0,0 10,3,6 stein hohl\ndach sattel a first=x\nbox b 3,0,6 7,3,15 stein hohl\ndach krueppelwalm b first=z');
+    clean(out);
+    // The north end lies against roof a: no hip there, the ridge of b runs into a's slope.
+    for (let z = 5; z <= 14; z++) expect(name(out, 5, 7, z), `z=${z}`).toBe('spruce_slab');
+    expect(at(out, 5, 7, 4)?.props).toMatchObject({ facing: 'north', half: 'bottom' });
+    expect(at(out, 5, 6, 6)).toBeNull(); // no gable of b in the attic
+    // The south end is free: gable below, hip in the top two layers.
+    expect(name(out, 5, 5, 15)).toBe('stone_bricks');
+    expect(at(out, 5, 5, 16)?.props).toMatchObject({ facing: 'north', half: 'bottom' });
+    expect(at(out, 5, 6, 15)?.props).toMatchObject({ facing: 'north', half: 'bottom' });
+    expect(at(out, 5, 7, 15)).toBeNull();
+    // Alone, the same roof has its hip at both ends.
+    const alone = c2('box b 3,0,6 7,3,15 stein hohl\ndach krueppelwalm b first=z');
+    expect(at(alone, 5, 6, 6)?.props).toMatchObject({ facing: 'south', half: 'bottom' });
+    expect(xs(alone, 7, 9)).toEqual([5]);
+    expect(at(alone, 5, 7, 6)).toBeNull();
   });
 
   it('lässt Blöcke stehen, die andere Anweisungen zwischen zwei Dächern gesetzt haben', () => {
@@ -775,9 +826,53 @@ describe('Bau-Sprache 2: weitere Angaben', () => {
     clean(out);
     expect(name(out, 3, 4, -3)).toBe('deepslate_tiles'); // 1/2: two layers per ring, the lower one full
     expect(at(out, 3, 5, -3)?.props).toMatchObject({ facing: 'south', half: 'bottom' });
-    expect(name(out, 3, 4, -3)).toBe('deepslate_tiles');
+    expect(name(out, 3, 6, -2)).toBe('deepslate_tiles');
     expect(at(out, 3, 7, -2)?.props.facing).toBe('south');
     expect(at(out, 3, 3, -3)?.props).toMatchObject({ facing: 'south', half: 'top' }); // kante
     expect(errors(c2('box t 0,0,0 6,9,6 stein hohl\nkranzdach t y=12'))[0].message).toContain('y=12');
+  });
+});
+
+describe('Zielbau 4a: beispiele/wachturm.tess', () => {
+  const out = compileTess(readFileSync('beispiele/wachturm.tess', 'utf8'));
+  const west = (cells: Set<string>) => new Set([...cells].filter((c) => Number(c.split(',')[0]) <= 5)); // without the annex
+  const ring = (r: number) => west(layer(c2(`vieleck v 0,0,0 n=8 r=${r} h=1 stein hohl`), 0));
+
+  it('übersetzt ohne Fehler und ohne Hinweise', () => clean(out));
+
+  it('Turm: achteckig, unten breiter, verjüngt, ab Lage 18 vorgekragt mit Konsolen, Fenster in mehreren Höhen', () => {
+    // r=5 with profile 0:2,3:2~,12:0,18:1 → r=7 up to layer 5, r=6 up to 9, r=5 up to 17, r=6 from 18.
+    expect(west(layer(out, 1))).toEqual(ring(7));
+    expect(west(layer(out, 9))).toEqual(ring(6));
+    expect(west(layer(out, 16))).toEqual(ring(5));
+    expect(west(layer(out, 23))).toEqual(ring(6));
+    expect(at(out, -6, 17, 0)?.props).toMatchObject({ facing: 'east', half: 'top' }); // console under the overhang
+    expect(name(out, -6, 17, 0)).toBe('stone_brick_stairs');
+    expect(name(out, -6, 3, 0)).toBe('glass_pane');
+    expect(name(out, 0, 14, -5)).toBe('glass_pane');
+    expect(name(out, 0, 1, 6)).toBe('spruce_door');
+  });
+
+  it('Obergeschoss in Fachwerk mit Schwelle, Riegel, Pfosten und Streben', () => {
+    expect(at(out, 0, 18, -6)?.props.axis).toBe('x'); // sill beam
+    expect(at(out, 0, 19, -6)?.props.axis).toBe('x'); // riegel=1
+    expect(at(out, -2, 20, -6)?.props.axis).toBe('y'); // post
+    expect([name(out, 6, 20, -1), name(out, 6, 21, 0), name(out, 6, 22, 1)]).toEqual(['dark_oak_log', 'dark_oak_log', 'dark_oak_log']); // strut
+    expect(name(out, 6, 20, 1)).toBe('calcite');
+    expect(name(out, -2, 21, -7)).toBe('spruce_trapdoor'); // shutter of the upper window
+  });
+
+  it('gestaffelter Helm: Kranzdach am Fuß des Obergeschosses, Glockenhelm mit Spitze', () => {
+    expect(at(out, -8, 18, 0)?.props).toMatchObject({ facing: 'east', half: 'bottom' });
+    expect(at(out, -7, 19, 0)?.props).toMatchObject({ facing: 'east', half: 'bottom' });
+    const top = Math.max(...out.grid.entries().map(([, y]) => y));
+    expect(name(out, 0, top, 0)).toBe('lightning_rod');
+    expect(name(out, 0, top - 1, 0)).toBe('deepslate_tiles');
+  });
+
+  it('Anbau: L aus zwei boxen, Kehle als Innenecke, Krüppelwalm nur an der freien Seite', () => {
+    expect(at(out, 8, 5, 4)?.props).toMatchObject({ facing: 'north', shape: expect.stringMatching(/^inner_/) });
+    expect(at(out, 11, 7, 10)?.props).toMatchObject({ facing: 'north', half: 'bottom' });
+    expect([name(out, 11, 8, 2), name(out, 11, 8, 3)]).toEqual(['deepslate_tile_slab', 'deepslate_tile_slab']);
   });
 });

@@ -1,5 +1,6 @@
-import { CellSet, ChebDistance, DIAGONALS, facingTowardsSet, SIDES } from './cells';
-import type { Facing } from './geometry';
+import { stairQuarters } from '../blocks/shapes';
+import { CellSet, ChebDistance, facingTowardsSet, SIDES } from './cells';
+import { ccw, opposite, type Facing } from './geometry';
 import { TessError } from './syntax';
 
 /**
@@ -104,11 +105,46 @@ export interface RoofDef {
   fuellen: boolean;
   hasRidgeDeco: boolean;
   hasTip: boolean;
+  /** Krüppelwalm: the hips at the two gable ends (layers/dirs above hold both hips). */
+  hip?: HipEnds;
+}
+
+export interface HipEnds {
+  /** First hipped layer. */
+  from: number;
+  /** Gable wall lines of the two ends. */
+  ends: readonly [GableWall, GableWall];
+  /** Layer outlines and shell sides with the hip at the first and/or the second end. */
+  variant(first: boolean, second: boolean): { layers: CellSet[]; dirs: number[] };
 }
 
 export function layerOf(r: RoofDef, Y: number): CellSet {
   const i = Y - r.yb;
   return i >= 0 && i < r.layers.length ? r.layers[i] : CellSet.EMPTY;
+}
+
+/**
+ * Krüppelwalm roofs in a group: an end whose gable lies against or inside another roof of the
+ * group at the first hipped layer is not a free gable (its gable falls away, 5.3), so it gets no
+ * hip either; the roof runs on there like a gable roof and its ridge meets the other roof.
+ */
+export function resolveHips(roofs: readonly RoofDef[]): RoofDef[] {
+  return roofs.map((r, ri) => {
+    const h = r.hip;
+    if (!h || roofs.length < 2) return r;
+    const Y = r.yb + h.from;
+    const free = h.ends.map((g) => {
+      const [ox, oz] = FACING_STEP[g.out];
+      for (let t = g.lo; t <= g.hi; t++) {
+        const [x, z] = g.axis === 'x' ? [t, g.fixed] : [g.fixed, t];
+        if (roofs.some((o, oi) => oi !== ri && (layerOf(o, Y).has(x, z) || layerOf(o, Y).has(x + ox, z + oz)))) return false;
+      }
+      return true;
+    });
+    if (free[0] && free[1]) return r;
+    const v = h.variant(free[0], free[1]);
+    return { ...r, layers: v.layers, dirs: v.dirs };
+  });
 }
 
 export type RoofBlockKind =
@@ -181,6 +217,43 @@ function finalCell(r: RoofDef, S: CellSet, x: number, z: number): { kind: RoofBl
   return { kind: 'ridgeStair', facing };
 }
 
+const QUARTER_SIDE: Record<Facing, number> = { north: 1 | 2, south: 4 | 8, east: 2 | 8, west: 1 | 4 };
+
+/** Shape of a roof stair from the stairs of the same layer (as the connection pass will set it). */
+function shapeIn(b: RoofBlock, get: (x: number, z: number) => RoofBlock | undefined): string {
+  const isStair = (n: RoofBlock | undefined): n is RoofBlock => !!n && !!n.facing && (n.kind === 'stair' || n.kind === 'ridgeStair' || n.kind === 'belly');
+  const half = (n: RoofBlock) => (n.kind === 'belly' ? 'top' : 'bottom');
+  const f = b.facing!;
+  const at = (d: Facing) => {
+    const [dx, dz] = FACING_STEP[d];
+    return get(b.x + dx, b.z + dz);
+  };
+  const canTake = (d: Facing) => {
+    const n = at(d);
+    return !isStair(n) || n.facing !== f || half(n) !== half(b);
+  };
+  const back = at(f);
+  if (isStair(back) && half(back) === half(b)) {
+    const d = back.facing!;
+    if ((d === 'east' || d === 'west') !== (f === 'east' || f === 'west') && canTake(opposite(d))) return d === ccw(f) ? 'outer_left' : 'outer_right';
+  }
+  const front = at(opposite(f));
+  if (isStair(front) && half(front) === half(b)) {
+    const d = front.facing!;
+    if ((d === 'east' || d === 'west') !== (f === 'east' || f === 'west') && canTake(d)) return d === ccw(f) ? 'inner_left' : 'inner_right';
+  }
+  return 'straight';
+}
+
+/** Whether a surface block leaves the side towards `dir` partly open. */
+function opensTowards(n: RoofBlock, dir: Facing, get: (x: number, z: number) => RoofBlock | undefined): boolean {
+  if (n.kind === 'slab' || n.kind === 'ridge') return true;
+  if (n.kind !== 'stair' && n.kind !== 'ridgeStair' && n.kind !== 'belly') return false;
+  const q = stairQuarters(n.facing!, shapeIn(n, get));
+  const need = QUARTER_SIDE[dir];
+  return (q & need) !== need;
+}
+
 export interface GroupRender {
   blocks: RoofBlock[];
   /** Per roof: whether it ends in a single tip cell, and where. */
@@ -192,7 +265,8 @@ export interface GroupRender {
  * outlines. Returns the blocks in placing order: roof surface first, then gables, verges,
  * eaves and decorations (those only go into empty cells).
  */
-export function renderRoofs(roofs: readonly RoofDef[]): GroupRender {
+export function renderRoofs(group: readonly RoofDef[]): GroupRender {
+  const roofs = resolveHips(group);
   const blocks: RoofBlock[] = [];
   const yLo = Math.min(...roofs.map((r) => r.yb));
   const yHi = Math.max(...roofs.map((r) => r.yb + r.layers.length - 1));
@@ -223,6 +297,7 @@ export function renderRoofs(roofs: readonly RoofDef[]): GroupRender {
       });
     }
     let bellyDist: ChebDistance | null = null;
+    const inner: [number, number][] = [];
     cur.forEach((x, z) => {
       const owners: number[] = [];
       for (let i = 0; i < roofs.length; i++) if (layerOf(roofs[i], Y).has(x, z)) owners.push(i);
@@ -275,7 +350,22 @@ export function renderRoofs(roofs: readonly RoofDef[]): GroupRender {
         }
       }
       if (fill) add('full');
+      else inner.push([x, z]);
     });
+    // Seal: an attic cell next to a stair or slab of the surface whose side towards it is
+    // open (slanted edges, where stairs meet only diagonally) becomes a full block, so the roof
+    // has no gaps to look through.
+    const get = (x: number, z: number) => surface.get(key(x, Y, z));
+    for (const [x, z] of inner) {
+      for (const s of SIDES) {
+        const n = get(x - s.dx, z - s.dz);
+        if (!n || !opensTowards(n, s.facing, get)) continue;
+        const b: RoofBlock = { x, y: Y, z, kind: 'full', roof: n.roof };
+        blocks.push(b);
+        surface.set(key(x, Y, z), b);
+        break;
+      }
+    }
   }
 
   // Gables: wall lines of gable roofs, under the next layer's outline, where still empty.
@@ -288,8 +378,11 @@ export function renderRoofs(roofs: readonly RoofDef[]): GroupRender {
         for (let t = g.lo; t <= g.hi; t++) {
           const [x, z] = g.axis === 'x' ? [t, g.fixed] : [g.fixed, t];
           if (!above.has(x, z) || surface.has(key(x, Y, z))) continue;
-          // Gables inside the united roof body fall away.
-          const inside = roofs.some((o, oi) => oi !== ri && (layerOf(o, Y + 1).has(x, z) || layerOf(o, Y + 1).has(x + ox, z + oz)));
+          // Gables inside the united roof body fall away: another roof passes over the cell, or
+          // covers the cell in front of the gable (in this layer or the next).
+          const inside = roofs.some(
+            (o, oi) => oi !== ri && (layerOf(o, Y + 1).has(x, z) || layerOf(o, Y + 1).has(x + ox, z + oz) || layerOf(o, Y).has(x + ox, z + oz)),
+          );
           if (inside) continue;
           blocks.push({ x, y: Y, z, kind: 'gable', roof: ri });
           surface.set(key(x, Y, z), blocks[blocks.length - 1]);
@@ -416,4 +509,3 @@ export function renderSkirt(
   return out;
 }
 
-export { DIAGONALS };
