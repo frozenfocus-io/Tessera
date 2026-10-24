@@ -1,5 +1,4 @@
 import { compileTess } from '../../tess/compile';
-import { keyToCell } from '../../tess/grid';
 import type { BlockHints } from '../../tess/palette';
 import type { Diagnostic } from '../../tess/syntax';
 import { TARGET_DATA_VERSION } from '../versions';
@@ -25,8 +24,25 @@ export function looksLikeTess(bytes: Uint8Array): boolean {
   return false;
 }
 
+/** Where a block of a building plan comes from: statement line, module chain and its text. */
+export interface OriginEntry {
+  line: number;
+  /** Lines of module calls (Etappe 4c); empty outside modules. */
+  chain: number[];
+  /** The statement, comments removed, continuation lines joined. */
+  text: string;
+}
+
+/** Origin of every cell of a building plan (same index order as the volume data). */
+export interface PlanOrigins {
+  /** Index into `table` per cell; 0 = no block. */
+  ids: Uint16Array | Uint32Array;
+  table: OriginEntry[];
+}
+
 export interface TessResult extends FormatResult {
   diagnostics: Diagnostic[];
+  origins: PlanOrigins;
 }
 
 /** Line-numbered messages, one per line, for error reports. */
@@ -38,41 +54,43 @@ export function parseTess(bytes: Uint8Array, hints?: BlockHints): TessResult {
   const source = decoder.decode(bytes);
   const out = compileTess(source, { hints });
   const { grid } = out;
-  let minX = Infinity, minY = Infinity, minZ = Infinity;
-  let maxX = -Infinity, maxY = -Infinity, maxZ = -Infinity;
-  for (const k of grid.cells.keys()) {
-    const [x, y, z] = keyToCell(k);
-    if (x < minX) minX = x;
-    if (y < minY) minY = y;
-    if (z < minZ) minZ = z;
-    if (x > maxX) maxX = x;
-    if (y > maxY) maxY = y;
-    if (z > maxZ) maxZ = z;
-  }
-  const empty = grid.size === 0;
-  const [sizeX, sizeY, sizeZ] = empty ? [1, 1, 1] : [maxX - minX + 1, maxY - minY + 1, maxZ - minZ + 1];
+  const b = grid.bounds();
+  const [minX, minY, minZ] = b ? b.min : [0, 0, 0];
+  const [sizeX, sizeY, sizeZ] = b ? [b.max[0] - minX + 1, b.max[1] - minY + 1, b.max[2] - minZ + 1] : [1, 1, 1];
   checkCells(sizeX, sizeY, sizeZ);
   // Only states a cell uses end up in the project palette.
   const builder = new PaletteBuilder(TARGET_DATA_VERSION);
-  const map = new Map<number, number>();
+  const map = new Int32Array(grid.states.length).fill(-1);
   const data = new Uint16Array(sizeX * sizeY * sizeZ);
-  for (const [k, i] of grid.cells) {
-    let p = map.get(i);
-    if (p === undefined) {
-      p = builder.add(grid.states[i]);
-      map.set(i, p);
+  const table: OriginEntry[] = [{ line: 0, chain: [], text: '' }];
+  const originMap = new Map<number, number>();
+  const ids = grid.origins.length < 0xffff ? new Uint16Array(data.length) : new Uint32Array(data.length);
+  grid.forEach((x, y, z, sid, info) => {
+    let p = map[sid];
+    if (p < 0) {
+      p = builder.add(grid.states[sid]);
+      map[sid] = p;
     }
-    const [x, y, z] = keyToCell(k);
-    data[((y - minY) * sizeZ + (z - minZ)) * sizeX + (x - minX)] = p;
-  }
+    const i = ((y - minY) * sizeZ + (z - minZ)) * sizeX + (x - minX);
+    data[i] = p;
+    const o = info >>> 3;
+    let t = originMap.get(o);
+    if (t === undefined) {
+      const src = grid.origins[o] ?? { line: 0, chain: [] };
+      t = table.length;
+      table.push({ line: src.line, chain: [...src.chain], text: out.lineTexts.get(src.line) ?? '' });
+      originMap.set(o, t);
+    }
+    ids[i] = t;
+  });
   return {
     volume: { sizeX, sizeY, sizeZ, palette: builder.palette, data },
     info: {
       format: 'tess',
       formatLabel: 'Tessera-Bauplan',
-      formatVersion: 1,
+      formatVersion: out.version,
       dataVersion: TARGET_DATA_VERSION,
-      offset: empty ? null : [minX, minY, minZ],
+      offset: b ? [minX, minY, minZ] : null,
       weOffset: null,
       blockEntityCount: 0,
       entityCount: 0,
@@ -81,5 +99,6 @@ export function parseTess(bytes: Uint8Array, hints?: BlockHints): TessResult {
       renames: [],
     },
     diagnostics: out.diagnostics,
+    origins: { ids, table },
   };
 }

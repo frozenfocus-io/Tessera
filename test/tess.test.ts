@@ -4,7 +4,6 @@ import { gzipSync } from 'fflate';
 import { importFile, ImportError } from '../src/core/importFile';
 import { looksLikeTess } from '../src/core/formats/tess';
 import { compileTess } from '../src/tess/compile';
-import { keyToCell } from '../src/tess/grid';
 import { Palette } from '../src/tess/palette';
 
 const HEAD = 'tess 1\nrolle stein stone_bricks\nrolle holz spruce_planks\nrolle glas glass_pane\nrolle rahmen spruce_planks\nrolle tuer spruce_door\n';
@@ -91,11 +90,11 @@ describe('Bau-Sprache: Rollen', () => {
     const a = compileTess(src);
     const b = compileTess(src);
     const c = compileTess(src.replace('tess 1', 'tess 1\nsamen 99'));
-    const count = (out: ReturnType<typeof compileTess>, id: string) => [...out.grid.cells.values()].filter((i) => out.grid.states[i].name === id).length;
+    const count = (out: ReturnType<typeof compileTess>, id: string) => out.grid.entries().filter(([, , , s]) => s.name === id).length;
     expect(count(a, 'minecraft:stone_bricks')).toBe(count(b, 'minecraft:stone_bricks'));
     expect(count(a, 'minecraft:stone_bricks') / 900).toBeGreaterThan(0.6);
     expect(count(a, 'minecraft:stone_bricks') / 900).toBeLessThan(0.8);
-    const keys = (out: ReturnType<typeof compileTess>) => [...out.grid.cells.values()].join();
+    const keys = (out: ReturnType<typeof compileTess>) => out.grid.entries().map(([x, y, z, s]) => `${x},${y},${z}=${s.key}`).join();
     expect(keys(a)).toBe(keys(b));
     expect(keys(a)).not.toBe(keys(c));
   });
@@ -103,7 +102,7 @@ describe('Bau-Sprache: Rollen', () => {
   it('nimmt für Treppen einer Mischung nur Sorten mit Treppe', () => {
     const out = compileTess('tess 1\nrolle m stone_bricks cracked_stone_bricks\nbox h 0,0,0 4,2,4 m hohl\ndach walm h rolle=m');
     expect(errors(out)).toEqual([]);
-    const names = new Set([...out.grid.cells.values()].map((i) => out.grid.states[i].name));
+    const names = new Set(out.grid.entries().map(([, , , s]) => s.name));
     expect(names.has('minecraft:stone_brick_stairs')).toBe(true);
     expect([...names].some((n) => n.startsWith('minecraft:cracked') && n.endsWith('stairs'))).toBe(false);
   });
@@ -130,7 +129,7 @@ describe('Bau-Sprache: Grundformen', () => {
 
   it('macht runde Zylinder ohne Lücken in der Wand', () => {
     const out = compileTess('tess 1\nrolle s stone_bricks\nzylinder t 0,0,0 r=4 h=1 s hohl');
-    const cells = [...out.grid.cells.keys()].map(keyToCell);
+    const cells = out.grid.entries();
     expect(cells.length).toBeGreaterThan(20);
     // Every wall cell has two wall neighbours (8-connected ring).
     for (const [x, , z] of cells) {
@@ -173,7 +172,7 @@ describe('Bau-Sprache: Bauteile', () => {
 
   it('verteilt mehrere Fenster mittig mit Abstand', () => {
     const out = compile('box h 0,0,0 12,4,4 stein hohl\nfenster h s y=2 anzahl=3 abstand=4');
-    const glass = [...out.grid.cells.entries()].filter(([, i]) => out.grid.states[i].name === 'minecraft:glass_pane').map(([k]) => keyToCell(k)[0]);
+    const glass = out.grid.entries().filter(([, , , s]) => s.name === 'minecraft:glass_pane').map(([x]) => x);
     expect([...new Set(glass)].sort((a, b) => a - b)).toEqual([2, 6, 10]);
   });
 

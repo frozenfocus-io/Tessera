@@ -1,7 +1,7 @@
 import { makeState, shortName, type BlockState } from '../core/blockstate';
 import { resolveShape } from '../blocks/shapes';
 import { ccw, DIR, FACINGS, opposite, type Facing } from './geometry';
-import { keyToCell, type Grid } from './grid';
+import type { Grid } from './grid';
 
 /**
  * Connected blocks. In the game, fences, walls, panes and stair corners take their shape only
@@ -145,10 +145,10 @@ export function hasAxis(blockId: string): boolean {
 }
 
 /**
- * Fills in the properties a placed block has in the game, so every state is complete
- * (waterlogged=false, closed doors, unpowered trapdoors …). Given properties stay.
+ * Bau-Sprache 1: fills in the properties a placed block has in the game. Frozen: tess 1 files
+ * must give exactly the result of version 0.3.0.
  */
-export function completeState(s: BlockState): BlockState {
+export function completeStateV1(s: BlockState): BlockState {
   const n = id(s);
   const p: Record<string, string> = { ...s.props };
   const def = (k: string, v: string) => {
@@ -195,45 +195,238 @@ export function completeState(s: BlockState): BlockState {
   return makeState(s.name, p);
 }
 
-/** Completes all states and computes connections and stair shapes on the finished grid. */
-export function connectBlocks(grid: Grid): void {
-  const completed = new Map<number, BlockState>();
-  for (const [k, i] of grid.cells) {
-    let c = completed.get(i);
-    if (!c) {
-      c = completeState(grid.states[i]);
-      completed.set(i, c);
-    }
-    if (c !== grid.states[i]) grid.replace(k, c);
+const SIX = ['north', 'east', 'south', 'west', 'up', 'down'];
+const CANDLE = /(^|_)candle$/;
+
+/**
+ * Bau-Sprache 2: like version 1, plus the blocks the new instructions and the freestyle
+ * commands place (buttons, plates, leaves, ladders, vines, torches, chains …). Given
+ * properties stay; nothing a version 1 file contains changes meaning.
+ */
+export function completeState(s: BlockState): BlockState {
+  const n = id(s);
+  const vanilla = s.name.startsWith('minecraft:');
+  const p: Record<string, string> = { ...s.props };
+  const def = (k: string, v: string) => {
+    p[k] ??= v;
+  };
+  if (n.endsWith('_leaves')) {
+    // Leaves set by the compiler never decay.
+    def('distance', '7');
+    p.persistent = 'true';
+    def('waterlogged', 'false');
+    return makeState(s.name, p);
   }
+  if (n.endsWith('_button')) {
+    def('face', 'wall');
+    def('facing', 'north');
+    def('powered', 'false');
+    return makeState(s.name, p);
+  }
+  if (n.endsWith('_pressure_plate')) {
+    if (n === 'light_weighted_pressure_plate' || n === 'heavy_weighted_pressure_plate') def('power', '0');
+    else def('powered', 'false');
+    return makeState(s.name, p);
+  }
+  if (vanilla) {
+    switch (n) {
+      case 'ladder':
+        def('facing', 'north');
+        def('waterlogged', 'false');
+        return makeState(s.name, p);
+      case 'vine':
+        for (const f of ['north', 'east', 'south', 'west', 'up']) def(f, 'false');
+        return makeState(s.name, p);
+      case 'glow_lichen':
+        for (const f of SIX) def(f, 'false');
+        def('waterlogged', 'false');
+        return makeState(s.name, p);
+      case 'wall_torch':
+      case 'soul_wall_torch':
+        def('facing', 'north');
+        return makeState(s.name, p);
+      case 'redstone_wall_torch':
+        def('facing', 'north');
+        def('lit', 'true');
+        return makeState(s.name, p);
+      case 'redstone_torch':
+        def('lit', 'true');
+        return makeState(s.name, p);
+      case 'chain':
+        def('axis', 'y');
+        def('waterlogged', 'false');
+        return makeState(s.name, p);
+      case 'lightning_rod':
+        def('facing', 'up');
+        def('powered', 'false');
+        def('waterlogged', 'false');
+        return makeState(s.name, p);
+      case 'end_rod':
+        def('facing', 'up');
+        return makeState(s.name, p);
+      case 'campfire':
+      case 'soul_campfire':
+        def('facing', 'north');
+        def('lit', 'true');
+        def('signal_fire', 'false');
+        def('waterlogged', 'false');
+        return makeState(s.name, p);
+      case 'farmland':
+        def('moisture', '7');
+        return makeState(s.name, p);
+      case 'water':
+      case 'lava':
+        def('level', '0');
+        return makeState(s.name, p);
+      case 'snow':
+        def('layers', '1');
+        return makeState(s.name, p);
+      case 'grass_block':
+      case 'podzol':
+      case 'mycelium':
+        def('snowy', 'false');
+        return makeState(s.name, p);
+      case 'flower_pot':
+        return makeState(s.name, p);
+      case 'hay_block':
+        def('axis', 'y');
+        return makeState(s.name, p);
+      case 'sea_pickle':
+        def('pickles', '1');
+        def('waterlogged', 'false');
+        return makeState(s.name, p);
+      case 'bell':
+        def('attachment', 'floor');
+        def('facing', 'north');
+        def('powered', 'false');
+        return makeState(s.name, p);
+      case 'barrel':
+        def('facing', 'up');
+        def('open', 'false');
+        return makeState(s.name, p);
+      case 'chest':
+      case 'trapped_chest':
+        def('facing', 'north');
+        def('type', 'single');
+        def('waterlogged', 'false');
+        return makeState(s.name, p);
+      case 'iron_bars':
+        break;
+      case 'bamboo':
+        def('age', '0');
+        def('leaves', 'none');
+        def('stage', '0');
+        return makeState(s.name, p);
+      case 'big_dripleaf':
+      case 'small_dripleaf':
+        break;
+    }
+    if (CANDLE.test(n)) {
+      def('candles', '1');
+      def('lit', 'false');
+      def('waterlogged', 'false');
+      return makeState(s.name, p);
+    }
+    if (n.endsWith('_wall_banner')) {
+      def('facing', 'north');
+      return makeState(s.name, p);
+    }
+    if (n.endsWith('_banner')) {
+      def('rotation', '0');
+      return makeState(s.name, p);
+    }
+    if (n.endsWith('_wall_sign') || n.endsWith('_wall_hanging_sign')) {
+      def('facing', 'north');
+      def('waterlogged', 'false');
+      return makeState(s.name, p);
+    }
+    if (n.endsWith('_hanging_sign')) {
+      def('attached', 'false');
+      def('rotation', '0');
+      def('waterlogged', 'false');
+      return makeState(s.name, p);
+    }
+    if (n.endsWith('_sign')) {
+      def('rotation', '0');
+      def('waterlogged', 'false');
+      return makeState(s.name, p);
+    }
+  }
+  return completeStateV1(makeState(s.name, p));
+}
+
+// ---------------------------------------------------------------------------
+
+const KIND_NONE = 0;
+const KIND_STAIRS = 1;
+const KIND_FENCE = 2;
+const KIND_BARS = 3;
+const KIND_WALL = 4;
+
+function kindOf(s: BlockState): number {
+  if (isStairs(s)) return KIND_STAIRS;
+  if (isFence(s)) return KIND_FENCE;
+  if (isBars(s)) return KIND_BARS;
+  if (isWall(s)) return KIND_WALL;
+  return KIND_NONE;
+}
+
+/**
+ * Completes all states and computes connections and stair shapes on the finished grid.
+ * `version` picks the completion table (1: frozen state of version 0.3.0). Only cells with
+ * connecting blocks are looked at, together with their neighbours.
+ */
+export function connectBlocks(grid: Grid, version: 1 | 2 = 2): void {
+  const complete = version === 1 ? completeStateV1 : completeState;
+  // 1. Complete every state once, then rewrite the cells.
+  const count = grid.states.length;
+  const remap = new Uint16Array(count);
+  for (let i = 1; i < count; i++) remap[i] = grid.stateId(complete(grid.states[i]));
+  for (const c of grid.chunks.values()) {
+    if (c.count === 0) continue;
+    const ids = c.ids;
+    for (let i = 0; i < ids.length; i++) if (ids[i] !== 0) ids[i] = remap[ids[i]];
+  }
+
+  // 2. Find connecting blocks (by state, not per cell).
+  const kinds = new Uint8Array(grid.states.length);
+  let any = false;
+  for (let i = 1; i < grid.states.length; i++) {
+    kinds[i] = kindOf(grid.states[i]);
+    if (kinds[i]) any = true;
+  }
+  if (!any) return;
 
   // Stairs depend on their neighbours' facing and half only, fences and panes on neighbour
   // types: both are order-independent. Walls look at the wall above, so they go top-down.
   const walls: number[] = [];
-  const updates: [number, BlockState][] = [];
-  for (const [k, i] of grid.cells) {
-    const s = grid.states[i];
-    const [x, y, z] = keyToCell(k);
-    if (isStairs(s)) {
+  const updates: [number, number, number, BlockState][] = [];
+  grid.forEach((x, y, z, sid) => {
+    const k = kinds[sid];
+    if (k === KIND_NONE) return;
+    const s = grid.states[sid];
+    if (k === KIND_STAIRS) {
       const shape = stairShape(s, grid, x, y, z);
-      if (shape !== s.props.shape) updates.push([k, makeState(s.name, { ...s.props, shape })]);
-    } else if (isFence(s) || isBars(s)) {
+      if (shape !== s.props.shape) updates.push([x, y, z, makeState(s.name, { ...s.props, shape })]);
+    } else if (k === KIND_FENCE || k === KIND_BARS) {
       const props: Record<string, string> = { ...s.props };
       for (const f of FACINGS) {
         const [dx, dz] = DIR[f];
         const n = grid.get(x + dx, y, z + dz);
-        props[f] = String(isFence(s) ? fenceConnects(s, n, f) : barsConnect(n, f));
+        props[f] = String(k === KIND_FENCE ? fenceConnects(s, n, f) : barsConnect(n, f));
       }
-      updates.push([k, makeState(s.name, props)]);
-    } else if (isWall(s)) {
-      walls.push(k);
+      updates.push([x, y, z, makeState(s.name, props)]);
+    } else {
+      walls.push(x, y, z);
     }
-  }
-  for (const [k, s] of updates) grid.replace(k, s);
-  walls.sort((a, b) => keyToCell(b)[1] - keyToCell(a)[1]);
-  for (const k of walls) {
-    const [x, y, z] = keyToCell(k);
-    const s = grid.states[grid.cells.get(k)!];
-    grid.replace(k, makeState(s.name, wallState(s, grid, x, y, z)));
+  });
+  for (const [x, y, z, s] of updates) grid.replace(x, y, z, s);
+  const order = Array.from({ length: walls.length / 3 }, (_, i) => i).sort((a, b) => walls[b * 3 + 1] - walls[a * 3 + 1]);
+  for (const i of order) {
+    const x = walls[i * 3];
+    const y = walls[i * 3 + 1];
+    const z = walls[i * 3 + 2];
+    const s = grid.get(x, y, z)!;
+    grid.replace(x, y, z, makeState(s.name, wallState(s, grid, x, y, z)));
   }
 }

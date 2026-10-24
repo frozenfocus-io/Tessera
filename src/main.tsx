@@ -40,6 +40,7 @@ window.__tessera = {
       id: p.id,
       name: p.name,
       blocks: p.data.analysis.nonAir,
+      bounds: p.bounds,
       layer: p.layer.value,
       viewMode: p.viewMode.value,
       meshing: p.meshProgress.value,
