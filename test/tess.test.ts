@@ -1,4 +1,4 @@
-import { existsSync, readFileSync } from 'node:fs';
+import { existsSync, readdirSync, readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
 import { gzipSync } from 'fflate';
 import { importFile, ImportError } from '../src/core/importFile';
@@ -297,18 +297,25 @@ describe('Testhaus mit Rundturm', () => {
   // Optional: checks every block state against vanilla 1.21.1 (misode/mcmeta, branch 1.21.1-summary,
   // file blocks/data.min.json). TESSERA_MCMETA_BLOCKS=pfad/zu/data.min.json npm test
   const mcmeta = process.env.TESSERA_MCMETA_BLOCKS;
-  it.runIf(!!mcmeta && existsSync(mcmeta))('erzeugt nur gültige, vollständige Vanilla-Blockzustände', () => {
+  it.runIf(!!mcmeta && existsSync(mcmeta))('erzeugt nur gültige, vollständige Vanilla-Blockzustände (alle Beispiele)', () => {
     const data = JSON.parse(readFileSync(mcmeta!, 'utf8')) as Record<string, [Record<string, string[]>, Record<string, string>]>;
     const known = Object.keys(data).map((k) => `minecraft:${k}`);
     const out = compileTess(source, { hints: { known } });
     expect(out.diagnostics).toEqual([]);
+    const examples = readdirSync('beispiele')
+      .filter((f) => f.endsWith('.tess'))
+      .map((f) => {
+        const r = compileTess(readFileSync(`beispiele/${f}`, 'utf8'), { hints: { known } });
+        expect(r.diagnostics, f).toEqual([]);
+        return r;
+      });
     const extra = compileTess(
       HEAD +
         'rolle m cobblestone_wall\nrolle z oak_fence\nrolle laden oak_trapdoor\nrolle dach stone_bricks\nbox h 0,0,0 8,3,6 stein hohl\nfenster h n y=1 b=2 laeden=laden\ntür h s b=2\ndach walm h\nlinie 0,0,10 6,0,10 m\nlinie 0,0,12 6,0,12 z\nblock 3,1,12 lantern\nblock 7,0,12 oak_fence_gate[facing=east]',
       { hints: { known } },
     );
     expect(extra.diagnostics.filter((d) => d.level === 'error')).toEqual([]);
-    for (const s of [...out.grid.usedStates(), ...extra.grid.usedStates()]) {
+    for (const s of [...out.grid.usedStates(), ...extra.grid.usedStates(), ...examples.flatMap((r) => r.grid.usedStates())]) {
       const entry = data[s.name.replace('minecraft:', '')];
       expect(entry, s.name).toBeDefined();
       const [props] = entry;

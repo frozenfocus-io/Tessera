@@ -149,8 +149,21 @@ function run(set: CellSet, x: number, z: number, axis: 'x' | 'z'): [number, numb
   return [a, b];
 }
 
-/** A cell of a roof's last layer: ridge slab, tip, or a stair facing the middle. */
+/**
+ * A cell of a roof's last layer: ridge slab, tip, or a stair facing the middle. Gable-type roofs
+ * read the layer across the ridge; others treat what remains after one more step inwards
+ * (erosion by one cell) as the next layer, so a 3×3 top becomes stairs around a tip.
+ */
 function finalCell(r: RoofDef, S: CellSet, x: number, z: number): { kind: RoofBlockKind; facing?: Facing } {
+  if (S.count === 1) return { kind: 'tip' };
+  if (!r.crossAxis) {
+    const inner = S.erode(1);
+    if (!inner.isEmpty()) {
+      if (inner.has(x, z)) return inner.count === 1 ? { kind: 'tip' } : finalCell(r, inner, x, z);
+      const f = facingTowardsSet(x, z, (a, c) => inner.has(a, c), 'z');
+      return f ? { kind: 'stair', facing: f } : { kind: 'slab' };
+    }
+  }
   const [xa, xb] = run(S, x, z, 'x');
   const [za, zb] = run(S, x, z, 'z');
   const lenX = xa + xb + 1;
@@ -241,7 +254,7 @@ export function renderRoofs(roofs: readonly RoofDef[]): GroupRender {
           const b: RoofBlock = { x, y: Y, z, kind: c.kind, facing: c.facing, roof: closing[0] };
           blocks.push(b);
           surface.set(key(x, Y, z), b);
-          if (c.kind === 'tip' && layerOf(r, Y).count === 1) tips[closing[0]] = [x, Y, z];
+          if (c.kind === 'tip') tips[closing[0]] = [x, Y, z];
           return;
         }
         return add('slab');

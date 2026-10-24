@@ -2,6 +2,7 @@ import { signal } from '@preact/signals';
 import { buildBlockModel, type BlockModel, type BlockTypeInfo } from '../blocks/blockModel';
 import { itemName } from '../catalog/runtime';
 import type { Catalog } from '../catalog/types';
+import type { OriginEntry } from '../core/formats/tess';
 import type { ImportResult } from '../core/importFile';
 import type { Bounds } from '../core/volume';
 import { MaterialIndex } from '../materials/materialList';
@@ -147,6 +148,16 @@ export class Project {
 
   clampLayer(y: number): number {
     return Math.max(this.minLayer, Math.min(this.maxLayer, Math.round(y)));
+  }
+
+  /** Building plans: the statement that set the block at a cell (volume coordinates). */
+  originAt(x: number, y: number, z: number): OriginEntry | null {
+    const o = this.data.origins;
+    if (!o) return null;
+    const v = this.data.volume;
+    if (x < 0 || y < 0 || z < 0 || x >= v.sizeX || y >= v.sizeY || z >= v.sizeZ) return null;
+    const id = o.ids[(y * v.sizeZ + z) * v.sizeX + x];
+    return id ? (o.table[id] ?? null) : null;
   }
 
   /** Blocks per type id over the whole project. */

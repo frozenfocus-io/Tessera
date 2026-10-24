@@ -45,6 +45,17 @@ export interface TessResult extends FormatResult {
   origins: PlanOrigins;
 }
 
+/** "Zeile 57: dach helm turm profil=glocke …", shortened to `max` characters; with modules the call chain. */
+export function originLabel(o: OriginEntry, max: number): string {
+  const chain = o.chain.length ? ` (gebaut in Zeile ${[...o.chain].reverse().join(', ')})` : '';
+  const head = `Zeile ${o.line}${chain}`;
+  const text = o.text.replace(/\s+/g, ' ').trim();
+  if (!text) return head;
+  const full = `${head}: ${text}`;
+  if (full.length <= max) return full;
+  return `${full.slice(0, Math.max(head.length + 2, max - 2)).trimEnd()} …`;
+}
+
 /** Line-numbered messages, one per line, for error reports. */
 export function formatDiagnostics(list: readonly Diagnostic[]): string {
   return list.map((d) => `Zeile ${d.line}: ${d.message}`).join('\n');

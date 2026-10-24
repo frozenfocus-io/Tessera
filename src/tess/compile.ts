@@ -1729,14 +1729,20 @@ class Compiler {
       throw e;
     }
     let hitWindow = 0;
+    const isWindow = (x: number, yy: number, z: number) => {
+      const i = this.grid.cellInfo(x, yy, z);
+      return !!i && (i.part === Part.Opening || i.part === Part.Attachment);
+    };
     for (const b of blocks) {
       const Y = y + b.k;
       if (Y >= f.y0 && Y <= f.y1 && this.outlineAt(f, Y).has(b.x, b.z)) continue;
-      const info = this.grid.cellInfo(b.x, Y, b.z);
-      if (info && (info.part === Part.Opening || info.part === Part.Attachment)) {
+      if (isWindow(b.x, Y, b.z)) {
         hitWindow++;
         continue;
       }
+      // Right in front of a window or door: still only air, but say so.
+      if (SIDES.some((s) => isWindow(b.x + s.dx, Y, b.z + s.dz))) hitWindow++;
+      const info = this.grid.cellInfo(b.x, Y, b.z);
       if (b.kind === 'verge' && info) continue;
       const p = [b.x, Y, b.z];
       if (b.kind === 'stair') this.place(p, role, 'stairs', { facing: b.facing!, half: 'bottom' }, Part.Roof);
@@ -1744,7 +1750,7 @@ class Compiler {
       else if (b.kind === 'slab') this.place(p, role, 'slab', { type: 'bottom' }, Part.Roof);
       else this.place(p, role, 'block', null, Part.Roof, 'y');
     }
-    if (hitWindow) this.warn(`Das Kranzdach trifft an ${hitWindow} Stelle(n) auf Fenster oder Bauteile und setzt dort nichts.`);
+    if (hitWindow) this.warn(`Das Kranzdach trifft an ${hitWindow} Stelle(n) auf Fenster oder Türen; dort setzt es nur in Luft.`);
   }
 }
 

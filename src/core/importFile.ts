@@ -3,7 +3,7 @@ import type { FormatId, FormatInfo, FormatResult } from './formats/common';
 import { looksLikeLitematic, parseLitematic } from './formats/litematic';
 import { looksLikeLegacySchematic, looksLikeSponge, parseSpongeSchematic } from './formats/schem';
 import { looksLikeStructure, parseStructure } from './formats/structure';
-import { formatDiagnostics, looksLikeTess, parseTess } from './formats/tess';
+import { formatDiagnostics, looksLikeTess, parseTess, type PlanOrigins } from './formats/tess';
 import type { BlockHints } from '../tess/palette';
 import type { Diagnostic } from '../tess/syntax';
 import { readNbt } from './nbt/reader';
@@ -31,6 +31,8 @@ export interface ImportResult {
   timings: ImportTimings;
   /** Messages of the building language with line numbers (.tess only). */
   diagnostics?: Diagnostic[];
+  /** Building plans: the statement that set each block (same index order as the volume). */
+  origins?: PlanOrigins;
 }
 
 /** Error with a user-facing German message and optional technical detail. */
@@ -158,6 +160,7 @@ function importTess(fileName: string, bytes: Uint8Array, opts: ImportOptions, ti
     minecraftVersion: minecraftVersionLabel(TARGET_DATA_VERSION),
     timings,
     diagnostics: parsed.diagnostics,
+    origins: parsed.origins,
   };
 }
 

@@ -33,6 +33,7 @@ ctx.onmessage = (ev: MessageEvent<ParseRequest>) => {
       result.analysis.layerHist.pairs.buffer,
       result.analysis.paletteTotals.buffer,
     ];
+    if (result.origins) transfer.push(result.origins.ids.buffer);
     const msg: ParseResponse = { id, ok: true, result, ms: performance.now() - t0 };
     ctx.postMessage(msg, transfer);
   } catch (e) {
