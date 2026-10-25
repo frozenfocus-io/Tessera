@@ -157,7 +157,7 @@ Spieldateien von Mojang und den Mod-Autoren gehören nicht in dieses Repository.
 | `npm run build` | prüfen und bauen, Ergebnis in `dist/` |
 | `npm run build:artifact -- --out <ordner>` | Version zum Veröffentlichen als Claude-Artefakt, z. B. als Testversion fürs Handy |
 
-Konzept, Spezifikation und Auftrag für die nächste Etappe liegen in `docs/`: [Konzept](docs/konzept.md), [Bau-Sprache (Ist)](docs/bau-sprache.md), [Bau-Sprache 2 (Soll)](docs/bau-sprache-2.md), [Auftrag Etappe 4](docs/etappe-4.md). Hinweise für Claude stehen in [CLAUDE.md](CLAUDE.md).
+Konzept, Spezifikation und Auftrag für die nächste Etappe liegen in `docs/`: [Konzept](docs/konzept.md), [Bau-Sprache (Ist)](docs/bau-sprache.md), [Bau-Sprache 2 (Soll)](docs/bau-sprache-2.md), [Auftrag Etappe 4](docs/etappe-4.md), [Future Fixes](docs/future-fixes.md) (Verbesserungsvorschläge, noch nicht umgesetzt). Hinweise für Claude stehen in [CLAUDE.md](CLAUDE.md).
 
 Die Tests erzeugen ihre Testdateien selbst, auch kleine Jars mit Modellen, Texturen und Rezepten. Eigene Schematics zum Ausprobieren gehören in den Ordner `samples/`; er wird nicht eingecheckt. Zwei Tests laufen nur, wenn du Pfade angibst: der gegen die Beispieldatei aus Etappe 1 und der gegen die echte Minecraft-Jar (liest alle Vanilla-Blöcke und prüft Farben und Namen):
 
