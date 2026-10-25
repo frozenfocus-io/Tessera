@@ -400,7 +400,7 @@ export function renderRoofs(group: readonly RoofDef[]): GroupRender {
         r.layers[y].forEach((x, z) => {
           if ((v.axis === 'x' ? x : z) !== v.at) return;
           const b = surface.get(key(x, Y, z));
-          if (!b || b.kind !== 'stair') return;
+          if (!b || (b.kind !== 'stair' && b.kind !== 'ridgeStair')) return;
           if (surface.has(key(x, Y - 1, z))) return;
           if (roofs.some((o, oi) => oi !== ri && layerOf(o, Y - 1).has(x, z))) return;
           const vb: RoofBlock = { x, y: Y - 1, z, kind: 'verge', facing: v.towards, roof: ri };

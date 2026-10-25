@@ -39,6 +39,24 @@ describe('Bau-Sprache 2: Versionen und Zeilen', () => {
     expect(errors(compileTess('rolle a stone'))[0].message).toContain('tess 2');
   });
 
+  it('übersetzt Dateien aus Version 1 mit tess 2 gleich, nur Dächer folgen der Dachmaschine', () => {
+    const src = readFileSync('beispiele/haus-mit-rundturm.tess', 'utf8');
+    const v1 = compileTess(src);
+    const v2 = compileTess(src.replace(/^tess 1$/m, 'tess 2'));
+    clean(v2); // also role names like "mauer" that are names of members
+    const below = (o: Out) => o.grid.entries().filter(([, y]) => y < 13).map(([x, y, z, s]) => `${x},${y},${z} ${s.key}`).sort();
+    expect(below(v2)).toEqual(below(v1)); // all but the cone roof of the tower (y ≥ 13)
+  });
+
+  it('erlaubt Koordinaten von −4000 bis 4000 (Version 1: 2000)', () => {
+    const ok = c2('block 4000,-4000,0 stein');
+    clean(ok);
+    expect(name(ok, 4000, -4000, 0)).toBe('stone_bricks');
+    const far = c2('block 4001,0,0 stein');
+    expect(errors(far)[0]).toMatchObject({ line: line(1), message: expect.stringContaining('4000') });
+    expect(errors(compileTess('tess 1\nrolle a stone\nblock 2001,0,0 a'))[0].message).toContain('2000');
+  });
+
   it('meldet neue Befehle in tess 1 mit dem Hinweis auf tess 2', () => {
     const out = compileTess('tess 1\nrolle a stone\nvieleck t 0,0,0 n=8 r=3 h=2 a\nbox b 0,0,0 4,4,4 a profil=2:1');
     expect(errors(out).map((e) => e.line)).toEqual([3, 4]);
@@ -228,6 +246,13 @@ describe('Bau-Sprache 2: Rollen', () => {
     expect(at(out, 1, 0, 0)?.props).toMatchObject({ hanging: 'true' });
     expect(at(out, 2, 0, 0)?.name).toBe('create:andesite_casing');
     expect(name(out, 3, 0, 0)).toBe('oak_slab');
+    // Several states, directions as n/o/s/w/oben/unten or Minecraft names.
+    const dirs = c2('block 0,0,0 spruce_stairs[facing=o,half=top]\nblock 1,0,0 spruce_trapdoor[facing=süd,open=true]\nblock 2,0,0 observer[facing=oben]\nblock 3,0,0 spruce_stairs[facing=west]');
+    clean(dirs);
+    expect(at(dirs, 0, 0, 0)?.props).toMatchObject({ facing: 'east', half: 'top' });
+    expect(at(dirs, 1, 0, 0)?.props).toMatchObject({ facing: 'south', open: 'true' });
+    expect(at(dirs, 2, 0, 0)?.props.facing).toBe('up');
+    expect(at(dirs, 3, 0, 0)?.props.facing).toBe('west');
   });
 
   it('verteilt muster=flecken in zusammenhängenden Flecken nach Gewicht', () => {
@@ -565,6 +590,11 @@ describe('Bau-Sprache 2: Dachmaschine', () => {
     expect(at(out, 1, 6, 2)).toBeNull(); // attic
     expect(at(out, -1, 4, 0)?.props).toMatchObject({ facing: 'east', half: 'top' }); // verge
     expect(at(c2('box h 0,0,0 6,3,4 stein hohl\ndach sattel h kante=nein'), -1, 4, 0)).toBeNull();
+    // Even width: the ridge is two stairs wide, the verge runs under them too.
+    const even = c2('box h 0,0,0 6,3,5 stein hohl\ndach sattel h first=x');
+    expect(at(even, -1, 7, 2)?.props).toMatchObject({ facing: 'south', half: 'bottom' });
+    expect(at(even, -1, 6, 2)?.props).toMatchObject({ facing: 'east', half: 'top' });
+    expect(at(even, 7, 6, 3)?.props).toMatchObject({ facing: 'west', half: 'top' });
     expect(name(c2('box h 0,0,0 6,3,4 stein hohl\ndach sattel h giebel=holz'), 0, 6, 2)).toBe('spruce_planks');
     expect(errors(c2('zylinder z 0,0,0 r=3 h=2 stein\ndach sattel z'))[0].message).toContain('box');
   });
@@ -671,6 +701,12 @@ describe('Bau-Sprache 2: Dachmaschine', () => {
     clean(out);
     for (let y = 4; y <= 9; y++) expect(name(out, 2, y, 1)).toBe('spruce_planks');
     expect(at(out, 4, 6, 5)?.props.shape).toMatch(/^inner_/);
+    // Cleared in between (leer, hollow forms) stays cleared, also when a third roof joins.
+    const cut = 'box a 0,0,0 10,3,6 stein hohl\ndach sattel a first=x\nleer 0,4,-1 1,9,7\nbox b 3,0,6 7,3,15 stein hohl\ndach sattel b first=z';
+    const twice = c2(cut);
+    const thrice = c2(`${cut}\nbox c 7,0,9 12,3,13 stein hohl\ndach walm c`);
+    for (const o of [twice, thrice]) for (let y = 4; y <= 9; y++) for (let z = -1; z <= 7; z++) expect(at(o, 0, y, z), `0,${y},${z}`).toBeNull();
+    expect(at(twice, 2, 4, -1)?.props.facing).toBe('south'); // the rest of roof a is there
   });
 
   it('biegung verschiebt nur das oberste Drittel', () => {

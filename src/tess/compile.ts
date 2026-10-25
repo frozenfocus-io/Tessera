@@ -18,7 +18,7 @@ import {
 import { axisOf, ccw, DIR, opposite, parseSide, ringByAngle, sideLabel, type Facing } from './geometry';
 import { Grid, LIMIT_V2, Part } from './grid';
 import { Palette, stringHash, type BlockHints, type BlockSpec, type Member, type RoleRef } from './palette';
-import { insetAt, parseRoofProfile, renderRoofs, renderSkirt, type GableWall, type HipEnds, type RoofDef, type RoofProfile, type RoofType } from './roof';
+import { insetAt, layerOf, parseRoofProfile, renderRoofs, renderSkirt, type GableWall, type HipEnds, type RoofDef, type RoofProfile, type RoofType } from './roof';
 import { asciiKey, classify, detectVersion, FollowUpError, parseStatements2, TessError, tokenText, type Diagnostic, type Statement, type Token } from './syntax';
 import { compileV1 } from './v1';
 
@@ -239,6 +239,11 @@ interface RoofGroup {
   /** Per roof: role, giebel role, decorations. */
   extra: RoofExtra[];
   placed: number[];
+  /**
+   * Cells of the group's blocks that later statements replaced or cleared, with the sequence
+   * number of the roof statement that noticed it: only roofs from then on may build there again.
+   */
+  kept: Map<number, number>;
 }
 
 interface RoofExtra {
@@ -375,7 +380,7 @@ class Compiler {
 
   /** Tokens of a statement with all expressions evaluated. */
   private tokens(st: Statement): Token[] {
-    return (st.raw ?? []).map((r) => (r.quoted ? { kind: 'string', text: r.text, col: r.col } : classify(substitute(r.text, this.env, st.line), r.col, st.line)));
+    return (st.raw ?? []).map((r) => (r.quoted ? { kind: 'string', text: r.text, col: r.col } : classify(substitute(r.text, this.env, st.line), r.col, st.line, 2)));
   }
 
   private exec(st: Statement, isFirst: boolean): void {
@@ -1640,11 +1645,12 @@ class Compiler {
   /** Adds a roof: unites it with every group whose base area it overlaps or touches. */
   private addRoof(def: RoofDef, extra: RoofExtra): void {
     const touching = this.groups.filter((g) => g.roofs.some((r) => touches(r.base, def.base)));
-    const group: RoofGroup = { roofs: [], extra: [], placed: [] };
+    const group: RoofGroup = { roofs: [], extra: [], placed: [], kept: new Map() };
     for (const g of touching) {
       group.roofs.push(...g.roofs);
       group.extra.push(...g.extra);
       group.placed.push(...g.placed);
+      for (const [k, s] of g.kept) group.kept.set(k, s);
       this.groups.splice(this.groups.indexOf(g), 1);
     }
     group.roofs.push(def);
@@ -1660,10 +1666,12 @@ class Compiler {
   private renderGroup(g: RoofGroup): void {
     const origins = new Set(g.roofs.map((r) => r.origin));
     const firstSeq = Math.min(...g.roofs.map((r) => r.seq));
-    // Remove what the group placed before (where nothing else has replaced it since).
+    // Remove what the group placed before, where nothing else has replaced or cleared it since;
+    // such cells stay as the later statements left them.
     for (const k of g.placed) {
       const [x, y, z] = unpack3(k);
       if (origins.has(this.grid.originAt(x, y, z))) this.grid.clear(x, y, z);
+      else if (!g.kept.has(k)) g.kept.set(k, this.seq);
     }
     g.placed = [];
     const { blocks, tips } = renderRoofs(g.roofs);
@@ -1674,6 +1682,8 @@ class Compiler {
       this.line = ex.line;
       const o = this.grid.originAt(b.x, b.y, b.z);
       if (o && !origins.has(o) && (this.originSeq[o] ?? 0) > firstSeq) continue; // placed between the roofs: stays
+      const since = g.kept.get(pack3(b.x, b.y, b.z));
+      if (since !== undefined && !g.roofs.some((q, i) => q.seq >= since && (i === b.roof || layerOf(q, b.y).has(b.x, b.z)))) continue;
       const onlyEmpty = b.kind === 'gable' || b.kind === 'verge' || b.kind === 'eave' || b.kind === 'deco' || b.kind === 'spire';
       if (onlyEmpty && o) continue;
       const p = [b.x, b.y, b.z];

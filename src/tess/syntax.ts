@@ -85,7 +85,7 @@ export function asciiKey(s: string): string {
 const NUMBER = /^-?\d+$/;
 const COORD = /^-?\d+(,-?\d+){1,2}$/;
 
-export function classify(raw: string, col: number, line: number): Token {
+export function classify(raw: string, col: number, line: number, version: 1 | 2 = 1): Token {
   if (NUMBER.test(raw)) return { kind: 'number', value: parseInt(raw, 10), text: raw, col };
   if (COORD.test(raw)) return { kind: 'coord', values: raw.split(',').map((n) => parseInt(n, 10)), text: raw, col };
   const eq = raw.indexOf('=');
@@ -96,7 +96,9 @@ export function classify(raw: string, col: number, line: number): Token {
     if (!value) throw new TessError(line, `„${raw}“: Nach dem Gleichheitszeichen fehlt der Wert.`);
     return { kind: 'pair', key, value, text: raw, col };
   }
-  if (raw.includes(',')) throw new TessError(line, `„${raw}“ ist keine gültige Koordinate (Form: x,y,z mit ganzen Zahlen).`);
+  // Version 2: commas inside block states (`spruce_stairs[facing=east,half=top]`) are fine.
+  const outside = version === 2 && br >= 0 ? raw.slice(0, br) + raw.slice(raw.lastIndexOf(']') + 1) : raw;
+  if (outside.includes(',')) throw new TessError(line, `„${raw}“ ist keine gültige Koordinate (Form: x,y,z mit ganzen Zahlen).`);
   return { kind: 'word', text: raw, col };
 }
 

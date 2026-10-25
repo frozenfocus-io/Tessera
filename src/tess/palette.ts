@@ -1,4 +1,4 @@
-import { normalizeName, parseBlockState, type BlockState } from '../core/blockstate';
+import { makeState, normalizeName, parseBlockState, type BlockState } from '../core/blockstate';
 import { asciiKey, FollowUpError, TessError, type Statement, type Token } from './syntax';
 
 /**
@@ -39,6 +39,8 @@ export const MEMBER_KEYS: Record<string, Member> = {
   teppich: 'carpet',
 };
 const V1_MEMBER_KEYS: Record<string, Member> = { treppe: 'stairs', stufe: 'slab', mauer: 'wall', zaun: 'fence' };
+/** Directions in block states (Bau-Sprache 2): German words or the Minecraft names. */
+const FACING_WORDS: Record<string, string> = { n: 'north', nord: 'north', o: 'east', ost: 'east', s: 'south', sued: 'south', w: 'west', west: 'west', oben: 'up', unten: 'down' };
 
 const MEMBER_LABEL: Record<Member, string> = {
   block: 'Block',
@@ -332,10 +334,6 @@ export class Palette {
     const name = asciiKey(nameTok.text);
     if (!/^[a-z_][a-z0-9_]*$/.test(name)) throw new TessError(st.line, `„${nameTok.text}“ ist kein gültiger Rollenname (Buchstaben, Ziffern, Unterstrich).`);
     if (this.roles.has(name)) throw new TessError(st.line, `Die Rolle „${name}“ gibt es schon (Zeile ${this.roles.get(name)!.line}).`);
-    if (this.version === 2 && MEMBER_KEYS[name] && name !== 'tuer') {
-      // `tuer` stays allowed: it is the default role of doors since version 1.
-      throw new TessError(st.line, `„${name}“ ist der Name eines Glieds (${name}=…); nimm einen anderen Rollennamen.`);
-    }
     const role: Role = { name, line: st.line, variants: [], overrides: {}, pattern: { kind: 'einzeln' }, salt: stringHash(name) };
     const keys = this.version === 1 ? V1_MEMBER_KEYS : MEMBER_KEYS;
     for (const t of rest) {
@@ -415,7 +413,11 @@ export class Palette {
       }
     }
     if (!/^[a-z0-9_.:/-]+(\[.*\])?$/i.test(text)) throw new TessError(line, `„${text}“ ist weder eine Rolle noch eine Block-ID.`);
-    return { kind: 'state', state: parseBlockState(text) };
+    let state = parseBlockState(text);
+    // Version 2: directions in block states may be n/o/s/w/oben/unten (1.4).
+    const f = this.version === 2 ? state.props.facing : undefined;
+    if (f !== undefined && FACING_WORDS[asciiKey(f)] && FACING_WORDS[asciiKey(f)] !== f) state = makeState(state.name, { ...state.props, facing: FACING_WORDS[asciiKey(f)] });
+    return { kind: 'state', state };
   }
 
   /** Family member of one block, or null if there is none. */

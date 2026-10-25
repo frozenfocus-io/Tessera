@@ -1,108 +1,291 @@
-# Bau-Sprache (`.tess`), Version 1
+# Bau-Sprache (`.tess`)
 
-Referenz für das Schreiben von Bauplänen. Eine `.tess`-Datei beschreibt, *wie* ein Gebäude aufgebaut ist; Tessera übersetzt sie in Blöcke. Stand: Testlauf (Etappe 3). Module, Wiederholungen, Spiegeln, ASCII-Ebenen, Farmen und weitere Bauteile kommen in Etappe 4.
+Referenz für das Schreiben von Bauplänen, Stand Etappe 4a (Tessera 0.4.0). Eine `.tess`-Datei beschreibt, *wie* ein Gebäude aufgebaut ist; Tessera übersetzt sie in Blöcke.
 
-Beispiel: [`beispiele/haus-mit-rundturm.tess`](../beispiele/haus-mit-rundturm.tess).
+- **`tess 2`** ist die Bau-Sprache 2 im Umfang von Teil 4a: Werte und Ausdrücke, Rollen mit allen Gliedern und Mustern, sechs Formen mit Wandprofil, Konsolen und Fachwerk, die Dachmaschine mit allen Dachformen, Verschneidung und Kranzdach. Fenster, Tür und Zinnen arbeiten wie in Version 1, jetzt an allen Formen. Was noch kommt (Anbauten, Zier, Freistil, Module), legt die Spezifikation [bau-sprache-2.md](bau-sprache-2.md) fest; diese Befehle meldet Tessera als „noch nicht umgesetzt (kommt mit Etappe 4b/4c)“.
+- **`tess 1`** bleibt gültig und ergibt blockgenau dasselbe wie in 0.3.0, siehe [Version 1](#version-1).
+
+Beispiele: [`beispiele/wachturm.tess`](../beispiele/wachturm.tess) (Version 2), [`beispiele/haus-mit-rundturm.tess`](../beispiele/haus-mit-rundturm.tess) (Version 1).
 
 ## Grundregeln
 
-- Eine Anweisung pro Zeile, `#` beginnt einen Kommentar.
-- Die erste Anweisung ist `tess 1`.
-- Koordinaten sind ganze Zahlen `x,y,z` ohne Leerzeichen: **x nach Osten, y nach oben, z nach Süden** (wie in Minecraft). Erlaubt sind −2000 bis 2000. Die Größe des Projekts ergibt sich aus dem Inhalt.
-- Angaben `name=wert` dürfen in beliebiger Reihenfolge hinter den festen Teilen stehen. Umlaute und ihre Umschreibung sind gleich: `tür` = `tuer`, `überstand` = `ueberstand`.
-- Anweisungen laufen von oben nach unten; spätere überschreiben frühere Blöcke (ein Fenster schneidet in seine Wand).
-- Jede Datei ist in sich abgeschlossen: Rollen, Namen und Startwert gelten nur in ihr.
-- Seiten: `n` (Norden, −z), `o` (Osten, +x), `s` (Süden, +z), `w` (Westen, −x).
+- Die erste Anweisung ist `tess 2`. Eine Anweisung pro Zeile; endet eine Zeile (vor einem Kommentar) mit `\`, geht die Anweisung in der nächsten Zeile weiter. Meldungen nennen die erste Zeile.
+- `#` beginnt einen Kommentar bis zum Zeilenende, außer in `"…"` und in ASCII-Zeilen.
+- ASCII-Zeilen beginnen mit `|` (Leerzeichen davor sind erlaubt) und stehen direkt unter `grundriss`. Alles nach dem `|` gehört zur Zeichnung, nachgestellte Leerzeichen zählen nicht.
+- Koordinaten `x,y,z`: **x nach Osten, y nach oben, z nach Süden** (wie in Minecraft), erlaubt −4000 bis 4000. Eine Zelle hat ihren Mittelpunkt bei x+0,5 und z+0,5; ob eine Zelle innen liegt, entscheidet immer ihr Mittelpunkt.
+- Angaben `name=wert` stehen in beliebiger Reihenfolge hinter den festen Teilen. Groß/klein ist egal, Umlaute und Umschreibung sind gleich (`tür` = `tuer`).
+- Seiten: `n` (Norden, −z), `o` (Osten, +x), `s` (Süden, +z), `w` (Westen, −x), ausgeschrieben `nord`, `ost`, `sued`, `west`.
+- Anweisungen laufen von oben nach unten, spätere überschreiben frühere Blöcke. Ausnahmen: Dächer verschneiden sich, das Kranzdach setzt vor Fenstern nur in Luft. Hohle Formen räumen ihr Inneres.
+- Jede Datei ist in sich abgeschlossen: Rollen, Werte, Namen und Startwert gelten nur in ihr.
 
 ## Kopf
 
 | Anweisung | Bedeutung |
 | --- | --- |
-| `tess 1` | Version der Sprache, Pflicht in der ersten Zeile |
+| `tess 2` | Version, Pflicht in der ersten Zeile |
 | `projekt "Name"` | Titel des Bauplans |
-| `samen 7` | Startwert für gemischte Rollen; gleicher Startwert, gleiches Ergebnis (Standard 1) |
+| `samen 7` | Startwert für gemischte Rollen und `zufall`; gleicher Startwert, gleiches Ergebnis (Standard 1) |
+
+## Werte und Ausdrücke
+
+```
+wert r=5
+vieleck turm 0,0,0 n=8 r={r} h=24 stein hohl
+vieleck og 0,18,0 n=8 r={r+1} h=6 putz hohl
+kranzdach og y={og.y0}
+```
+
+- `wert name=ausdruck` legt eine ganze Zahl fest, gültig ab dieser Zeile; neu festlegen ist erlaubt.
+- Ausdrücke stehen in `{…}` überall, wo eine ganze Zahl stehen darf, auch als Teil einer Koordinate oder eines Namens (`turm{i}`). Innen sind Leerzeichen erlaubt; innere Klammern werden zuerst ausgerechnet.
+- Rechnen: `+ - * / %`, Klammern, einstelliges Minus. `/` teilt mit Abrunden (`-7/2` = −4), `%` liefert 0 bis Divisor−1. Funktionen: `min(…)`, `max(…)`, `abs(a)`, `clamp(v,a,b)`, `zufall(a,b,k)` (ganze Zahl von a bis b, hängt nur von `samen`, der Zeile und k ab).
+- Dezimalzahlen gibt es nur bei `drehung=` (vieleck).
+- **Felder** einer Form gibt es ab der Zeile, die sie anlegt; ein Dach mit `name=` hat dieselben Felder außer `r`:
+
+| Feld | Bedeutung |
+| --- | --- |
+| `x0 y0 z0 x1 y1 z1` | umschließender Quader der Form ohne Dach (mit Wandprofil), einschließlich |
+| `bx by bz` | Ausdehnung (`x1-x0+1` …) |
+| `mx mz` | Mitte, abgerundet; bei zylinder, vieleck und kugel die Mittelzelle |
+| `r` | Radius bei zylinder (bei `d=` ungerade (d−1)/2, gerade d/2, bei Ellipse der größere), vieleck und kugel |
+| `dach` | höchste Lage des Dachs der Form (ohne Spitze und Firstzier); ohne Dach `y1` |
+
+Ein unbekanntes Feld oder eine noch nicht angelegte Form ist ein Fehler.
 
 ## Rollen
 
 ```
-rolle <name> <block>[:gewicht] … [treppe=<id>] [stufe=<id>] [mauer=<id>] [zaun=<id>]
+rolle stein stone_bricks:5 mossy_stone_bricks:2 cracked_stone_bricks:2 muster=flecken:3
+rolle holz spruce_planks treppe=spruce_stairs
+rolle laden spruce_trapdoor
 ```
 
-- Eine Rolle steht für einen Zweck (Wand, Dach, Rahmen …), nicht für einen Block. Alle Formen und Bauteile nehmen Rollen, nie Block-IDs direkt; nur `block` und `spitze=` nehmen Block-IDs.
-- Blöcke ohne Namensraum gelten als `minecraft:`. Mod-Blöcke mit Namensraum, z. B. `create:cut_granite`.
-- Mehrere Blöcke mischen nach Gewicht: `rolle mauer stone_bricks:6 mossy_stone_bricks:2 cracked_stone_bricks:2`. Die Wahl hängt nur von Position und `samen` ab.
-- Treppen, Stufen, Mauern und Zäune einer Rolle leitet Tessera aus dem Grundblock ab (`stone_bricks` → `stone_brick_stairs`, `spruce_planks` → `spruce_stairs`). Mit eingelesenem Katalog kommen sie aus dessen Blockfamilien und gelten nur, wenn es sie gibt. Hat eine Sorte einer Mischung keine Treppe (`cracked_stone_bricks`), nehmen Treppen nur die übrigen Sorten. Fehlt sie ganz, meldet Tessera einen Fehler; dann `treppe=…` angeben.
-- Blöcke in Rollen stehen ohne Zustände; Ausrichtung, Hälfte, Verbindungen und Achse von Stämmen rechnet Tessera.
-- Feste Rollennamen, die Bauteile ohne Angabe nehmen: `glas` und `rahmen` (Fenster), `tuer` (Tür, muss eine Tür sein, z. B. `spruce_door`), `dach` (Dächer).
+- Eine Rolle steht für einen Zweck (Wand, Dach, Rahmen …), nicht für einen Block. Formen und Bauteile nehmen Rollen; nur Block-Angaben (unten) nehmen auch Block-IDs. Blöcke ohne Namensraum sind `minecraft:`, Mod-Blöcke stehen mit Namensraum (`create:cut_granite`). Blöcke in Rollen stehen ohne Zustände.
+- Mehrere Blöcke mischen nach Gewicht (`:gewicht`, Standard 1).
+- Feste Rollennamen, die Bauteile ohne Angabe nehmen: `glas` und `rahmen` (Fenster, Tür), `tuer` (Tür), `dach` (Dächer).
+
+**Glieder.** Jede Rolle hat eine Blockfamilie; ein Glied heißt `rolle:glied`, z. B. `zier:treppe` oder `holz:zaun`.
+
+| Glied | Minecraft | ohne Katalog abgeleitet |
+| --- | --- | --- |
+| `block` | Grundblock | – |
+| `treppe`, `stufe`, `mauer` | stairs, slab, wall | aus dem Grundblock: `stone_bricks` → `stone_brick_stairs`, `spruce_planks` → `spruce_stairs` |
+| `zaun`, `zauntor` | fence, fence_gate | `…_planks` → `…_fence`, `…_fence_gate`; `nether_bricks` → `nether_brick_fence` |
+| `falltuer`, `tuer` | trapdoor, door | `…_planks` → `…_trapdoor`, `…_door`; `iron_block` → `iron_trapdoor`, `iron_door` |
+| `knopf`, `druckplatte` | button, pressure_plate | `…_planks`, `stone`, `polished_blackstone` |
+| `scheibe` | pane | `glass`, `<farbe>_stained_glass` → `…_pane` |
+| `teppich` | carpet | `<farbe>_wool` → `<farbe>_carpet`, `moss_block` → `moss_carpet` |
+
+- Mit eingelesenem Katalog kommen die Glieder aus dessen Blockfamilien und gelten nur, wenn es sie gibt.
+- Fehlt einer Sorte einer Mischung das Glied (`cracked_stone_bricks` hat keine Treppe), nehmen die übrigen Sorten ihren Platz. Fehlt es allen, ist das ein Fehler; dann `<glied>=<id>` in der Rolle angeben.
+- Ist ein Block selbst ein Glied (`rolle laden spruce_trapdoor`), ist er dieses Glied und zugleich der Grundblock.
+
+**Verteilung** gemischter Rollen mit `muster=`:
+
+- `einzeln` (Standard): jede Zelle für sich.
+- `flecken:n`: zusammenhängende Flecken von etwa n Blöcken (Zufallswerte auf Gitterpunkten im Abstand n, dazwischen dreilinear gemittelt). Die Gewichte bleiben im Mittel erhalten. Gut für Moos und Verwitterung.
+- `lagen:n`: eine Sorte je Band aus n Lagen, gezählt ab y=0. Gut für gebänderte Wände.
+
+**Block-Angabe** (bei `block`, `spitze=`, `firstzier=`): eine Rolle (ihr Grundblock), `rolle:glied` oder eine Block-ID mit oder ohne Zustände, z. B. `lantern[hanging=true]` oder `spruce_stairs[facing=o,half=top]`. Richtungen dürfen `n/o/s/w/oben/unten` oder die Minecraft-Namen sein. Ein Rollenname hat Vorrang vor einer gleichnamigen Block-ID. Fehlende Zustände ergänzt Tessera.
 
 ## Formen
 
-Formen mit Namen kann man später für Bauteile verwenden. Der Name steht direkt hinter dem Befehl.
-
 ```
-box [name] x,y,z x,y,z <rolle> [hohl] [boden=R] [decke=R] [sockel=R] [kranz=R] [ecken=R] [fachwerk=R] [raster=4]
-```
-
-- Quader zwischen zwei Ecken (beide eingeschlossen).
-- `hohl`: nur die vier Wände, innen wird geräumt (auch was vorher dort stand). Mindestens 3 × 3 Grundfläche.
-- `boden` / `decke`: unterste / oberste Lage innen. `sockel`: unterste Lage der Wände. `kranz`: oberste Lage der Wände. `ecken`: die vier Eckpfeiler.
-- `fachwerk=R`: Pfosten an den Ecken und alle `raster` Blöcke (gezählt ab der West- bzw. Nordecke), dazu waagrechte Balken unten (über dem Sockel) und oben. Die übrigen Felder füllt die Rolle der box. Fenster gehören in die Felder zwischen den Pfosten.
-
-```
-zylinder [name] x,y,z r=<radius> h=<höhe> <rolle> [hohl] [boden=R] [decke=R] [sockel=R] [kranz=R]
+box [name] x,y,z x,y,z <rolle> …
+zylinder [name] x,y,z (r=<n> | d=<n> | rx=<n> rz=<n>) h=<n> <rolle> …
+vieleck [name] x,y,z n=<ecken> r=<n> h=<n> [drehung=<grad>] <rolle> …
+umriss [name] y=<n> h=<n> punkte=x,z;x,z;… <rolle> …
+grundriss [name] x,y,z h=<n> <rolle> …        + ASCII-Zeilen
+kugel [name] x,y,z r=<n> [teil=ganz|oben|unten] <rolle> …
 ```
 
-- `x,y,z` ist die Mitte unten. Durchmesser = 2·r + 1. `hohl` wie bei box.
+Eine Form mit Namen nimmt Bauteile, Dächer und Felder an. Der Name steht direkt hinter dem Befehl.
+
+- **box:** Quader zwischen zwei Ecken (beide eingeschlossen). Hohl mindestens 3 × 3.
+- **zylinder:** `x,y,z` ist die Mitte unten. `r`: Durchmesser 2r+1, hohl ab r=2. `d`: jede Breite; bei geradem d liegt die Mitte auf der Ecke zwischen vier Zellen (Punkt x+1, z+1), innen ist, was höchstens d/2 davon entfernt ist. `rx`/`rz`: Ellipse.
+- **vieleck:** regelmäßiges n-Eck (3 bis 16), Umkreis r+0,5 um die Mitte der Zelle x,z. Ecke k liegt beim Kompasswinkel `drehung + 360·k/n` (0 = Norden, im Uhrzeigersinn). Standard-`drehung` ist 180/n; dann zeigt eine gerade Seite nach Norden, beim Achteck liegen die Seiten in den Haupt- und Nebenrichtungen. Die geraden Seiten liegen um r+0,5 mal cos(180°/n) von der Mitte: beim Achteck mit r=5 fünf Zellen weit, mit r=7 sechs.
+- **umriss:** freies Vieleck durch die Mittelpunkte der Punkte, in Reihenfolge, automatisch geschlossen. Rechtwinklige Umrisse (L, T, U) ergeben exakte Formen.
+- **grundriss:** ASCII-Draufsicht. `x,y,z` ist die Zelle des ersten Zeichens der ersten Zeile; Zeilen laufen nach Süden, Zeichen nach Osten. Jedes Zeichen außer Leerzeichen und `.` ist innen.
+- **kugel:** Zellen mit Abstand ≤ r+0,5 von der Mitte der Zelle x,y,z. `teil=oben` behält y ≥ Mitte (Kuppel), `teil=unten` y ≤ Mitte. `hohl` lässt eine Schale (Zellen mit einem der sechs Nachbarn außen), mit `wand=n` n dick. An einer kugel hängen keine Bauteile; Dächer nur `helm` und `flach`.
+
+```
+umriss l y=0 h=5 punkte=0,0;10,0;10,6;4,6;4,12;0,12 putz hohl ecken=eckstein
+grundriss halle 20,0,0 h=6 stein hohl
+|##########
+|##########
+|#####
+|#####
+```
+
+**Gemeinsame Angaben** (bei der kugel nur `hohl`, `wand`, `boden`, `decke`, `sockel`, `kranz`, `zonen`):
+
+| Angabe | Bedeutung |
+| --- | --- |
+| `hohl` | nur Wände; das Innere wird pro Lage geräumt, auch was vorher dort stand |
+| `wand=n` | Wandstärke (Standard 1): Zellen, deren kürzester Weg über Seitennachbarn nach außen höchstens n Schritte hat |
+| `boden=R`, `decke=R` | unterste / oberste Lage innen |
+| `sockel=R[:h]`, `kranz=R[:h]` | unterste / oberste h Lagen der Wand (Standard h=1) |
+| `ecken=R` | Eckzellen über die ganze Höhe: bei box die vier Ecken, bei vieleck die Zellen, in denen die Ecken liegen, bei umriss und grundriss die konvexen Ecken |
+| `zonen=R@a-b,…` | Wandrolle nach Höhe; a und b relativ zur untersten Lage, einschließlich. `putz@4-` gilt bis oben, `putz@4` nur für Lage 4. Spätere Einträge haben Vorrang. Nicht für Sockel, Kranz, Ecken und Fachwerk |
+| `profil=…`, `konsolen=R` | Wandprofil, siehe unten |
+| `fachwerk=R …` | siehe unten |
+
+Rangfolge in Wandzellen: `ecken`, `sockel`, `kranz`, Fachwerk (Pfosten, dann Balken und Streben), `zonen`, Rolle der Form.
+
+### Wandprofil: Vorkragung, Verjüngung, Bauch
+
+```
+# unten zwei breiter, bis Lage 12 verjüngt, ab Lage 18 einen Block vorgekragt
+vieleck turm 0,0,0 n=8 r=5 h=24 stein hohl profil=0:2,3:2~,12:0,18:1 konsolen=zier
+# Fachwerkhaus, Obergeschoss ab Lage 5 vorgekragt
+box haus 0,0,0 10,9,7 putz hohl profil=5:1 konsolen=holz fachwerk=balken
+```
+
+- `profil=<lage>:<versatz>[~],…`: Lagen relativ zur untersten Lage der Form, aufsteigend; der Versatz ist positiv nach außen. Eine Lage nimmt den Versatz des letzten Eintrags an oder unter ihr (davor 0). Steht `~` hinter dem Eintrag, geht es linear zum nächsten, gerundet (,5 weg von null).
+- Der Versatz verschiebt bei box jede Seite, beim zylinder die Radien, beim vieleck r; umriss und grundriss wachsen oder schrumpfen mit 8er-Nachbarschaft. Ein leerer Umriss ist ein Fehler.
+- Jede Lage wird mit ihrem eigenen Umriss gebaut, auch `hohl`, `wand`, `ecken` und Fachwerk. Fenster und Türen nehmen den Umriss ihrer Lage, Dächer den der obersten.
+- `konsolen=R` (nur mit `profil`): Wächst der Versatz von Lage L−1 auf L um Δ, bekommt Ring j (j=1 innen bis Δ außen) in Lage L−1−(Δ−j) eine umgedrehte Treppe von R, darüber bis Lage L−1 volle Blöcke. Ring 1 blickt zur angrenzenden Wandzelle (grenzt sie nur schräg an, in x-Richtung), weitere Ringe blicken zum Ring davor.
+
+### Fachwerk
+
+```
+box haus 0,0,0 12,6,8 putz hohl sockel=stein fachwerk=balken raster=4 riegel=3 muster=strebe
+vieleck og 0,18,0 n=8 r=6 h=6 putz hohl fachwerk=balken riegel=1 muster=kreuz ringbalken=ja
+```
+
+`fachwerk=R [raster=4] [riegel=a,b,…] [muster=gerade|strebe|kreuz|raute] [streben=R2] [schraeg=block|treppe] [ringbalken=ja]`
+
+- Fachwerk gilt für gerade Wandstücke in x- oder z-Richtung: die Seiten der box, die Seiten des Vielecks in den Hauptrichtungen, beim umriss die Stücke auf achsparallelen Seiten, beim grundriss gerade Stücke ab zwei Zellen. zylinder und kugel haben kein Fachwerk.
+- **Pfosten** (Stämme, Achse y) an den Enden jedes Wandstücks und alle `raster` Zellen ab dem West- bzw. Nordende.
+- **Balken** (Achse entlang der Wand) unten über dem Sockel, oben und in den Lagen von `riegel` (relativ zur untersten Lage, zwischen beiden).
+- **Felder** zwischen Pfosten und Balken bekommen `muster`:
+  - `gerade`: nichts
+  - `strebe`: eine Diagonale pro Feld; das erste Feld vom West- bzw. Nordende steigt nach Osten bzw. Süden, dann wechselt die Richtung von Feld zu Feld
+  - `kreuz`: beide Diagonalen
+  - `raute`: Linien zwischen den Mitten der Feldseiten (Felder ab 3 × 3)
+- Diagonalen haben eine Zelle pro Lage, aus `streben` (Standard: die Fachwerk-Rolle; Stämme mit Achse y). Mit `schraeg=treppe` werden sie Treppen, die in Steigrichtung blicken; die Rolle braucht dann Treppen.
+- Fenster und Türen gehören in die Felder; über einer Strebe ersetzen sie sie ohne Hinweis.
+- Schräge Wandstücke bekommen kein Fachwerk, dazu gibt es einen Hinweis. Mit `ringbalken=ja` laufen die Balken über sie weiter und an den Ecken der Form stehen Pfosten, ohne Hinweis; Muster gibt es dort nicht.
+
+## Einzelne Blöcke
 
 | Anweisung | Bedeutung |
 | --- | --- |
-| `linie x,y,z x,y,z <rolle>` | gerade Linie, z. B. Balken; Stämme liegen in Linienrichtung |
-| `block x,y,z <rolle oder block[zustände]>` | ein einzelner Block, z. B. `block 6,0,8 spruce_stairs[facing=north]` |
+| `linie x,y,z x,y,z <rolle>` | gerade Linie, z. B. ein Balken; Stämme liegen in Linienrichtung |
+| `block x,y,z <block-angabe>` | ein Block, z. B. `block 0,0,7 zier:treppe` oder `block 6,0,8 spruce_stairs[facing=n]` |
 | `leer x,y,z [x,y,z]` | macht Luft (ein Block oder ein Quader) |
 
 ## Bauteile
 
-Bauteile hängen an einer benannten box oder einem zylinder und rechnen Lage und Ausrichtung selbst: Fensterbänke zeigen zur Wand, Läden liegen außen flach an, Türen öffnen richtig.
+Fenster, Tür und Zinnen arbeiten wie in Version 1 und hängen an allen Formen außer der kugel. Sie rechnen Lage und Ausrichtung selbst und nehmen den Umriss ihrer Lage.
 
 ```
-fenster <form> <seite> y=<höhe> [x=|z=] [b=1] [h=2] [anzahl=1] [abstand=b+2] [glas=R] [rahmen=R] [bank=R|nein] [sturz=R|nein] [laeden=R]
-```
-
-- `y` ist die absolute Höhe der untersten Glasreihe, `h` die Höhe, `b` die Breite.
-- Position entlang der Wand: auf Nord- und Südseite mit `x=`, auf Ost- und Westseite mit `z=` (absolute Koordinate des linken bzw. kleinsten Glasblocks). Ohne Angabe sitzt das Fenster (oder die Gruppe) in der Mitte der Wand. Am zylinder immer mittig auf der Seite.
-- `anzahl` und `abstand`: mehrere gleiche Fenster, `abstand` von Fensteranfang zu Fensteranfang.
-- Bank: umgedrehte Treppe außen unter dem Fenster. Sturz: eine Reihe über dem Fenster, je einen Block breiter. Beide aus `rahmen`, abschaltbar mit `nein`. Läden: offene Falltüren (`laeden=` mit einer Falltür-Rolle) links und rechts außen.
-- Fenster im Giebel (über der box) sind erlaubt.
-
-```
+fenster <form> <seite> y=<höhe> [x=|z=] [b=1] [h=2] [anzahl=1] [abstand=b+2]
+        [glas=R] [rahmen=R] [bank=R|nein] [sturz=R|nein] [laeden=R]
 tür <form> <seite> [x=|z=] [y=boden+1] [b=1|2] [tuer=R] [rahmen=R|nein]
-```
-
-- Zwei Blöcke hoch, `b=2` ergibt eine Doppeltür mit Angeln außen. Rahmen links, rechts und oben aus `rahmen`. Die unterste Reihe darf den Schwellbalken des Fachwerks schneiden.
-
-```
-dach sattel <box> [first=x|z] [ueberstand=1] [steil=1] [rolle=dach] [giebel=R] [kante=ja|nein]
-dach walm   <box> [ueberstand=1] [steil=1] [rolle=dach]
-dach kegel  <zylinder> [ueberstand=1] [steil=2] [rolle=dach] [spitze=<block>]
-```
-
-- Das Dach beginnt eine Lage über der Form. `first`: Richtung des Firsts, ohne Angabe entlang der längeren Seite. Bei ungerader Breite trägt der First Stufen.
-- `steil`: Lagen pro Stufe (1 = 45°). Bei steil > 1 stehen unter jeder Treppe volle Blöcke.
-- Satteldach: Die Giebel füllt `giebel` (sonst die Rolle der box). `kante` setzt umgedrehte Treppen unter den Dachrand an den Giebelseiten (Standard bei Überstand und steil=1).
-- Walm- und Kegeldach: Die Ecken formt Tessera als Treppen-Außenecken. `spitze`: Block auf der Kegelspitze, z. B. `spruce_fence` oder `lightning_rod`.
-
-```
 zinnen <form> [rolle]
 ```
 
-- Zinnen eine Lage über der Form, abwechselnd Block und Lücke, Ecken immer mit Block. Ohne Rolle die der Form.
+- Seiten `n`, `o`, `s`, `w`. Das Bauteil sitzt in der äußersten Wandzelle der Lage in Richtung der Seite, ohne `x=`/`z=` mittig auf der Seite. Mit `x=` (Seiten n und s) oder `z=` (o und w) beginnt es bei dieser Koordinate; das geht bei allen Formen.
+- **Fenster:** `y` ist die unterste Glasreihe, `h` die Höhe, `b` die Breite; `anzahl` und `abstand` (Fensteranfang zu Fensteranfang) für Reihen. Bank (umgedrehte Treppe außen unter dem Fenster) und Sturz (Reihe über dem Fenster, je einen Block breiter) aus `rahmen`, abschaltbar mit `nein`; der Sturz lässt Pfosten, Balken, Streben und Dachblöcke stehen. Läden (`laeden=` mit einer Falltür-Rolle) hängen offen links und rechts außen. Fenster im Giebel sind erlaubt.
+- **Tür:** zwei Blöcke hoch, `b=2` ergibt eine Doppeltür mit Angeln außen. Rahmen links, rechts und oben aus `rahmen`. Die unterste Reihe darf den Schwellbalken schneiden.
+- **Zinnen:** eine Lage über der Form, abwechselnd Block und Lücke; Ecken (box, Vieleck, konvexe Ecken von umriss und grundriss) immer mit Block.
+
+## Dächer
+
+```
+dach <typ> <form> [name=…] [ueberstand=1] [profil=…|steil=k] [dicke=1] [rolle=dach] [fuellen] …
+kranzdach <form> y=<lage> [breite=2] [profil=…|steil=k] [rolle=dach] [kante=ja|nein]
+```
+
+| Typ | Form | Lagen schrumpfen | Standardprofil | eigene Angaben |
+| --- | --- | --- | --- | --- |
+| `sattel` | box | quer zum First | `1/1` | `first=x\|z`, `giebel=R`, `kante=ja\|nein` |
+| `pult` | box | von der niedrigen Seite | `1/1` | `hoch=<seite>` (Pflicht), `giebel`, `kante` |
+| `krueppelwalm` | box | wie sattel, in den obersten `kruppel=n` Lagen (Standard 2) auch von den Giebelseiten | `1/1` | `first`, `giebel`, `kante`, `kruppel` |
+| `walm`, `zelt` | alle außer kugel | von allen Seiten | `1/1` | `biegung` |
+| `kegel` | alle außer kugel | von allen Seiten, beim zylinder kreisförmig | `1/2` | `biegung` |
+| `helm` | alle | von allen Seiten | `1/3` | `biegung` |
+| `flach` | alle | – | – | `art=block\|stufe`, `rand=R` |
+
+Für alle außer `flach`: `spitze=<block-angabe>` auf die Spitze, `firstzier=<block-angabe>` eine Lage über jede Firstzelle (z. B. `zier:mauer`), `traufe=treppe|stufe|keine` (Standard keine), `dicke=n`, `fuellen`. `first` ohne Angabe: entlang der längeren Seite.
+
+- **Profil** `profil=dx/dy,dx/dy,…` von der Traufe aufwärts: Jedes Element rückt den Rand um dx Zellen nach innen, verteilt auf dy Lagen (Einzug `a(y) = a₀ + floor(dx·(y−y₀)/dy)`). dx = 0 ist senkrecht, negativ geht nach außen (Bauch). Das letzte Element wiederholt sich, bis das Dach zu ist. `steil=k` ist `profil=1/k`.
+- **Voreinstellungen:** `glocke` = `2/1,1/1,1/2,1/3` (ausgestellte Traufe, dann steil), `mansard` = `1/3,1/3,2/1` (sattel, walm), `zwiebel` = `-1/1,-1/1,0/2,1/1,1/1,1/2,1/2,1/3` (walm, kegel, helm), `kuppel` (walm, kegel): Viertelkreis, Einzug in Lage y ist R − floor(√((R+0,5)² − y²)) mit R = Radius der Grundfläche.
+- **biegung=<seite>:<n>** (walm, kegel, helm; Seiten auch `no`, `so`, `sw`, `nw`): Hexenhut. Lage y wird um round(n · max(0, 3u−2)²) Zellen zur Seite verschoben, u = y / oberste Lage. Nur das oberste Drittel wandert, die Spitze um n.
+
+**So rechnet die Dachmaschine.** Lage 0 liegt über der obersten Wandlage der Form. Die Grundfläche F ist der Umriss der obersten Lage plus `ueberstand` (box als Rechteck, zylinder und vieleck über den Radius, sonst mit 8er-Nachbarschaft). Lage y umfasst F um a(y) geschrumpft, O(y); das Dach ist zu, sobald O(y) leer ist. In jeder Lage:
+
+- **Stufenkante** (O(y) ohne O(y+1)): Treppen, die zur angrenzenden Zelle von O(y+1) blicken; bei mehreren Möglichkeiten in der Reihenfolge n, o, s, w, grenzt die Zelle nur schräg an, in z-Richtung. Bei flachen Profilen werden Zellen ab Abstand 2 untere Stufen.
+- **Schale:** Randzellen von O(y), die keine Stufenkante sind, werden volle Blöcke (senkrechte Abschnitte); `dicke=n` macht sie n dick.
+- **Bauch:** Wo eine Lage nach außen wächst, entstehen umgedrehte Treppen.
+- **Abschluss:** Die letzte Lage wird First: eine Zelle breit untere Stufen, zwei Zellen breit zwei Treppen gegeneinander, eine einzelne Zelle ein voller Block (Spitze). Eine breitere letzte Lage (Walm, Kegel, Helm) bekommt Treppen um ihre Mitte.
+- **Inneres** bleibt Luft (Dachboden), mit `fuellen` volle Blöcke. Damit man an schrägen Kanten nicht ins Dach sieht, wird eine Dachboden-Zelle hinter einer offenen Treppenseite ein voller Block.
+- **Giebel** (sattel, pult, krueppelwalm): Die Wandlinien der Giebelseiten füllt `giebel` (Standard: Rolle der Form) bis unter das Dach, beim Pultdach auch die hohe Seite.
+- **Ortgang** (`kante`, Standard bei `ueberstand` ≥ 1 und Profil `1/1`): unter jeder Treppe der äußersten Spalte an den Giebelseiten eine umgedrehte Treppe, die zum Gebäude blickt.
+- **Traufe** (`traufe=treppe|stufe`): unter dem Überstand von Lage 0, eine Lage tiefer, umgedrehte Treppen zur Wand bzw. obere Stufen.
+- **Krüppelwalm:** In den obersten `kruppel` Lagen rücken die Giebelseiten so weit ein, wie die Traufen seit der Lage darunter eingerückt sind (bei `1/1` eine Zelle pro Lage).
+
+**Verschneidung.** Überlappt oder berührt die Grundfläche eines Dachs die eines früheren, werden beide ein Dach: Jede Lage ist die Vereinigung der Lagen beider, in absoluten Höhen. Kehlen und Grate entstehen von selbst, die Treppen-Ecken setzt die Verbindungsberechnung.
+
+- Giebel im Inneren des vereinigten Dachs entfallen: Ein anderes Dach geht über die Zelle oder bedeckt die Zelle vor dem Giebel.
+- Ein Krüppelwalm walmt nur an freien Giebelseiten. Liegt eine Giebelseite an einem anderen Dach, läuft der First dort in das andere Dach.
+- Was andere Anweisungen zwischen den Dächern gesetzt oder geräumt haben (Schornstein, hohler Turm), bleibt so.
+- Zellen, die mehrere Dächer haben, gehören dem früheren (Rolle, Herkunft).
+
+```
+box haus 7,0,-3 13,4,3 putz hohl
+box fluegel 9,0,3 13,4,10 putz hohl
+dach sattel haus first=x
+dach krueppelwalm fluegel first=z        # L-Haus mit einer Kehle
+```
+
+**Kranzdach** (Dachschürze): ein Ring außen um die Form, der zur Wand hin ansteigt und an ihr endet, typisch für gestaffelte Türme. Grundfläche sind die Zellen außerhalb des Umrisses in Lage `y` mit Abstand (8er-Nachbarschaft) ≤ `breite`; Lage k umfasst die Zellen mit Abstand ≤ breite − a(k), Standardprofil `1/1`. Treppen blicken zur Wand. `kante=ja` (Standard nein) setzt unter den äußersten Ring umgedrehte Treppen. Wo die Schürze auf Fenster oder Türen trifft oder direkt davor liegt, setzt sie nur in Luft und meldet einen Hinweis.
+
+```
+kranzdach og y={og.y0} breite=2
+dach helm og profil=glocke ueberstand=2 spitze=lightning_rod
+```
+
+**Flachdach:** eine Lage über dem Umriss samt Überstand aus `rolle` (`art=stufe`: untere Stufen); `rand=R` setzt einen Ring eine Lage höher, z. B. eine Mauer.
 
 ## Verbundene Blöcke
 
-Zäune, Mauern, Glasscheiben, Eisengitter und Treppen-Ecken bekommen nach dem Aufbau ihren Zustand nach den Regeln des Spiels (Verbindungen, Mauerpfosten, niedrige oder hohe Mauerseiten, innere und äußere Treppenecken). Alle Blöcke bekommen ihre vollständigen Zustände (`waterlogged=false`, geschlossene Türen …). Mod-Blöcke mit eigenen Verbindungsregeln sind nur abgedeckt, wenn sie den Vanilla-Namen folgen (`…_fence`, `…_wall`, `…_pane`, `…_stairs`).
+Zäune, Mauern, Glasscheiben, Eisengitter und Treppen-Ecken bekommen nach dem Aufbau ihren Zustand nach den Regeln des Spiels (Verbindungen, Mauerpfosten, niedrige oder hohe Mauerseiten, innere und äußere Treppenecken). Alle Blöcke bekommen ihre vollständigen Zustände (`waterlogged=false`, geschlossene Türen, Blätter mit `persistent=true` …). Mod-Blöcke mit eigenen Verbindungsregeln sind nur abgedeckt, wenn sie den Vanilla-Namen folgen (`…_fence`, `…_wall`, `…_pane`, `…_stairs`).
+
+## Herkunft
+
+Für jeden Block merkt sich Tessera die Anweisung, die ihn gesetzt hat. Die Hover-Karte zeigt sie gekürzt, z. B. „Zeile 37: dach helm og profil=glocke …“; der ganze Text steht im Tooltip. Das gilt auch für Version 1.
 
 ## Meldungen
 
 - **Fehler** nennen die Zeile und verhindern das Öffnen. Tessera meldet alle Fehler auf einmal; Folgefehler (eine Form, deren eigene Zeile fehlerhaft ist) erscheinen nicht noch einmal.
-- **Hinweise** öffnen trotzdem und stehen in den Projektdaten: Fenster oder Tür nicht in der Wand, in einer Ecke, in einem Pfosten oder Balken, Überschneidung mit einem anderen Fenster, Bank oder Laden stößt an einen Block, Block fehlt im Katalog.
+- **Hinweise** öffnen trotzdem und stehen in den Projektdaten: Fenster oder Tür nicht in der Wand, in einer Ecke, in einem Pfosten oder Balken, Überschneidung mit einem anderen Fenster, Fenster an Boden oder Oberkante, Bank oder Laden stößt an einen Block, Fachwerk an schrägen Seiten, Kranzdach an Fenstern, `spitze=` auf einem Dach ohne Spitze, Block fehlt im Katalog.
 - Ändert sich eine verknüpfte Datei im Projektordner fehlerhaft, zeigt der Tab weiter die letzte fehlerfreie Fassung samt Fehlerliste.
+
+## Version 1
+
+Dateien mit `tess 1` übersetzt Tessera mit dem Compiler aus 0.3.0, blockgenau wie damals. Version 1 kennt:
+
+- `tess`, `projekt`, `samen`, `rolle` (Glieder `treppe`, `stufe`, `mauer`, `zaun`), `linie`, `block`, `leer`, `zinnen`
+- `box` mit `hohl`, `boden`, `decke`, `sockel`, `kranz`, `ecken`, `fachwerk`, `raster`; `zylinder` mit `r`, `h` und denselben Angaben außer `ecken` und Fachwerk
+- `fenster` und `tür` mit den Angaben oben (am zylinder immer mittig)
+- `dach sattel|walm` auf der box und `dach kegel` auf dem zylinder, mit `ueberstand`, `steil`, `rolle`, `first`, `giebel`, `kante`, `spitze`
+
+Koordinaten gehen bis ±2000, Ausdrücke und Fortsetzungszeilen gibt es nicht. Befehle aus Version 2 sind in Version 1 ein Fehler mit dem Hinweis auf `tess 2`.
+
+Mit `tess 2` in der ersten Zeile gilt eine Datei aus Version 1 weiter: Formen, Bauteile, Sattel- und Walmdächer ergeben dieselben Blöcke. Kegeldächer folgen dann der Dachmaschine und sehen im Detail anders aus (Treppenrichtungen in den Ecken, Dachboden innen).
+
+## Entscheidungen und Erweiterungen (Etappe 4a)
+
+Wo die Spezifikation eine Lücke lässt, hat Tessera so entschieden; Erweiterungen verändern keine bestehende Datei.
+
+- **Erweiterungen:** `ringbalken=ja` beim Fachwerk; `x=`/`z=` bei Fenster und Tür an allen Formen; der Kranzdach-Hinweis gilt auch direkt vor Fenstern und Türen; Feld `r` auch bei der kugel.
+- **Dichte Dächer:** Eine Dachboden-Zelle hinter einer offenen Treppenseite wird ein voller Block. Sonst bleiben an schrägen Kanten (Vieleck, Kreis, Kehlen), wo sich Treppen nur über Eck berühren, Lücken, durch die man ins Dach sieht.
+- **Verschneidung:** Dächer bilden eine Gruppe, sobald sich ihre Grundflächen überlappen oder berühren, auch ohne gemeinsame Lage. Giebel entfallen auch, wenn ein anderes Dach die Zelle vor dem Giebel in derselben Lage bedeckt. Geräumte Zellen bleiben geräumt. Der Krüppelwalm walmt nur an freien Giebelseiten (geprüft in der ersten Walmlage).
+- **Abschluss:** Eine letzte Lage, die breiter als zwei Zellen ist (Walm, Kegel, Helm), wird wie eine weitere Stufe gerechnet: Treppen um die verbleibende Mitte, eine einzelne Zelle ist die Spitze.
+- **Treppenrichtung bei Gleichstand:** wörtlich n, o, s, w. Runde und achteckige Dächer sind dadurch nicht ganz symmetrisch.
+- **Biegung:** u = y / oberste Lage, damit die Spitze genau um n wandert; Nebenrichtungen verschieben je Achse um n/√2, gerundet ,5 weg von null.
+- **Konsolen:** Ringe ab j=2 blicken zum Ring davor.
+- **Fachwerk:** Streben sind Stämme mit Achse y. Die Spezifikation verlangt Streben „von unten außen nach oben innen“, deren Richtung von Feld zu Feld wechselt; Tessera wechselt ab dem West- bzw. Nordende, bei gerader Feldzahl stimmt das an beiden Enden. `raute` braucht Felder ab 3 × 3.
+- **Muster:** `flecken` gleicht die Verteilung aus, damit die Gewichte stimmen (dreilinear gemittelte Zufallswerte häufen sich sonst in der Mitte); `lagen` zählt die Bänder ab y=0.
+- **Kranzdach:** Standardprofil `1/1`, `kante` Standard nein.
