@@ -1,6 +1,10 @@
 import { makeState } from '../core/blockstate';
+import { annexCmd, balconyCmd, cornerTurretsCmd, dormerCmd, gallery, orielCmd } from './annex';
+import { Args, NO, YES } from './args';
 import { CellSet, ChebDistance, facingTowardsSet, sideBit, SIDES } from './cells';
+import { runChecks } from './checks';
 import { connectBlocks, hasAxis } from './connect';
+import { bannerCmd, coverCmd, fieldCmd, hangingLanternCmd, ivyCmd, leavesCmd, scatterCmd, wallLanternCmd } from './decor';
 import { evalExpr, substitute, type ExprEnv } from './expr';
 import {
   BoxShape,
@@ -15,12 +19,16 @@ import {
   type ProfileEntry,
   type Shape2D,
 } from './forms';
-import { axisOf, ccw, DIR, opposite, parseSide, ringByAngle, sideLabel, type Facing } from './geometry';
-import { Grid, LIMIT_V2, Part } from './grid';
+import { axisOf, DIR, parseSide, type Facing } from './geometry';
+import { Grid, infoOrigin, infoPart, LIMIT_V2, Part } from './grid';
+import { doorCmd, gateCmd, windowCmd } from './openings';
 import { Palette, stringHash, type BlockHints, type BlockSpec, type Member, type RoleRef } from './palette';
 import { insetAt, layerOf, parseRoofProfile, renderRoofs, renderSkirt, type GableWall, type HipEnds, type RoofDef, type RoofProfile, type RoofType } from './roof';
+import { archCmd, spiralCmd, stairsCmd } from './stairs';
 import { asciiKey, classify, detectVersion, FollowUpError, parseStatements2, TessError, tokenText, type Diagnostic, type Statement, type Token } from './syntax';
 import { compileV1 } from './v1';
+import { buttressCmd, corniceCmd, crenellationsCmd, pillarCmd } from './wallparts';
+import type { Wall } from './wall';
 
 /**
  * Compiler for the building language. `tess 1` files go to the frozen compiler of version 0.3.0
@@ -49,139 +57,17 @@ export interface CompileOutput {
   lineTexts: Map<number, string>;
 }
 
-type Vec3 = [number, number, number];
+export type Vec3 = [number, number, number];
 
-/** Commands of Bau-Sprache 2 that later parts of Etappe 4 bring. */
-const LATER: Record<string, string> = Object.fromEntries([
-  ...'tor gesims pfeiler strebe balkon umgang erker gaube ecktuerme bogen treppe wendeltreppe wandlaterne haengelaterne banner efeu bewuchs laub streue feld erlaube'
-    .split(' ')
-    .map((c) => [c, '4b']),
-  ...'zeichen ebene ebenen ansicht modul baue wiederhole spiegle ende abschnitt ausrichtung'.split(' ').map((c) => [c, '4c']),
-]);
+/** Commands of Bau-Sprache 2 that a later part of Etappe 4 brings. */
+const LATER: Record<string, string> = Object.fromEntries(
+  'zeichen ebene ebenen ansicht modul baue wiederhole spiegle ende abschnitt ausrichtung'.split(' ').map((c) => [c, '4c']),
+);
 
 const KNOWN =
-  'tess, projekt, samen, wert, rolle, box, zylinder, vieleck, umriss, grundriss, kugel, linie, block, leer, fenster, tür, dach, kranzdach, zinnen';
-
-const NO = new Set(['nein', 'aus', 'ohne', '0']);
-const YES = new Set(['ja', 'an', '1']);
-
-// ---------------------------------------------------------------------------
-// Argument reading
-
-class Args {
-  readonly positional: Token[] = [];
-  private readonly pairs = new Map<string, Token & { kind: 'pair' }>();
-  private readonly flags = new Set<string>();
-  private next = 0;
-
-  constructor(
-    private readonly st: Statement,
-    tokens: Token[],
-    allowedKeys: readonly string[],
-    allowedFlags: readonly string[] = [],
-  ) {
-    for (const t of tokens) {
-      if (t.kind === 'pair') {
-        if (!allowedKeys.includes(t.key)) {
-          const allowed = allowedKeys.length ? allowedKeys.map((k) => `${k}=`).join(', ') : 'keine';
-          throw new TessError(st.line, `„${t.key}=“ gibt es bei „${st.cmd}“ nicht (erlaubt: ${allowed}).`);
-        }
-        if (this.pairs.has(t.key)) throw new TessError(st.line, `„${t.key}=“ steht doppelt.`);
-        this.pairs.set(t.key, t);
-      } else if (t.kind === 'word' && allowedFlags.includes(asciiKey(t.text))) {
-        this.flags.add(asciiKey(t.text));
-      } else {
-        this.positional.push(t);
-      }
-    }
-  }
-
-  get line(): number {
-    return this.st.line;
-  }
-
-  flag(name: string): boolean {
-    return this.flags.has(name);
-  }
-
-  has(key: string): boolean {
-    return this.pairs.has(key);
-  }
-
-  str(key: string): string | undefined {
-    return this.pairs.get(key)?.value;
-  }
-
-  int(key: string, def: number, min = -Infinity, max = Infinity): number {
-    const raw = this.pairs.get(key)?.value;
-    if (raw === undefined) return def;
-    if (!/^-?\d+$/.test(raw)) throw new TessError(this.st.line, `„${key}=${raw}“: Erwartet wird eine ganze Zahl.`);
-    const v = parseInt(raw, 10);
-    if (v < min || v > max) throw new TessError(this.st.line, `„${key}=${raw}“: erlaubt ist ${min} bis ${max}.`);
-    return v;
-  }
-
-  requireInt(key: string, min = -Infinity, max = Infinity, hint = ''): number {
-    if (!this.pairs.has(key)) throw new TessError(this.st.line, `Bei „${this.st.cmd}“ fehlt „${key}=“.${hint ? ` ${hint}` : ''}`);
-    return this.int(key, 0, min, max);
-  }
-
-  decimal(key: string, def: number, min = -Infinity, max = Infinity): number {
-    const raw = this.pairs.get(key)?.value;
-    if (raw === undefined) return def;
-    if (!/^-?\d+(\.\d+)?$/.test(raw)) throw new TessError(this.st.line, `„${key}=${raw}“: Erwartet wird eine Zahl, z. B. ${key}=22.5.`);
-    const v = parseFloat(raw);
-    if (v < min || v > max) throw new TessError(this.st.line, `„${key}=${raw}“: erlaubt ist ${min} bis ${max}.`);
-    return v;
-  }
-
-  /** Optional leading name: a word followed by a coordinate. */
-  optionalName(): string | null {
-    const t = this.positional[this.next];
-    const after = this.positional[this.next + 1];
-    if (t?.kind === 'word' && after?.kind === 'coord') {
-      this.next++;
-      return asciiKey(t.text);
-    }
-    return null;
-  }
-
-  coord(what: string, dims: 2 | 3 = 3): number[] {
-    const t = this.positional[this.next];
-    if (!t || t.kind !== 'coord' || t.values.length !== dims) {
-      const form = dims === 3 ? 'x,y,z' : 'x,z';
-      throw new TessError(this.st.line, `${what} fehlt oder ist keine Koordinate ${form}${t ? ` (gefunden: „${tokenText(t)}“)` : ''}.`);
-    }
-    this.next++;
-    return t.values;
-  }
-
-  word(what: string): string {
-    const t = this.positional[this.next];
-    if (!t || t.kind !== 'word') throw new TessError(this.st.line, `${what} fehlt${t ? ` (gefunden: „${tokenText(t)}“)` : ''}.`);
-    this.next++;
-    return t.text;
-  }
-
-  optionalWord(): string | null {
-    const t = this.positional[this.next];
-    if (t?.kind !== 'word') return null;
-    this.next++;
-    return t.text;
-  }
-
-  /** Remaining positional words. */
-  words(): string[] {
-    const out: string[] = [];
-    while (this.positional[this.next]?.kind === 'word') out.push((this.positional[this.next++] as { text: string }).text);
-    return out;
-  }
-
-  done(): void {
-    const t = this.positional[this.next];
-    if (t) throw new TessError(this.st.line, `„${tokenText(t)}“ ist hier zu viel oder an der falschen Stelle.`);
-  }
-}
+  'tess, projekt, samen, wert, rolle, box, zylinder, vieleck, umriss, grundriss, kugel, linie, block, leer, fenster, tür, tor, dach, kranzdach, ' +
+  'gesims, pfeiler, strebe, balkon, umgang, erker, gaube, ecktuerme, zinnen, bogen, treppe, wendeltreppe, wandlaterne, haengelaterne, banner, ' +
+  'efeu, bewuchs, laub, streue, feld, erlaube';
 
 // ---------------------------------------------------------------------------
 // Forms
@@ -197,7 +83,7 @@ interface Timber {
   ring: boolean;
 }
 
-interface FormOpts {
+export interface FormOpts {
   hollow: boolean;
   wall: number;
   floor: RoleRef | null;
@@ -210,7 +96,7 @@ interface FormOpts {
   consoles: RoleRef | null;
 }
 
-interface FormObj {
+export interface FormObj {
   kind: FormKind;
   name: string;
   line: number;
@@ -225,6 +111,13 @@ interface FormObj {
   corners: Map<number, CellSet>;
   pieces: Map<number, Piece[] | null>;
   bbox: [number, number, number, number, number, number];
+  /** Wall thickness (wand=) and whether the form is hollow. */
+  wall: number;
+  hollow: boolean;
+  /** Roofs built on the form (dormers need one). */
+  roofs: RoofDef[];
+  /** Anbauten that are forms themselves (oriels): they lean against a wall and bring their own roof. */
+  annex: boolean;
 }
 
 interface RoofObj {
@@ -234,7 +127,7 @@ interface RoofObj {
   top: number;
 }
 
-interface RoofGroup {
+export interface RoofGroup {
   roofs: RoofDef[];
   /** Per roof: role, giebel role, decorations. */
   extra: RoofExtra[];
@@ -246,7 +139,7 @@ interface RoofGroup {
   kept: Map<number, number>;
 }
 
-interface RoofExtra {
+export interface RoofExtra {
   role: RoleRef;
   giebel: RoleRef;
   firstzier: BlockSpec | null;
@@ -255,7 +148,7 @@ interface RoofExtra {
   line: number;
 }
 
-interface Face {
+export interface Face {
   side: Facing;
   axis: 'x' | 'z';
   tMin: number;
@@ -273,29 +166,42 @@ interface TimberCell {
 
 const FIELDS = 'x0 y0 z0 x1 y1 z1 bx by bz mx mz r dach';
 
+/** Two blocks high plants: placing the lower half brings the upper one. */
+const TALL_PLANTS = new Set(['sunflower', 'lilac', 'rose_bush', 'peony', 'tall_grass', 'large_fern', 'pitcher_plant'].map((n) => `minecraft:${n}`));
+
+/** Options of `dach`. */
+export const ROOF_KEYS = ['name', 'ueberstand', 'profil', 'steil', 'dicke', 'rolle', 'first', 'giebel', 'kante', 'spitze', 'firstzier', 'traufe', 'kruppel', 'hoch', 'biegung', 'rand', 'art'];
+
 // ---------------------------------------------------------------------------
 
-class Compiler {
+export class Compiler {
   readonly grid = new Grid(LIMIT_V2);
   readonly palette: Palette;
   readonly diagnostics: Diagnostic[] = [];
   readonly forms = new Map<string, FormObj>();
-  private readonly roofObjs = new Map<string, RoofObj>();
-  private readonly failedNames = new Map<string, number>();
-  private readonly values = new Map<string, number>();
-  private readonly failedValues = new Map<string, number>();
-  private readonly groups: RoofGroup[] = [];
+  readonly roofObjs = new Map<string, RoofObj>();
+  readonly failedNames = new Map<string, number>();
+  readonly values = new Map<string, number>();
+  readonly failedValues = new Map<string, number>();
+  readonly groups: RoofGroup[] = [];
   readonly lineTexts = new Map<number, string>();
   name: string | null = null;
-  private line = 0;
-  private origin = 0;
-  private seq = 0;
-  private readonly originSeq: number[] = [];
-  private readonly unknownReported = new Set<string>();
-  private readonly stateCache = new Map<string, Map<string, number>>();
-  private roofCount = 0;
+  line = 0;
+  origin = 0;
+  seq = 0;
+  readonly originSeq: number[] = [];
+  readonly unknownReported = new Set<string>();
+  readonly stateCache = new Map<string, Map<string, number>>();
+  roofCount = 0;
+  /** `erlaube schweben`: no floating check for this file. */
+  allowFloating = false;
+  /** Hints of the running statement, merged by key (several cells, one message). */
+  private readonly pending = new Map<string, { line: number; text: (n: number, first: Vec3) => string; first: Vec3; n: number }>();
+  /** Cells whose overlap the running statement has reported already (no second hint). */
+  readonly reported = new Set<number>();
+  private readonly insideCache = new WeakMap<CellSet, Uint16Array>();
 
-  private readonly env: ExprEnv = {
+  readonly env: ExprEnv = {
     value: (name) => {
       const v = this.values.get(name);
       if (v === undefined && this.failedValues.has(name)) throw new FollowUpError(this.line, `„${name}“ fehlt, weil Zeile ${this.failedValues.get(name)} fehlerhaft ist.`);
@@ -327,10 +233,14 @@ class Compiler {
       this.origin = this.grid.originId(st.line);
       this.originSeq[this.origin] ??= this.seq;
       if (st.text) this.lineTexts.set(st.line, st.text);
+      this.pending.clear();
+      this.reported.clear();
       try {
         this.exec(st, st === first);
+        this.flushPending();
       } catch (e) {
         if (!(e instanceof TessError)) throw e;
+        this.pending.clear();
         this.rememberFailure(st);
         if (e instanceof FollowUpError) continue;
         this.diagnostics.push({ line: e.line || st.line, level: 'error', message: e.message });
@@ -343,7 +253,7 @@ class Compiler {
   }
 
   /** Names defined by a failed line: later lines that use them are follow-up errors. */
-  private rememberFailure(st: Statement): void {
+  rememberFailure(st: Statement): void {
     const raw = st.raw ?? [];
     const plain = raw.filter((r) => !r.quoted && !r.text.includes('='));
     const safe = (t: string): string | null => {
@@ -369,7 +279,7 @@ class Compiler {
         const n = safe(plain[0].text);
         if (n) this.failedNames.set(n, st.line);
       }
-    } else if (st.cmd === 'dach') {
+    } else if (st.cmd === 'dach' || st.cmd === 'erker') {
       const named = raw.find((r) => asciiKey(r.text).startsWith('name='));
       if (named) {
         const n = safe(named.text.slice(named.text.indexOf('=') + 1));
@@ -378,12 +288,51 @@ class Compiler {
     }
   }
 
+  /** A second origin of the running statement (same line in the hover), e.g. for a dormer's roof. */
+  taggedOrigin(tag: string): number {
+    const o = this.grid.originId(this.line, [], tag);
+    this.originSeq[o] ??= this.seq;
+    return o;
+  }
+
+  /** A form object for Anbauten (oriels, turrets, dormers); not registered under a name. */
+  makeForm(kind: FormKind, shape: Shape2D, y0: number, y1: number, role: RoleRef, opts: { wall?: number; hollow?: boolean; name?: string; annex?: boolean } = {}): FormObj {
+    const f: FormObj = {
+      kind,
+      name: opts.name ?? '',
+      line: this.line,
+      y0,
+      y1,
+      shape,
+      sphere: null,
+      profile: [],
+      role,
+      roofTop: null,
+      outlines: new Map(),
+      corners: new Map(),
+      pieces: new Map(),
+      bbox: [0, 0, 0, 0, 0, 0],
+      wall: opts.wall ?? 1,
+      hollow: opts.hollow ?? true,
+      roofs: [],
+      annex: opts.annex ?? false,
+    };
+    const O = this.outlineAt(f, y0);
+    f.bbox = [O.x0, y0, O.z0, O.x1, y1, O.z1];
+    return f;
+  }
+
+  /** The roof group a roof belongs to. */
+  groupOf(def: RoofDef): RoofGroup | null {
+    return this.groups.find((g) => g.roofs.includes(def)) ?? null;
+  }
+
   /** Tokens of a statement with all expressions evaluated. */
-  private tokens(st: Statement): Token[] {
+  tokens(st: Statement): Token[] {
     return (st.raw ?? []).map((r) => (r.quoted ? { kind: 'string', text: r.text, col: r.col } : classify(substitute(r.text, this.env, st.line), r.col, st.line, 2)));
   }
 
-  private exec(st: Statement, isFirst: boolean): void {
+  exec(st: Statement, isFirst: boolean): void {
     switch (st.cmd) {
       case 'tess': {
         if (!isFirst) throw new TessError(st.line, '„tess“ darf nur in der ersten Zeile stehen.');
@@ -423,15 +372,57 @@ class Compiler {
       case 'leer':
         return this.clearCmd(st);
       case 'fenster':
-        return this.window(st);
+        return windowCmd(this, st);
       case 'tuer':
-        return this.door(st);
+        return doorCmd(this, st);
+      case 'tor':
+        return gateCmd(this, st);
       case 'dach':
         return this.roof(st);
       case 'kranzdach':
         return this.skirt(st);
+      case 'gesims':
+        return corniceCmd(this, st);
+      case 'pfeiler':
+        return pillarCmd(this, st);
+      case 'strebe':
+        return buttressCmd(this, st);
+      case 'balkon':
+        return balconyCmd(this, st);
+      case 'umgang':
+        return annexCmd(this, st, gallery);
+      case 'erker':
+        return orielCmd(this, st);
+      case 'gaube':
+        return dormerCmd(this, st);
+      case 'ecktuerme':
+        return cornerTurretsCmd(this, st);
       case 'zinnen':
-        return this.crenellations(st);
+        return crenellationsCmd(this, st);
+      case 'bogen':
+        return archCmd(this, st);
+      case 'treppe':
+        return stairsCmd(this, st);
+      case 'wendeltreppe':
+        return spiralCmd(this, st);
+      case 'wandlaterne':
+        return wallLanternCmd(this, st);
+      case 'haengelaterne':
+        return hangingLanternCmd(this, st);
+      case 'banner':
+        return bannerCmd(this, st);
+      case 'efeu':
+        return ivyCmd(this, st);
+      case 'bewuchs':
+        return coverCmd(this, st);
+      case 'laub':
+        return leavesCmd(this, st);
+      case 'streue':
+        return scatterCmd(this, st);
+      case 'feld':
+        return fieldCmd(this, st);
+      case 'erlaube':
+        return this.allowCmd(st);
       default:
         if (LATER[st.cmd]) {
           throw new TessError(st.line, `„${st.cmd}“ gehört zu Bau-Sprache 2, ist in dieser Tessera-Version aber noch nicht umgesetzt (kommt mit Etappe ${LATER[st.cmd]}).`);
@@ -442,7 +433,7 @@ class Compiler {
 
   // ---- values and fields
 
-  private valueCmd(st: Statement): void {
+  valueCmd(st: Statement): void {
     const text = (st.text ?? '').replace(/^\S+\s*/, '');
     const eq = text.indexOf('=');
     if (eq < 0) throw new TessError(st.line, '„wert“ braucht einen Namen und einen Ausdruck, z. B. „wert breite=12“.');
@@ -457,7 +448,7 @@ class Compiler {
     this.failedValues.delete(name);
   }
 
-  private field(path: string[]): number {
+  field(path: string[]): number {
     const fieldName = path[path.length - 1];
     const objName = path.slice(0, -1).join('.');
     const f = this.forms.get(objName);
@@ -507,7 +498,7 @@ class Compiler {
   // ---- placing
 
   /** State index for a block id with properties (cached; completes the axis of logs). */
-  private sid(id: string, props: Record<string, string> | null, axis?: 'x' | 'y' | 'z'): number {
+  sid(id: string, props: Record<string, string> | null, axis?: 'x' | 'y' | 'z'): number {
     let m = this.stateCache.get(id);
     if (!m) {
       m = new Map();
@@ -530,32 +521,131 @@ class Compiler {
     return s;
   }
 
-  private put(x: number, y: number, z: number, sid: number, part: Part, origin = this.origin): void {
+  put(x: number, y: number, z: number, sid: number, part: Part, origin = this.origin): void {
+    this.checkCover(x, y, z, origin);
     this.grid.setId(x, y, z, sid, part, origin);
   }
 
+  /** Makes a cell air (hollow interiors, openings, leer), with the same cover check. */
+  clearCell(p: readonly number[]): void {
+    this.checkCover(p[0], p[1], p[2], this.origin);
+    this.grid.clear(p[0], p[1], p[2]);
+  }
+
+  /**
+   * Hint "Überschrieben" (11): a statement replaces glass, a door or an Anbau of an earlier line.
+   * Cells the statement already reported as an overlap (windows, doors) are left out.
+   */
+  private checkCover(x: number, y: number, z: number, origin: number): void {
+    const v = this.grid.infoAt(x, y, z);
+    if (v === 0) return;
+    const part = infoPart(v);
+    if (part !== Part.Opening && part !== Part.Annex) return;
+    const o = infoOrigin(v);
+    if (o === origin) return;
+    const old = this.grid.origins[o]?.line ?? 0;
+    const cur = this.grid.origins[origin]?.line ?? this.line;
+    if (!old || old === cur) return;
+    if (this.reported.has(pack3(x, y, z))) return;
+    const label = this.coverLabel(old, part);
+    this.note(`cover|${old}|${label}`, cur, (n, p) => `Überdeckt ${label} aus Zeile ${old}${n > 1 ? ` an ${n} Stellen, z. B.` : ''} bei ${p.join(',')}.`, [x, y, z]);
+  }
+
+  /** "das Fenster", "die Tür", "den Balkon" … for the statement in a line. */
+  private coverLabel(line: number, part: Part): string {
+    const cmd = asciiKey((this.lineTexts.get(line) ?? '').split(' ')[0] ?? '');
+    const labels: Record<string, string> = {
+      fenster: 'das Fenster',
+      tuer: 'die Tür',
+      tor: 'das Tor',
+      balkon: 'den Balkon',
+      umgang: 'den Umgang',
+      erker: 'den Erker',
+      gaube: 'die Gaube',
+      ecktuerme: 'die Ecktürmchen',
+    };
+    return labels[cmd] ?? (part === Part.Annex ? 'den Anbau' : 'die Öffnung');
+  }
+
+  /**
+   * A hint of the running statement that may concern many cells: one message per key, with the
+   * number of cells and the first one.
+   */
+  note(key: string, line: number, text: (n: number, first: Vec3) => string, cell: Vec3): void {
+    const e = this.pending.get(key);
+    if (e) e.n++;
+    else this.pending.set(key, { line, text, first: cell, n: 1 });
+  }
+
+  private flushPending(): void {
+    for (const e of this.pending.values()) this.warn(e.text(e.n, e.first), e.line);
+    this.pending.clear();
+  }
+
   /** Places a role member at a cell. */
-  private place(p: readonly number[], ref: RoleRef, member: Member = ref.member, props: Record<string, string> | null = null, part: Part = Part.Plain, axis?: 'x' | 'y' | 'z', origin?: number): void {
+  place(p: readonly number[], ref: RoleRef, member: Member = ref.member, props: Record<string, string> | null = null, part: Part = Part.Plain, axis?: 'x' | 'y' | 'z', origin?: number): void {
     const id = this.palette.pick(ref.role, member, p[0], p[1], p[2], this.line);
     this.put(p[0], p[1], p[2], this.sid(id, props, axis), part, origin);
   }
 
-  private placeSpec(p: readonly number[], spec: BlockSpec, part: Part, origin?: number): void {
+  placeSpec(p: readonly number[], spec: BlockSpec, part: Part, origin?: number): void {
     if (spec.kind === 'role') this.place(p, spec.ref, spec.ref.member, null, part, 'y', origin);
-    else this.put(p[0], p[1], p[2], this.sid(spec.state.name, Object.keys(spec.state.props).length ? { ...spec.state.props } : null), part, origin);
+    else {
+      this.put(p[0], p[1], p[2], this.sid(spec.state.name, Object.keys(spec.state.props).length ? { ...spec.state.props } : null), part, origin);
+      // Tall plants get their upper half (where there is room).
+      if (TALL_PLANTS.has(spec.state.name) && (spec.state.props.half ?? 'lower') === 'lower' && !this.grid.has(p[0], p[1] + 1, p[2])) {
+        this.put(p[0], p[1] + 1, p[2], this.sid(spec.state.name, { ...spec.state.props, half: 'upper' }), part, origin);
+      }
+    }
   }
 
-  private ref(text: string, what = 'Rolle'): RoleRef {
+  ref(text: string, what = 'Rolle'): RoleRef {
     return this.palette.roleRef(text, this.line, what);
   }
 
-  private optRef(a: Args, key: string): RoleRef | null {
+  /**
+   * Role name for options that also take a block id (feld: zaun=, weg=, e.g. weg=dirt_path): a
+   * role of the file wins; otherwise the block gets a role of its own, only for this file.
+   */
+  roleOrBlockName(text: string): string {
+    const head = asciiKey(text.split(':')[0]);
+    if (this.palette.roles.has(head) || this.palette.isFailed(head)) return text;
+    if (!/^[a-z0-9_.:/-]+$/i.test(text)) return text;
+    const key = `_block_${text.replace(/[^a-z0-9_]/gi, '_').toLowerCase()}`;
+    if (!this.palette.roles.has(key)) {
+      this.palette.define({ line: this.line, cmd: 'rolle', args: [] }, [
+        { kind: 'word', text: key, col: 0 },
+        { kind: 'word', text, col: 0 },
+      ]);
+    }
+    return key;
+  }
+
+  /** A role with a family member: `holz:zaun` as written, `holz` with the given member. */
+  memberRef(text: string, member: Member): RoleRef {
+    const r = this.ref(text);
+    return r.explicit ? r : { ...r, member };
+  }
+
+  /**
+   * Railings (gelaender=): a written member as given; otherwise the fence of the role, else its
+   * wall, else the block itself.
+   */
+  railRef(text: string): RoleRef {
+    const r = this.ref(text);
+    if (r.explicit) return r;
+    if (this.palette.hasMember(r.role, 'fence')) return { ...r, member: 'fence' };
+    if (this.palette.hasMember(r.role, 'wall')) return { ...r, member: 'wall' };
+    return r;
+  }
+
+  optRef(a: Args, key: string): RoleRef | null {
     const v = a.str(key);
     return v === undefined ? null : this.ref(v);
   }
 
   /** `R` or `R:h` (sockel, kranz). */
-  private refWithHeight(a: Args, key: string): { ref: RoleRef; h: number } | null {
+  refWithHeight(a: Args, key: string): { ref: RoleRef; h: number } | null {
     const v = a.str(key);
     if (v === undefined) return null;
     const m = /^(.*):(\d+)$/.exec(v);
@@ -564,12 +654,12 @@ class Compiler {
     return { ref: this.ref(m ? m[1] : v), h };
   }
 
-  private roleOrNone(v: string): RoleRef | null {
+  roleOrNone(v: string): RoleRef | null {
     if (NO.has(v.toLowerCase())) return null;
     return this.ref(v);
   }
 
-  private form(name: string, what = 'Die Form'): FormObj {
+  form(name: string, what = 'Die Form'): FormObj {
     const key = asciiKey(name);
     const f = this.forms.get(key);
     const failed = this.failedNames.get(key);
@@ -582,7 +672,7 @@ class Compiler {
     return f;
   }
 
-  private register(f: FormObj): void {
+  register(f: FormObj): void {
     const prev = this.forms.get(f.name) ?? this.roofObjs.get(f.name);
     if (prev) throw new TessError(this.line, `Den Namen „${f.name}“ gibt es schon (Zeile ${prev.line}).`);
     this.forms.set(f.name, f);
@@ -590,7 +680,7 @@ class Compiler {
 
   // ---- form geometry
 
-  private offsetAt(f: FormObj, y: number): number {
+  offsetAt(f: FormObj, y: number): number {
     return f.profile.length ? profileOffset(f.profile, y - f.y0) : 0;
   }
 
@@ -615,7 +705,7 @@ class Compiler {
     return c;
   }
 
-  private cornersAt(f: FormObj, y: number): CellSet {
+  cornersAt(f: FormObj, y: number): CellSet {
     if (!f.shape) return CellSet.EMPTY;
     const v = this.offsetAt(f, y);
     let c = f.corners.get(v);
@@ -626,7 +716,7 @@ class Compiler {
     return c;
   }
 
-  private piecesAt(f: FormObj, y: number): Piece[] | null {
+  piecesAt(f: FormObj, y: number): Piece[] | null {
     if (!f.shape) return null;
     const v = this.offsetAt(f, y);
     let p = f.pieces.get(v);
@@ -639,7 +729,7 @@ class Compiler {
 
   // ---- forms
 
-  private formCmd(st: Statement): void {
+  formCmd(st: Statement): void {
     const kind = st.cmd as FormKind;
     const tokens = this.tokens(st);
     const common = ['boden', 'decke', 'ecken', 'sockel', 'kranz', 'fachwerk', 'raster', 'riegel', 'muster', 'streben', 'schraeg', 'ringbalken', 'wand', 'zonen', 'profil', 'konsolen'];
@@ -663,7 +753,7 @@ class Compiler {
         name = a.optionalName();
         const p1 = a.coord('Die erste Ecke');
         const p2 = a.coord('Die zweite Ecke');
-        roleWord = a.word('Die Rolle');
+        roleWord = a.word1('Die Rolle');
         a.done();
         shape = new BoxShape(Math.min(p1[0], p2[0]), Math.min(p1[2], p2[2]), Math.max(p1[0], p2[0]), Math.max(p1[2], p2[2]));
         y0 = Math.min(p1[1], p2[1]);
@@ -673,7 +763,7 @@ class Compiler {
       case 'zylinder': {
         name = a.optionalName();
         const [cx, y, cz] = a.coord('Die Mitte unten');
-        roleWord = a.word('Die Rolle');
+        roleWord = a.word1('Die Rolle');
         a.done();
         const given = ['r', 'd', 'rx', 'rz'].filter((k) => a.has(k));
         let mode: ConstructorParameters<typeof DiscShape>[2];
@@ -691,7 +781,7 @@ class Compiler {
       case 'vieleck': {
         name = a.optionalName();
         const [cx, y, cz] = a.coord('Die Mitte unten');
-        roleWord = a.word('Die Rolle');
+        roleWord = a.word1('Die Rolle');
         a.done();
         const n = a.requireInt('n', 3, 16, 'Die Zahl der Ecken, z. B. n=8.');
         const r = a.requireInt('r', 0, 500, 'Der Radius: Der Umkreis hat r+0,5.');
@@ -728,7 +818,7 @@ class Compiler {
       case 'grundriss': {
         name = a.optionalName();
         const [x, y, z] = a.coord('Die Ecke (Zelle des ersten Zeichens)');
-        roleWord = a.word('Die Rolle');
+        roleWord = a.word1('Die Rolle');
         a.done();
         const h = a.requireInt('h', 1, 2000, 'Die Höhe in Blöcken.');
         const lines = st.ascii ?? [];
@@ -749,7 +839,7 @@ class Compiler {
       case 'kugel': {
         name = a.optionalName();
         const [cx, cy, cz] = a.coord('Die Mitte');
-        roleWord = a.word('Die Rolle');
+        roleWord = a.word1('Die Rolle');
         a.done();
         const r = a.requireInt('r', 0, 200, 'Der Radius.');
         const teil = asciiKey(a.str('teil') ?? 'ganz');
@@ -777,6 +867,10 @@ class Compiler {
       corners: new Map(),
       pieces: new Map(),
       bbox: [0, 0, 0, 0, 0, 0],
+      wall: o.wall,
+      hollow: o.hollow,
+      roofs: [],
+      annex: false,
     };
     if (name && (this.forms.has(name) || this.roofObjs.has(name))) this.register(f);
     // Check the outline of every layer before building anything.
@@ -802,7 +896,7 @@ class Compiler {
     if (name) this.register(f);
   }
 
-  private formOpts(a: Args, kind: FormKind): FormOpts & { profile: ProfileEntry[] } {
+  formOpts(a: Args, kind: FormKind): FormOpts & { profile: ProfileEntry[] } {
     const hollow = a.flag('hohl');
     const wall = a.int('wand', 1, 1, 64);
     const timberKeys = ['raster', 'riegel', 'muster', 'streben', 'schraeg', 'ringbalken'];
@@ -862,7 +956,7 @@ class Compiler {
     };
   }
 
-  private buildPrism(f: FormObj, o: FormOpts): void {
+  buildPrism(f: FormObj, o: FormOpts): void {
     const h = f.y1 - f.y0 + 1;
     const round = f.kind === 'zylinder';
     const timber = o.timber;
@@ -894,7 +988,7 @@ class Compiler {
           if (L === 0 && o.floor) this.place(p, o.floor, o.floor.member, null, Part.Plain, 'x');
           else if (L === h - 1 && o.ceiling) this.place(p, o.ceiling, o.ceiling.member, null, Part.Plain, 'x');
           else if (!o.hollow) this.place(p, f.role, f.role.member, null, Part.Plain, 'y');
-          else this.grid.clear(x, y, z);
+          else this.clearCell(p);
           return;
         }
         const open = O.openSides(x, z);
@@ -920,13 +1014,13 @@ class Compiler {
     if (o.consoles) this.consoles(f, o.consoles);
   }
 
-  private zoneAt(o: FormOpts, L: number): RoleRef | null {
+  zoneAt(o: FormOpts, L: number): RoleRef | null {
     for (let i = o.zones.length - 1; i >= 0; i--) if (L >= o.zones[i].a && L <= o.zones[i].b) return o.zones[i].ref;
     return null;
   }
 
   /** Posts, beams and braces of one layer of a timber frame. */
-  private timberLayer(
+  timberLayer(
     f: FormObj,
     t: Timber,
     beams: number[],
@@ -1012,7 +1106,7 @@ class Compiler {
   }
 
   /** Corbels under every layer where the profile grows outwards. */
-  private consoles(f: FormObj, ref: RoleRef): void {
+  consoles(f: FormObj, ref: RoleRef): void {
     const h = f.y1 - f.y0 + 1;
     for (let L = 1; L < h; L++) {
       const dv = this.offsetAt(f, f.y0 + L) - this.offsetAt(f, f.y0 + L - 1);
@@ -1035,7 +1129,7 @@ class Compiler {
     }
   }
 
-  private buildSphere(f: FormObj, o: FormOpts): void {
+  buildSphere(f: FormObj, o: FormOpts): void {
     const s = f.sphere!;
     const R = s.r;
     // 3D distance to the outside over the six neighbours (shell of thickness `wand`).
@@ -1069,7 +1163,7 @@ class Compiler {
           if (L === 0 && o.floor) this.place(p, o.floor, o.floor.member, null, Part.Plain, 'x');
           else if (L === h - 1 && o.ceiling) this.place(p, o.ceiling, o.ceiling.member, null, Part.Plain, 'x');
           else if (!o.hollow) this.place(p, f.role, f.role.member, null, Part.Plain, 'y');
-          else this.grid.clear(x, y, z);
+          else this.clearCell(p);
           return;
         }
         if (o.plinth && L < o.plinth.h) this.place(p, o.plinth.ref, o.plinth.ref.member, null, Part.Plain, 'y');
@@ -1085,11 +1179,11 @@ class Compiler {
   // ---- simple commands
 
   /** linie x,y,z x,y,z <rolle> */
-  private lineCmd(st: Statement): void {
+  lineCmd(st: Statement): void {
     const a = new Args(st, this.tokens(st), []);
     const p1 = a.coord('Der Anfang');
     const p2 = a.coord('Das Ende');
-    const ref = this.ref(a.word('Die Rolle'));
+    const ref = this.ref(a.word1('Die Rolle'));
     a.done();
     const d = [Math.abs(p2[0] - p1[0]), Math.abs(p2[1] - p1[1]), Math.abs(p2[2] - p1[2])];
     const axis = d[1] >= d[0] && d[1] >= d[2] ? 'y' : d[0] >= d[2] ? 'x' : 'z';
@@ -1102,10 +1196,10 @@ class Compiler {
   }
 
   /** block x,y,z <block-angabe> */
-  private blockCmd(st: Statement): void {
+  blockCmd(st: Statement): void {
     const a = new Args(st, this.tokens(st), []);
     const p = a.coord('Die Position');
-    const what = a.word('Der Block oder die Rolle');
+    const what = a.word1('Der Block oder die Rolle');
     a.done();
     const spec = this.palette.blockSpec(what, st.line);
     if (spec.kind === 'role') this.place(p, spec.ref, spec.ref.member);
@@ -1113,19 +1207,19 @@ class Compiler {
   }
 
   /** leer x,y,z [x,y,z] */
-  private clearCmd(st: Statement): void {
+  clearCmd(st: Statement): void {
     const a = new Args(st, this.tokens(st), []);
     const p1 = a.coord('Die Position');
     const p2 = a.positional.length > 1 ? a.coord('Die zweite Ecke') : p1;
     a.done();
     for (let y = Math.min(p1[1], p2[1]); y <= Math.max(p1[1], p2[1]); y++)
       for (let z = Math.min(p1[2], p2[2]); z <= Math.max(p1[2], p2[2]); z++)
-        for (let x = Math.min(p1[0], p2[0]); x <= Math.max(p1[0], p2[0]); x++) this.grid.clear(x, y, z);
+        for (let x = Math.min(p1[0], p2[0]); x <= Math.max(p1[0], p2[0]); x++) this.clearCell([x, y, z]);
   }
 
   // ---- Bauteile (windows and doors as in version 1, on every form, with the outline of their layer)
 
-  private faceAt(f: FormObj, side: Facing, y: number): Face {
+  faceAt(f: FormObj, side: Facing, y: number): Face {
     const axis = axisOf(side) === 'x' ? 'z' : 'x';
     const [ox, oz] = DIR[side];
     if (f.kind === 'box') {
@@ -1185,211 +1279,186 @@ class Compiler {
     };
   }
 
-  private sideArg(a: Args): Facing {
-    const w = a.word('Die Seite (n, o, s oder w)').toLowerCase();
-    const side = parseSide(asciiKey(w));
-    if (!side) throw new TessError(this.line, `„${w}“ ist keine Seite. Erlaubt: n, o, s, w (Norden = −z, Osten = +x).`);
-    return side;
+  /** Centre point of a form (cells have their centres at +0.5). */
+  centrePoint(f: FormObj): { px: number; pz: number } {
+    return f.shape ? { px: f.shape.px, pz: f.shape.pz } : { px: f.sphere!.cx + 0.5, pz: f.sphere!.cz + 0.5 };
   }
 
-  private starts(a: Args, face: Face, width: number, count: number, step: number): number[] {
-    const other = face.axis === 'x' ? 'z' : 'x';
-    if (a.has(other)) {
-      throw new TessError(this.line, `Die ${sideLabel(face.side)}seite läuft entlang ${face.axis}; die Position wird mit „${face.axis}=“ angegeben, nicht mit „${other}=“.`);
+  /** Steps to the outside for the cells of an outline (cached per outline). */
+  insideDist(O: CellSet): Uint16Array {
+    let d = this.insideCache.get(O);
+    if (!d) {
+      d = O.insideDistance();
+      this.insideCache.set(O, d);
     }
-    let start: number;
-    if (a.has(face.axis)) start = a.int(face.axis, 0);
-    else {
-      const span = (count - 1) * step + width;
-      start = Math.floor((face.tMin + face.tMax + 1 - span) / 2);
-    }
-    return Array.from({ length: count }, (_, i) => start + i * step);
+    return d;
   }
 
-  private openingCell(face: Face, t: number, y: number, what: string, allowBeam = false): Vec3 | null {
-    const p = face.cell(t, y);
-    const where = () => (p ? `${p[0]},${p[1]},${p[2]}` : `${face.axis}=${t}, y=${y}`);
+  /** Whether a cell is a wall cell of the form (in the outline, at most `wand` steps from outside). */
+  isWallCell(f: FormObj, x: number, y: number, z: number): boolean {
+    if (y < f.y0 || y > f.y1) return false;
+    const O = this.outlineAt(f, y);
+    const d = O.at(this.insideDist(O), x, z);
+    return d >= 1 && d <= f.wall;
+  }
+
+  /**
+   * The wall at a cell, from the outer cell inwards: as many cells as the wall is thick (`wand=`),
+   * through the whole form when it is solid. Always contains the cell itself.
+   */
+  wallDepth(f: FormObj, p: Vec3, inward: Facing): Vec3[] {
+    const out: Vec3[] = [p];
+    if (p[1] < f.y0 || p[1] > f.y1) return out;
+    const O = this.outlineAt(f, p[1]);
+    const [dx, dz] = DIR[inward];
+    if (!f.hollow) {
+      // Solid forms: the opening goes through the whole form.
+      for (let k = 1; k < 256; k++) {
+        const x = p[0] + dx * k;
+        const z = p[2] + dz * k;
+        if (!O.has(x, z)) break;
+        out.push([x, p[1], z]);
+      }
+      return out;
+    }
+    if (f.wall <= 1) return out;
+    const dist = this.insideDist(O);
+    for (let k = 1; k < f.wall; k++) {
+      const x = p[0] + dx * k;
+      const z = p[2] + dz * k;
+      if (O.at(dist, x, z) !== k + 1) break;
+      out.push([x, p[1], z]);
+    }
+    return out;
+  }
+
+  /** Wall cell of a Bauteil's column, with the checks of version 1 (in the wall, corner, post, beam, overlap). */
+  openingCell(wall: Wall, col: number, y: number, what: string, allowBeam = false): Vec3 | null {
+    const p = wall.cell(col, y);
+    const where = () => (p ? `${p[0]},${p[1]},${p[2]}` : `${wall.mode === 'face' ? `${wall.axis}=${col}` : `Spalte ${col}`}, y=${y}`);
     if (!p || !this.grid.has(p[0], p[1], p[2])) {
       this.warn(`${what} liegt bei ${where()} nicht in der Wand (dort ist kein Block).`);
       return p;
     }
-    if (face.isCorner(t, y)) this.warn(`${what} sitzt bei ${where()} in der Hausecke.`);
+    if (wall.isCorner(col, y)) this.warn(`${what} sitzt bei ${where()} in der Hausecke.`);
     const info = this.grid.cellInfo(p[0], p[1], p[2]);
     if (info?.part === Part.Structure) this.warn(`${what} schneidet bei ${where()} einen Pfosten oder Eckpfeiler (Zeile ${info.line}).`);
     else if (info?.part === Part.Beam && !allowBeam) this.warn(`${what} schneidet bei ${where()} einen waagrechten Balken (Zeile ${info.line}).`);
-    else if (info?.part === Part.Opening && info.line !== this.line) this.warn(`${what} überschneidet sich bei ${where()} mit Zeile ${info.line}.`);
+    else if ((info?.part === Part.Opening || info?.part === Part.Frame) && info.line !== this.line) {
+      this.warn(`${what} überschneidet sich bei ${where()} mit Zeile ${info.line}.`);
+      this.reported.add(pack3(p[0], p[1], p[2]));
+    }
     return p;
   }
 
-  private outside(p: Vec3, side: Facing): Vec3 {
+  /** Lintel, reveal and door frame cells: only where the wall has a block, and not in posts, beams, braces or roofs. */
+  framePut(p: Vec3 | null, ref: RoleRef, member: Member, props: Record<string, string> | null, axis: 'x' | 'y' | 'z'): void {
+    if (!p || !this.grid.has(p[0], p[1], p[2])) return;
+    const part = this.grid.cellInfo(p[0], p[1], p[2])?.part;
+    if (part === Part.Structure || part === Part.Beam || part === Part.Roof || part === Part.Strut) return;
+    this.place(p, ref, member, props, Part.Frame, axis);
+  }
+
+  outside(p: Vec3, side: Facing): Vec3 {
     const [dx, dz] = DIR[side];
     return [p[0] + dx, p[1], p[2] + dz];
   }
 
-  private attach(p: Vec3, ref: RoleRef, member: Member, props: Record<string, string>, what: string): void {
+  /** Sills and shutters (as version 1): only into air, one hint per blocked cell. Returns whether it was placed. */
+  attach(p: Vec3, ref: RoleRef, member: Member, props: Record<string, string> | null, what: string): boolean {
     const info = this.grid.cellInfo(p[0], p[1], p[2]);
     if (info) {
       if (info.part !== Part.Attachment || info.line !== this.line) this.warn(`${what} bei ${p.join(',')} stößt an einen Block (Zeile ${info.line}) und fehlt dort.`);
-      return;
+      return false;
     }
     this.place(p, ref, member, props, Part.Attachment);
+    return true;
   }
 
-  private bauteilForm(a: Args): FormObj {
-    const f = this.form(a.word('Die Form (Name einer Form)'));
+  /** Like attach, for a Block-Angabe. */
+  attachSpec(p: Vec3, spec: BlockSpec, what: string): boolean {
+    const info = this.grid.cellInfo(p[0], p[1], p[2]);
+    if (info) {
+      if (info.part !== Part.Attachment || info.line !== this.line) this.warn(`${what} bei ${p.join(',')} stößt an einen Block (Zeile ${info.line}) und fehlt dort.`);
+      return false;
+    }
+    this.placeSpec(p, spec, Part.Attachment);
+    return true;
+  }
+
+  /**
+   * Anbauten outside the wall (6.5) and other outside parts: only into air. Where something is
+   * in the way it stays; the statement gets one hint per obstacle line. Cells of the statement
+   * itself may be replaced. Returns whether the block was placed.
+   */
+  outPlace(p: readonly number[], ref: RoleRef, member: Member, props: Record<string, string> | null, part: Part, axis: 'x' | 'y' | 'z' | undefined, what: string): boolean {
+    if (!this.outFree(p, what)) return false;
+    this.place(p, ref, member, props, part, axis);
+    return true;
+  }
+
+  /** Like outPlace, for a state index. */
+  outPut(p: readonly number[], sid: number, what: string, part: Part = Part.Attachment): boolean {
+    if (!this.outFree(p, what)) return false;
+    this.put(p[0], p[1], p[2], sid, part);
+    return true;
+  }
+
+  /** Like outPlace, for a Block-Angabe. */
+  outPlaceSpec(p: readonly number[], spec: BlockSpec, part: Part, what: string): boolean {
+    if (!this.outFree(p, what)) return false;
+    this.placeSpec(p, spec, part);
+    return true;
+  }
+
+  /** Whether an outside cell is free (or the statement's own); records the obstacle otherwise. */
+  outFree(p: readonly number[], what: string): boolean {
+    const v = this.grid.infoAt(p[0], p[1], p[2]);
+    if (v === 0) return true;
+    const o = infoOrigin(v);
+    if (o === this.origin) return true;
+    const line = this.grid.origins[o]?.line ?? 0;
+    this.note(`block|${what}|${line}`, this.line, (n, q) => `${what} stößt bei ${q.join(',')}${n > 1 ? ` und ${n - 1} weiteren Stellen` : ''} an Blöcke aus Zeile ${line} und fehlt dort.`, [p[0], p[1], p[2]]);
+    return false;
+  }
+
+  bauteilForm(a: Args): FormObj {
+    const f = this.form(a.word1('Die Form (Name einer Form)'));
     if (f.kind === 'kugel') throw new TessError(this.line, 'An einer kugel hängen keine Bauteile.');
     return f;
   }
 
-  /** fenster <form> <seite> y= [x=|z=] [b=1 h=2 anzahl=1 abstand=] [glas= rahmen= bank= sturz= laeden=] */
-  private window(st: Statement): void {
-    const a = new Args(st, this.tokens(st), ['x', 'z', 'y', 'b', 'h', 'anzahl', 'abstand', 'glas', 'rahmen', 'bank', 'sturz', 'laeden']);
-    const f = this.bauteilForm(a);
-    const side = this.sideArg(a);
-    a.done();
-    const y0 = a.requireInt('y', -LIMIT_V2, LIMIT_V2, 'Die Höhe der untersten Glasreihe (absolut).');
-    const face = this.faceAt(f, side, y0);
-    const b = a.int('b', 1, 1, 16);
-    const h = a.int('h', 2, 1, 32);
-    const count = a.int('anzahl', 1, 1, 64);
-    const step = a.int('abstand', b + 2, b + 1, 256);
-    const glass = this.ref(a.str('glas') ?? 'glas');
-    const sill = this.roleOrNone(a.str('bank') ?? a.str('rahmen') ?? 'rahmen');
-    const lintel = this.roleOrNone(a.str('sturz') ?? a.str('rahmen') ?? 'rahmen');
-    const shutters = this.optRef(a, 'laeden');
-    if (y0 <= f.y0 || (y0 <= f.y1 && y0 + h - 1 >= f.y1)) {
-      this.warn(`Das Fenster (y=${y0} bis ${y0 + h - 1}) reicht an Boden oder Oberkante von „${f.name}“ (y=${f.y0} bis ${f.y1}).`);
-    }
-    const inward = opposite(side);
-    for (const t0 of this.starts(a, face, b, count, step)) {
-      for (let t = t0; t < t0 + b; t++) {
-        for (let y = y0; y < y0 + h; y++) {
-          const p = this.openingCell(face, t, y, 'Das Fenster');
-          if (p) this.place(p, glass, glass.member, null, Part.Opening);
-        }
-      }
-      if (lintel) {
-        for (let t = t0 - 1; t <= t0 + b; t++) {
-          const p = face.cell(t, y0 + h);
-          if (!p || !this.grid.has(p[0], p[1], p[2])) continue;
-          const part = this.grid.cellInfo(p[0], p[1], p[2])?.part;
-          if (part === Part.Structure || part === Part.Beam || part === Part.Roof || part === Part.Strut) continue;
-          this.place(p, lintel, lintel.member, null, Part.Opening, face.axis);
-        }
-      }
-      if (sill) {
-        for (let t = t0; t < t0 + b; t++) {
-          const p = face.cell(t, y0 - 1);
-          if (!p) continue;
-          this.attach(this.outside(p, side), sill, 'stairs', { facing: inward, half: 'top' }, 'Die Fensterbank');
-        }
-      }
-      if (shutters) {
-        for (const t of [t0 - 1, t0 + b]) {
-          for (let y = y0; y < y0 + h; y++) {
-            const p = face.cell(t, y);
-            if (!p) continue;
-            this.attach(this.outside(p, side), shutters, 'trapdoor', { facing: side, open: 'true', half: 'bottom' }, 'Der Fensterladen');
-          }
-        }
-      }
-    }
-  }
-
-  /** tür <form> <seite> [x=|z=] [y=] [b=1|2] [tuer= rahmen=] */
-  private door(st: Statement): void {
-    const a = new Args(st, this.tokens(st), ['x', 'z', 'y', 'b', 'tuer', 'rahmen']);
-    const f = this.bauteilForm(a);
-    const side = this.sideArg(a);
-    a.done();
-    const y0 = a.int('y', f.y0 + 1, -LIMIT_V2, LIMIT_V2);
-    const face = this.faceAt(f, side, y0);
-    const b = a.int('b', 1, 1, 2);
-    const doorRef = this.ref(a.str('tuer') ?? 'tuer');
-    const frame = this.roleOrNone(a.str('rahmen') ?? 'rahmen');
-    const facing = opposite(side);
-    const left = ccw(facing);
-    const [t0] = this.starts(a, face, b, 1, b);
-    for (let t = t0; t < t0 + b; t++) {
-      const lower = this.openingCell(face, t, y0, 'Die Tür', true);
-      const upper = this.openingCell(face, t, y0 + 1, 'Die Tür');
-      if (!lower || !upper) continue;
-      let hinge = 'left';
-      if (b === 2) {
-        const [lx, lz] = DIR[left];
-        const otherT = t === t0 ? t0 + 1 : t0;
-        const other = face.cell(otherT, y0);
-        if (other) hinge = (other[0] - lower[0]) * lx + (other[2] - lower[2]) * lz > 0 ? 'right' : 'left';
-      }
-      const id = this.palette.pick(doorRef.role, 'door', lower[0], lower[1], lower[2], st.line);
-      this.put(lower[0], lower[1], lower[2], this.sid(id, { facing, half: 'lower', hinge }), Part.Opening);
-      this.put(upper[0], upper[1], upper[2], this.sid(id, { facing, half: 'upper', hinge }), Part.Opening);
-    }
-    if (frame) {
-      const cells: [number, number, 'x' | 'y' | 'z'][] = [];
-      for (let y = y0; y <= y0 + 1; y++) cells.push([t0 - 1, y, 'y'], [t0 + b, y, 'y']);
-      for (let t = t0 - 1; t <= t0 + b; t++) cells.push([t, y0 + 2, face.axis]);
-      for (const [t, y, axis] of cells) {
-        const p = face.cell(t, y);
-        if (!p || !this.grid.has(p[0], p[1], p[2])) continue;
-        const part = this.grid.cellInfo(p[0], p[1], p[2])?.part;
-        if (part === Part.Structure || part === Part.Beam || part === Part.Roof || part === Part.Strut) continue;
-        this.place(p, frame, frame.member, null, Part.Opening, axis);
-      }
-    }
-  }
-
-  /** zinnen <form> [rolle] */
-  private crenellations(st: Statement): void {
+  /** erlaube schweben (11): no floating check for the file. */
+  allowCmd(st: Statement): void {
     const a = new Args(st, this.tokens(st), []);
-    const f = this.bauteilForm(a);
-    const roleWord = a.optionalWord();
+    const what = asciiKey(a.word1('Was erlaubt wird (schweben)'));
     a.done();
-    const ref = roleWord ? this.ref(roleWord) : f.role;
-    const O = this.outlineAt(f, f.y1);
-    const y = f.y1 + 1;
-    if (f.kind === 'box') {
-      const [x0, z0, x1, z1] = [O.x0, O.z0, O.x1, O.z1];
-      const sides: [number, number, number, number][] = [
-        [x0, z0, 1, 0],
-        [x1, z0, 0, 1],
-        [x1, z1, -1, 0],
-        [x0, z1, 0, -1],
-      ];
-      for (const [sx, sz, dx, dz] of sides) {
-        const len = dx !== 0 ? x1 - x0 : z1 - z0;
-        for (let i = 0; i <= len; i++) if (i % 2 === 0 || i === len) this.place([sx + dx * i, y, sz + dz * i], ref, ref.member, null, Part.Plain, 'y');
-      }
-      return;
-    }
-    const shape = f.shape;
-    if (shape instanceof DiscShape && 'r' in shape.mode) {
-      const r = shape.mode.r + this.offsetAt(f, f.y1);
-      ringByAngle(r).forEach(([dx, dz], i) => {
-        if (i % 2 === 0) this.place([shape.cx + dx, y, shape.cz + dz], ref, ref.member, null, Part.Plain, 'y');
-      });
-      return;
-    }
-    const dist = O.insideDistance();
-    const px = shape ? shape.px : f.sphere!.cx + 0.5;
-    const pz = shape ? shape.pz : f.sphere!.cz + 0.5;
-    const ring = O.list()
-      .filter(([x, z]) => O.at(dist, x, z) === 1)
-      .sort((p, q) => Math.atan2(p[1] + 0.5 - pz, p[0] + 0.5 - px) - Math.atan2(q[1] + 0.5 - pz, q[0] + 0.5 - px));
-    const corners = this.cornersAt(f, f.y1);
-    ring.forEach(([x, z], i) => {
-      if (i % 2 === 0 || corners.has(x, z)) this.place([x, y, z], ref, ref.member, null, Part.Plain, 'y');
-    });
+    if (what !== 'schweben') throw new TessError(st.line, `„erlaube ${what}“ gibt es nicht; möglich ist „erlaube schweben“.`);
+    this.allowFloating = true;
   }
 
   // ---- roofs
 
-  private roof(st: Statement): void {
-    const keys = ['name', 'ueberstand', 'profil', 'steil', 'dicke', 'rolle', 'first', 'giebel', 'kante', 'spitze', 'firstzier', 'traufe', 'kruppel', 'hoch', 'biegung', 'rand', 'art'];
-    const a = new Args(st, this.tokens(st), keys, ['fuellen']);
-    const typeWord = asciiKey(a.word('Die Dachform (sattel, pult, krueppelwalm, walm, zelt, kegel, helm oder flach)'));
-    const f = this.form(a.word('Die Form'));
+  roof(st: Statement): void {
+    const a = new Args(st, this.tokens(st), ROOF_KEYS, ['fuellen']);
+    const typeWord = asciiKey(a.word1('Die Dachform (sattel, pult, krueppelwalm, walm, zelt, kegel, helm oder flach)'));
+    const f = this.form(a.word1('Die Form'));
     a.done();
+    if (f.annex) throw new TessError(st.line, `„${f.name}“ ist ein Erker; sein Dach legt „erker … dach=“ fest.`);
+    this.roofOn(a, f, typeWord);
+  }
+
+  /** Arguments made up from key=value pairs (roofs of turrets and oriels use the roof options). */
+  synthArgs(pairs: Record<string, string | undefined>, keys: readonly string[] = ROOF_KEYS, flags: readonly string[] = ['fuellen']): Args {
+    const st: Statement = { line: this.line, cmd: 'dach', args: [] };
+    const tokens: Token[] = [];
+    for (const [k, v] of Object.entries(pairs)) if (v !== undefined) tokens.push(classify(`${k}=${v}`, 0, this.line, 2));
+    return new Args(st, tokens, keys, flags);
+  }
+
+  /** A roof of a type on a form, with the options of `dach` (5). */
+  roofOn(a: Args, f: FormObj, typeWord: string, opts: { keep?: (x: number, z: number) => boolean; tag?: string } = {}): RoofDef | null {
+    const st = { line: a.line };
     const types = ['sattel', 'pult', 'krueppelwalm', 'walm', 'zelt', 'kegel', 'helm', 'flach'];
     if (!types.includes(typeWord)) throw new TessError(st.line, `„${typeWord}“ ist keine Dachform. Möglich: ${types.join(', ')}.`);
     const role = this.ref(a.str('rolle') ?? 'dach');
@@ -1408,7 +1477,8 @@ class Compiler {
     if (typeWord === 'flach') {
       for (const k of ['profil', 'steil', 'dicke', 'spitze', 'firstzier', 'traufe']) if (a.has(k)) throw new TessError(st.line, `„${k}=“ gibt es beim Flachdach nicht.`);
       if (a.flag('fuellen')) throw new TessError(st.line, '„fuellen“ gibt es beim Flachdach nicht.');
-      return this.flatRoof(a, f, role, over);
+      this.flatRoof(a, f, role, over, opts.keep, opts.tag ? this.taggedOrigin(opts.tag) : undefined);
+      return null;
     }
     const type = typeWord as RoofType;
     if ((type === 'sattel' || type === 'pult' || type === 'krueppelwalm') && f.kind !== 'box') {
@@ -1446,7 +1516,10 @@ class Compiler {
 
     const def = this.roofDef(a, f, type, profile, over, kante, traufeArg === 'keine' ? null : (traufeArg as 'treppe' | 'stufe'), dicke, a.flag('fuellen'), !!firstzier, !!spitze);
     const extra: RoofExtra = { role, giebel, firstzier, spitze, form: f, line: st.line };
+    if (opts.keep) def.keep = opts.keep;
+    if (opts.tag) def.origin = this.taggedOrigin(opts.tag);
     this.addRoof(def, extra);
+    f.roofs.push(def);
     f.roofTop = Math.max(f.roofTop ?? -Infinity, def.yb + def.layers.length - 1);
     if (name) {
       let bx0 = Infinity, bz0 = Infinity, bx1 = -Infinity, bz1 = -Infinity;
@@ -1460,10 +1533,11 @@ class Compiler {
       const top = def.yb + def.layers.length - 1;
       this.roofObjs.set(name, { name, line: st.line, bbox: [bx0, def.yb, bz0, bx1, top, bz1], top });
     }
+    return def;
   }
 
   /** Layer outlines of one roof (before uniting). */
-  private roofDef(
+  roofDef(
     a: Args,
     f: FormObj,
     type: RoofType,
@@ -1643,7 +1717,7 @@ class Compiler {
   }
 
   /** Adds a roof: unites it with every group whose base area it overlaps or touches. */
-  private addRoof(def: RoofDef, extra: RoofExtra): void {
+  addRoof(def: RoofDef, extra: RoofExtra): void {
     const touching = this.groups.filter((g) => g.roofs.some((r) => touches(r.base, def.base)));
     const group: RoofGroup = { roofs: [], extra: [], placed: [], kept: new Map() };
     for (const g of touching) {
@@ -1663,7 +1737,7 @@ class Compiler {
     this.renderGroup(group);
   }
 
-  private renderGroup(g: RoofGroup): void {
+  renderGroup(g: RoofGroup): void {
     const origins = new Set(g.roofs.map((r) => r.origin));
     const firstSeq = Math.min(...g.roofs.map((r) => r.seq));
     // Remove what the group placed before, where nothing else has replaced or cleared it since;
@@ -1679,6 +1753,7 @@ class Compiler {
     for (const b of blocks) {
       const r = g.roofs[b.roof];
       const ex = g.extra[b.roof];
+      if (r.keep && !r.keep(b.x, b.z)) continue;
       this.line = ex.line;
       const o = this.grid.originAt(b.x, b.y, b.z);
       if (o && !origins.has(o) && (this.originSeq[o] ?? 0) > firstSeq) continue; // placed between the roofs: stays
@@ -1727,27 +1802,30 @@ class Compiler {
   }
 
   /** dach flach: one layer over the outline plus overhang, optionally a ring on top. */
-  private flatRoof(a: Args, f: FormObj, role: RoleRef, over: number): void {
+  flatRoof(a: Args, f: FormObj, role: RoleRef, over: number, keep?: (x: number, z: number) => boolean, origin?: number): void {
     const art = asciiKey(a.str('art') ?? 'block');
     if (art !== 'block' && art !== 'stufe') throw new TessError(this.line, `„art=${art}“: block oder stufe.`);
     const rand = this.optRef(a, 'rand');
     const top = this.outlineAt(f, f.y1);
-    const F = f.kind === 'box' ? CellSet.rect(top.x0 - over, top.z0 - over, top.x1 + over, top.z1 + over) : top.dilate(over);
+    let F = f.kind === 'box' ? CellSet.rect(top.x0 - over, top.z0 - over, top.x1 + over, top.z1 + over) : top.dilate(over);
+    // Oriels: only the part in front of the main wall.
+    if (keep) F = CellSet.build(F.x0, F.z0, F.x1, F.z1, (x, z) => F.has(x, z) && keep(x, z));
     const y = f.y1 + 1;
     F.forEach((x, z) => {
-      if (art === 'stufe') this.place([x, y, z], role, 'slab', { type: 'bottom' }, Part.Roof);
-      else this.place([x, y, z], role, role.member, null, Part.Roof, 'y');
+      if (art === 'stufe') this.place([x, y, z], role, 'slab', { type: 'bottom' }, Part.Roof, undefined, origin);
+      else this.place([x, y, z], role, role.member, null, Part.Roof, 'y', origin);
     });
     if (rand) {
       F.forEach((x, z) => {
-        if (F.openSides(x, z)) this.place([x, y + 1, z], rand, rand.member, null, Part.Roof, 'y');
+        const rim = [[1, 0], [-1, 0], [0, 1], [0, -1]].some(([dx, dz]) => !F.has(x + dx, z + dz) && (!keep || keep(x + dx, z + dz)));
+        if (rim) this.place([x, y + 1, z], rand, rand.member, null, Part.Roof, 'y', origin);
       });
     }
     f.roofTop = Math.max(f.roofTop ?? -Infinity, rand ? y + 1 : y);
   }
 
   /** kranzdach <form> y= [breite=2] [profil=|steil=] [rolle=dach] [kante=ja|nein] */
-  private skirt(st: Statement): void {
+  skirt(st: Statement): void {
     const a = new Args(st, this.tokens(st), ['y', 'breite', 'profil', 'steil', 'rolle', 'kante']);
     const f = this.bauteilForm(a);
     a.done();
@@ -1762,18 +1840,22 @@ class Compiler {
     const kv = a.str('kante');
     if (kv !== undefined && !NO.has(kv.toLowerCase()) && !YES.has(kv.toLowerCase())) throw new TessError(st.line, `„kante=${kv}“: ja oder nein.`);
     const kante = kv !== undefined && YES.has(kv.toLowerCase());
-    const wall = this.outlineAt(f, y);
+    this.buildSkirt(f, y, breite, profile, role, kante, 'Das Kranzdach');
+  }
+
+  /** Ring roof outside a form at layer y (kranzdach; umgang with dach=). */
+  buildSkirt(f: FormObj, y: number, breite: number, profile: RoofProfile, role: RoleRef, kante: boolean, what: string, wall = this.outlineAt(f, y)): void {
     let blocks: ReturnType<typeof renderSkirt>;
     try {
       blocks = renderSkirt(wall, breite, profile, kante);
     } catch (e) {
-      if (e instanceof TessError) throw new TessError(st.line, e.message);
+      if (e instanceof TessError) throw new TessError(this.line, e.message);
       throw e;
     }
     let hitWindow = 0;
     const isWindow = (x: number, yy: number, z: number) => {
       const i = this.grid.cellInfo(x, yy, z);
-      return !!i && (i.part === Part.Opening || i.part === Part.Attachment);
+      return !!i && (i.part === Part.Opening || i.part === Part.Frame || i.part === Part.Attachment);
     };
     for (const b of blocks) {
       const Y = y + b.k;
@@ -1792,7 +1874,7 @@ class Compiler {
       else if (b.kind === 'slab') this.place(p, role, 'slab', { type: 'bottom' }, Part.Roof);
       else this.place(p, role, 'block', null, Part.Roof, 'y');
     }
-    if (hitWindow) this.warn(`Das Kranzdach trifft an ${hitWindow} Stelle(n) auf Fenster oder Türen; dort setzt es nur in Luft.`);
+    if (hitWindow) this.warn(`${what} trifft an ${hitWindow} Stelle(n) auf Fenster oder Türen; dort setzt es nur in Luft.`);
   }
 }
 
@@ -1898,7 +1980,10 @@ export function compileTess(source: string, opts: CompileOptions = {}): CompileO
   const c = new Compiler(opts.hints);
   c.run(statements);
   connectBlocks(c.grid, 2);
-  const all = [...diagnostics, ...c.diagnostics].sort((a, b) => a.line - b.line);
+  const found = [...diagnostics, ...c.diagnostics];
+  // Checks of section 11 on the finished grid (only when the file has no errors).
+  if (!found.some((d) => d.level === 'error')) found.push(...runChecks(c.grid, { floating: !c.allowFloating, label: (l) => `Zeile ${l}` }));
+  const all = found.sort((a, b) => a.line - b.line);
   if (c.grid.size === 0 && !all.some((d) => d.level === 'error')) all.push({ line: 1, level: 'warn', message: 'Der Bauplan erzeugt keinen einzigen Block.' });
   return { name: c.name, grid: c.grid, diagnostics: all, statements: statements.length, version: 2, lineTexts: c.lineTexts };
 }

@@ -1,4 +1,5 @@
 import { compileTess } from '../../tess/compile';
+import { infoOrigin } from '../../tess/grid';
 import type { BlockHints } from '../../tess/palette';
 import type { Diagnostic } from '../../tess/syntax';
 import { TARGET_DATA_VERSION } from '../versions';
@@ -84,7 +85,7 @@ export function parseTess(bytes: Uint8Array, hints?: BlockHints): TessResult {
     }
     const i = ((y - minY) * sizeZ + (z - minZ)) * sizeX + (x - minX);
     data[i] = p;
-    const o = info >>> 3;
+    const o = infoOrigin(info);
     let t = originMap.get(o);
     if (t === undefined) {
       const src = grid.origins[o] ?? { line: 0, chain: [] };

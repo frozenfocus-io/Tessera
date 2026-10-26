@@ -6,6 +6,7 @@ import { ProjectScene } from '../render/ProjectScene';
 import { raycastVolume } from '../render/raycast';
 import { Viewer } from '../render/Viewer';
 import { persistWorkspace, scheduleSave } from './importer';
+import type { Bounds } from '../core/volume';
 import type { Project, ViewMode } from './project';
 import { activeId, activeProject, markUnknown, projection, projects } from './workspace';
 
@@ -82,12 +83,46 @@ function ensureScene(p: Project): ProjectScene {
       else scene.hideHover();
     }),
     effect(() => {
+      const line = p.markedLine.value;
+      const cells = line === null ? null : p.lineCells(line);
+      scene.setMarked(cells?.positions ?? null, cells?.count ?? 0);
+      if (cells && viewer) focusOn(p, cells.bounds);
+    }),
+    effect(() => {
       void p.revision.value;
       scheduleSave(p);
     }),
   ];
   bindings.set(p.id, () => disposers.forEach((d) => d()));
   return scene;
+}
+
+/**
+ * Turns the camera to blocks of the model: from the model's middle out towards them (so the
+ * side of the building they are on faces the camera), a little from above, with some room
+ * around them.
+ */
+function focusOn(p: Project, b: Bounds): void {
+  if (!viewer) return;
+  const all = p.bounds;
+  const pad = 3;
+  const box: Bounds = { minX: b.minX - pad, minY: b.minY - 1, minZ: b.minZ - pad, maxX: b.maxX + pad, maxY: b.maxY + 1, maxZ: b.maxZ + pad };
+  let dx = 0;
+  let dz = 0;
+  if (all) {
+    dx = (b.minX + b.maxX) / 2 - (all.minX + all.maxX) / 2;
+    dz = (b.minZ + b.maxZ) / 2 - (all.minZ + all.maxZ) / 2;
+  }
+  const len = Math.hypot(dx, dz);
+  if (len < 1) {
+    const v = viewer.viewDirection;
+    dx = v[0];
+    dz = v[2];
+  }
+  const h = Math.hypot(dx, dz) || 1;
+  viewer.focus(box, [dx / h, 0.6, dz / h]);
+  p.camera = viewer.getCameraState();
+  p.touch();
 }
 
 /** Drops a project's scene and its bindings (before the project object is replaced). */

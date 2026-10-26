@@ -49,6 +49,8 @@ export class ProjectScene {
   readonly scene = new THREE.Scene();
   readonly materials: BlockMaterials;
   readonly outlines = new TypeOutlines();
+  /** Blocks of a marked line of a building plan (clicked hint). */
+  readonly marks = new TypeOutlines(0xff7a5c);
   readonly hover = new HoverOutline();
   readonly stats: SceneStats;
   /** Called when something visible changed (the viewer then renders a frame). */
@@ -92,7 +94,7 @@ export class ProjectScene {
       errors: 0,
     };
 
-    this.scene.add(this.chunkGroup, this.capGroup, this.outlines.group, this.hover.object);
+    this.scene.add(this.chunkGroup, this.capGroup, this.outlines.group, this.marks.group, this.hover.object);
     this.ground = this.makeGround();
     this.scene.add(this.ground);
     this.layerFrame = this.makeLayerFrame();
@@ -362,6 +364,13 @@ export class ProjectScene {
     this.outlineInfo = { shown: k, total, limit };
   }
 
+  /** Outlines the blocks of a marked line (positions in volume coordinates), or clears them. */
+  setMarked(positions: Float32Array | null, count: number): void {
+    if (positions && count > 0) this.marks.set(positions, Math.min(count, MAX_OUTLINES));
+    else this.marks.clear();
+    this.onChange();
+  }
+
   showHover(x: number, y: number, z: number, palette: number): void {
     const t = this.model.table;
     const boxes = t.kind[palette] === KIND_CUBE ? [0, 0, 0, 16, 16, 16] : t.shapes[t.shapeIndex[palette]]?.boxes ?? [0, 0, 0, 16, 16, 16];
@@ -389,6 +398,7 @@ export class ProjectScene {
     });
     this.materials.dispose();
     this.outlines.dispose();
+    this.marks.dispose();
     this.hover.dispose();
     (this.layerFrame.material as THREE.Material).dispose();
     this.ground.traverse((o) => {

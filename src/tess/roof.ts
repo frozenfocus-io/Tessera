@@ -107,6 +107,8 @@ export interface RoofDef {
   hasTip: boolean;
   /** Krüppelwalm: the hips at the two gable ends (layers/dirs above hold both hips). */
   hip?: HipEnds;
+  /** Roofs of Anbauten against a wall: only cells in front of the wall are built. */
+  keep?: (x: number, z: number) => boolean;
 }
 
 export interface HipEnds {

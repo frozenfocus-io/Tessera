@@ -137,7 +137,7 @@ describe('Bau-Sprache 2: Werte und Ausdrücke', () => {
   });
 
   it('wert gilt ab seiner Zeile und darf neu gesetzt werden', () => {
-    const out = c2('wert a=1\nbox {a},0,0 {a},0,0 stein\nwert a={a+10}\nbox {a},1,0 {a},1,0 stein');
+    const out = c2('erlaube schweben\nwert a=1\nbox {a},0,0 {a},0,0 stein\nwert a={a+10}\nbox {a},1,0 {a},1,0 stein');
     clean(out);
     expect(name(out, 1, 0, 0)).toBe('stone_bricks');
     expect(name(out, 11, 1, 0)).toBe('stone_bricks');
@@ -158,6 +158,7 @@ describe('Bau-Sprache 2: Werte und Ausdrücke', () => {
   it('kennt die Felder der Formen', () => {
     const out = c2(
       [
+        'erlaube schweben',
         'box h 0,0,0 10,4,6 stein hohl profil=3:1',
         'zylinder z 30,2,40 r=4 h=6 stein',
         'vieleck v 60,0,0 n=8 r=5 h=3 stein',
@@ -240,7 +241,7 @@ describe('Bau-Sprache 2: Rollen', () => {
   });
 
   it('versteht Block-Angaben; der Rollenname hat Vorrang vor einer gleichnamigen Block-ID', () => {
-    const out = c2('rolle stone oak_planks\nblock 0,0,0 stone\nblock 1,0,0 lantern[hanging=true]\nblock 2,0,0 create:andesite_casing\nblock 3,0,0 stone:stufe');
+    const out = c2('rolle stone oak_planks\nblock 0,0,0 stone\nblock 1,0,0 lantern[hanging=true]\nblock 1,1,0 stone\nblock 2,0,0 create:andesite_casing\nblock 3,0,0 stone:stufe');
     clean(out);
     expect(name(out, 0, 0, 0)).toBe('oak_planks');
     expect(at(out, 1, 0, 0)?.props).toMatchObject({ hanging: 'true' });
@@ -775,7 +776,7 @@ describe('Bau-Sprache 2: Dachmaschine', () => {
   });
 
   it('Dächer mit Namen haben Felder', () => {
-    const out = c2('box h 0,0,0 6,3,4 stein hohl\ndach sattel h name=hd\nblock 0,{hd.dach+1},0 holz\nblock {hd.x0},0,10 holz');
+    const out = c2('erlaube schweben\nbox h 0,0,0 6,3,4 stein hohl\ndach sattel h name=hd\nblock 0,{hd.dach+1},0 holz\nblock {hd.x0},0,10 holz');
     clean(out);
     expect(name(out, 0, 8, 0)).toBe('spruce_planks');
     expect(name(out, -1, 0, 10)).toBe('spruce_planks');
@@ -869,38 +870,58 @@ describe('Bau-Sprache 2: weitere Angaben', () => {
   });
 });
 
-describe('Zielbau 4a: beispiele/wachturm.tess', () => {
+describe('Zielbau 4b: beispiele/wachturm.tess', () => {
   const out = compileTess(readFileSync('beispiele/wachturm.tess', 'utf8'));
   const west = (cells: Set<string>) => new Set([...cells].filter((c) => Number(c.split(',')[0]) <= 5)); // without the annex
   const ring = (r: number) => west(layer(c2(`vieleck v 0,0,0 n=8 r=${r} h=1 stein hohl`), 0));
 
   it('übersetzt ohne Fehler und ohne Hinweise', () => clean(out));
 
-  it('Turm: achteckig, unten breiter, verjüngt, ab Lage 18 vorgekragt mit Konsolen, Fenster in mehreren Höhen', () => {
-    // r=5 with profile 0:2,3:2~,12:0,18:1 → r=7 up to layer 5, r=6 up to 9, r=5 up to 17, r=6 from 18.
-    expect(west(layer(out, 1))).toEqual(ring(7));
-    expect(west(layer(out, 9))).toEqual(ring(6));
-    expect(west(layer(out, 16))).toEqual(ring(5));
-    expect(west(layer(out, 23))).toEqual(ring(6));
-    expect(at(out, -6, 17, 0)?.props).toMatchObject({ facing: 'east', half: 'top' }); // console under the overhang
-    expect(name(out, -6, 17, 0)).toBe('stone_brick_stairs');
+  it('Turm: achteckig, unten breiter, bis Lage 7 verjüngt, Gesims am Sockel, Rundbogenfenster', () => {
+    // r=5 with profile 0:2,3:2~,8:0 → r=7 up to layer 4, r=6 in 5 and 6, r=5 from 7 to 19.
+    expect(west(layer(out, 6))).toEqual(ring(6));
+    expect(west(layer(out, 12))).toEqual(ring(5));
     expect(name(out, -6, 3, 0)).toBe('glass_pane');
-    expect(name(out, 0, 14, -5)).toBe('glass_pane');
     expect(name(out, 0, 1, 6)).toBe('spruce_door');
+    // Gesims on n, w and s; the east side stays free for the annex.
+    expect(at(out, -7, 1, 0)?.props).toMatchObject({ facing: 'east', half: 'top' });
+    expect(name(out, -7, 1, 0)).toBe('stone_brick_stairs');
+    expect(name(out, 7, 1, 0)?.endsWith('_stairs')).toBe(false);
+    // Round-arched window: glass below, the outer cells of the top row as stairs.
+    expect([name(out, -1, 9, -5), name(out, 0, 10, -5)]).toEqual(['glass_pane', 'glass_pane']);
+    expect(at(out, -1, 11, -5)?.props).toMatchObject({ facing: 'west', half: 'top' });
+    expect(at(out, 0, 11, -5)?.props).toMatchObject({ facing: 'east', half: 'top' });
   });
 
-  it('Obergeschoss in Fachwerk mit Schwelle, Riegel, Pfosten und Streben', () => {
-    expect(at(out, 0, 18, -6)?.props.axis).toBe('x'); // sill beam
-    expect(at(out, 0, 19, -6)?.props.axis).toBe('x'); // riegel=1
-    expect(at(out, -2, 20, -6)?.props.axis).toBe('y'); // post
-    expect([name(out, 6, 20, -1), name(out, 6, 21, 0), name(out, 6, 22, 1)]).toEqual(['dark_oak_log', 'dark_oak_log', 'dark_oak_log']); // strut
-    expect(name(out, 6, 20, 1)).toBe('calcite');
-    expect(name(out, -2, 21, -7)).toBe('spruce_trapdoor'); // shutter of the upper window
+  it('Umgang mit Geländer und Stützen unter dem Obergeschoss, Laternen, Banner', () => {
+    expect(name(out, 0, 16, -7)).toBe('spruce_planks');
+    expect(name(out, 0, 17, -7)).toBe('spruce_fence');
+    for (const y of [17, 18, 19, 20]) expect(at(out, 3, y, -7)?.key).toBe('minecraft:dark_oak_log[axis=y]');
+    expect(at(out, 3, 21, -7)?.props).toMatchObject({ facing: 'south', half: 'bottom' }); // the skirt rests on the post
+    expect(at(out, 3, 15, -7)?.props).toMatchObject({ facing: 'south', half: 'top' }); // brace
+    expect(at(out, 0, 19, -7)?.props).toMatchObject({ hanging: 'true' });
+    expect(name(out, 0, 20, -7)).toBe('chain');
+    expect(at(out, 0, 15, 6)?.key).toBe('minecraft:red_wall_banner[facing=south]');
+    expect(name(out, 2, 3, 7)).toBe('spruce_fence'); // lantern arm beside the door
+    expect(at(out, 2, 2, 7)?.props).toMatchObject({ hanging: 'true' });
+    expect(out.grid.entries().some(([, y, , s]) => y <= 5 && s.name === 'minecraft:vine')).toBe(true);
   });
 
-  it('gestaffelter Helm: Kranzdach am Fuß des Obergeschosses, Glockenhelm mit Spitze', () => {
-    expect(at(out, -8, 18, 0)?.props).toMatchObject({ facing: 'east', half: 'bottom' });
-    expect(at(out, -7, 19, 0)?.props).toMatchObject({ facing: 'east', half: 'bottom' });
+  it('Balkon mit Pultdach auf der Westseite', () => {
+    expect([name(out, -6, 9, 0), name(out, -7, 9, 0)]).toEqual(['spruce_planks', 'spruce_planks']);
+    expect(name(out, -7, 10, 0)).toBe('spruce_fence');
+    expect(name(out, -5, 10, 0)).toBe('spruce_door');
+    for (const [x, y] of [[-8, 13], [-7, 14], [-6, 15]]) expect(at(out, x, y, 0)?.props).toMatchObject({ facing: 'east', half: 'bottom' });
+  });
+
+  it('Obergeschoss in Fachwerk, gestaffelter Helm mit Spitze', () => {
+    expect(west(layer(out, 25))).toEqual(ring(7));
+    expect(at(out, 0, 20, -6)?.props.axis).toBe('x'); // sill beam
+    expect(at(out, 0, 21, -6)?.props.axis).toBe('x'); // riegel=1
+    expect(at(out, -2, 22, -6)?.props.axis).toBe('y'); // post
+    expect(name(out, -2, 23, -7)).toBe('spruce_trapdoor'); // shutter of the upper window
+    expect(at(out, -8, 20, 0)?.props).toMatchObject({ facing: 'east', half: 'bottom' });
+    expect(at(out, -7, 21, 0)?.props).toMatchObject({ facing: 'east', half: 'bottom' });
     const top = Math.max(...out.grid.entries().map(([, y]) => y));
     expect(name(out, 0, top, 0)).toBe('lightning_rod');
     expect(name(out, 0, top - 1, 0)).toBe('deepslate_tiles');

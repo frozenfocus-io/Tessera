@@ -17,17 +17,35 @@ export const Part = {
   Plain: 0,
   /** Corner posts and timber frame posts: windows and doors should not cut through them. */
   Structure: 1,
-  /** Window and door openings with their frame. */
+  /** Window glass and door leaves (Bau-Sprache 1: also their frame). */
   Opening: 2,
   Roof: 3,
-  /** Attachments outside the wall: sills, shutters. */
+  /** Attachments outside the wall: sills, shutters, lanterns, railings. */
   Attachment: 4,
   /** Horizontal beams (timber frame sill, top, rails, kranz): a door may cut the sill. */
   Beam: 5,
   /** Diagonal braces of a timber frame. */
   Strut: 6,
+  /** Bau-Sprache 2: frames of windows, doors and gates (lintel, reveal, arch stairs, bars). */
+  Frame: 7,
+  /** Bau-Sprache 2: Anbauten (balcony, walkway, oriel, dormer, corner turrets). */
+  Annex: 8,
 } as const;
 export type Part = (typeof Part)[keyof typeof Part];
+
+/** Bits of the part in a cell's info word; the origin id takes the rest. */
+const PART_BITS = 4;
+const PART_MASK = (1 << PART_BITS) - 1;
+
+/** Part of a raw info word (Chunk.info, Grid.forEach). */
+export function infoPart(v: number): Part {
+  return (v & PART_MASK) as Part;
+}
+
+/** Origin id of a raw info word. */
+export function infoOrigin(v: number): number {
+  return v >>> PART_BITS;
+}
 
 /** Coordinate limit of Bau-Sprache 1 (Bau-Sprache 2 allows 4000). */
 export const LIMIT = 2000;
@@ -74,7 +92,7 @@ const CSPAN = 1024;
 export class Chunk {
   /** State index per cell, 0 = empty. */
   readonly ids = new Uint16Array(CELLS);
-  /** part | origin << 3 */
+  /** part | origin << 4 */
   readonly info = new Uint32Array(CELLS);
   count = 0;
   constructor(
@@ -115,8 +133,12 @@ export class Grid {
     return i;
   }
 
-  originId(line: number, chain: readonly number[] = []): number {
-    const key = chain.length ? `${line}|${chain.join(',')}` : String(line);
+  /**
+   * Origin id of a statement (line and module chain). A tag keeps parts of one statement apart
+   * (a dormer's roof and its walls) while the hover shows the same line.
+   */
+  originId(line: number, chain: readonly number[] = [], tag = ''): number {
+    const key = (chain.length ? `${line}|${chain.join(',')}` : String(line)) + (tag ? `#${tag}` : '');
     let i = this.originIndex.get(key);
     if (i === undefined) {
       i = this.origins.length;
@@ -170,7 +192,7 @@ export class Grid {
       this.cells++;
     }
     c.ids[i] = id;
-    c.info[i] = part | (origin << 3);
+    c.info[i] = (part | (origin << PART_BITS)) >>> 0;
     this.sets++;
   }
 
@@ -207,8 +229,8 @@ export class Grid {
     const i = ((y & MASK) << 8) | ((z & MASK) << 4) | (x & MASK);
     if (c.ids[i] === 0) return null;
     const v = c.info[i];
-    const origin = v >>> 3;
-    return { part: (v & 7) as Part, origin, line: this.origins[origin]?.line ?? 0 };
+    const origin = v >>> PART_BITS;
+    return { part: (v & PART_MASK) as Part, origin, line: this.origins[origin]?.line ?? 0 };
   }
 
   /** Origin id of a cell (0 for empty cells). */
@@ -216,7 +238,15 @@ export class Grid {
     const c = this.chunkAt(x, y, z, false);
     if (!c) return 0;
     const i = ((y & MASK) << 8) | ((z & MASK) << 4) | (x & MASK);
-    return c.ids[i] === 0 ? 0 : c.info[i] >>> 3;
+    return c.ids[i] === 0 ? 0 : c.info[i] >>> PART_BITS;
+  }
+
+  /** Raw info word of a cell (part and origin), 0 for empty cells. */
+  infoAt(x: number, y: number, z: number): number {
+    const c = this.chunkAt(x, y, z, false);
+    if (!c) return 0;
+    const i = ((y & MASK) << 8) | ((z & MASK) << 4) | (x & MASK);
+    return c.ids[i] === 0 ? 0 : c.info[i];
   }
 
   /** Replaces the state of an occupied cell, keeping part and origin (connection pass). */
