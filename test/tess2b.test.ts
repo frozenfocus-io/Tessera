@@ -560,6 +560,40 @@ describe('6.5 Anbauten', () => {
     expect(cells(out, (x, y, _z, n) => y === 7 && x > 9 && n === 'spruce_planks')).toEqual([]); // only nw
     expect(errors(c2('zylinder z 0,0,0 r=4 h=4 stein\necktuerme z r=1 h=2 y=3 holz'))[0].message).toContain('Ecken');
   });
+
+  it('ecktuerme einzug, konsolen, stufen, dachprofil, biegung und spitze', () => {
+    const t = (opts: string) => c2(`box h 0,0,0 10,8,10 stein hohl\ndach walm h\necktuerme h an=nw r=2 h=4 y=6 holz ${opts}`);
+    // einzug: the centre lies r−einzug cells diagonally outside the corner cell (0,0); the turret's
+    // west wall is two cells west of its centre.
+    for (const [e, x, z] of [[0, -4, -2], [1, -3, -1], [2, -2, 0]]) {
+      const out = t(`einzug=${e}`);
+      clean(out);
+      expect(name(out, x, 7, z), `einzug=${e}`).toBe('spruce_planks');
+    }
+    expect(at(t('einzug=0'), -3, 7, -1)).toBeNull(); // inside the turret
+    // konsolen: their role, or none at all
+    const stone = t('konsolen=stein');
+    clean(stone);
+    expect(at(stone, -3, 5, -1)?.key).toBe('minecraft:stone_brick_stairs[facing=east,half=top,shape=straight,waterlogged=false]');
+    expect(name(stone, -1, 5, -1)).toBe('stone_bricks');
+    const none = t('konsolen=nein');
+    expect([at(none, -3, 5, -1), at(none, -2, 4, -1), at(none, -1, 5, -1)]).toEqual([null, null, null]);
+    // stufen: the corbels' layers below y=6 (standard: r)
+    const layers = (out: Out) => [...new Set(cells(out, (_x, _y, _z, n) => n.startsWith('oak_')).map((k) => Number(k.split(',')[1])))].sort((a, b) => a - b);
+    expect([layers(t('')), layers(t('stufen=1')), layers(t('stufen=3'))]).toEqual([[4, 5], [5], [3, 4, 5]]);
+    // dachprofil: flatter profiles end lower than the helm's standard 1/3
+    const top = (out: Out) => Math.max(...cells(out, (x, _y, z) => x <= 0 && z <= 0).map((k) => Number(k.split(',')[1])));
+    expect([top(t('dachprofil=1/1')), top(t('dachprofil=1/2')), top(t(''))]).toEqual([13, 17, 21]);
+    // biegung: the tip moves n cells to the side (centre -1,-1); spitze: a block on the tip
+    expect(name(t(''), -1, 21, -1)).toBe('deepslate_tiles');
+    const bent = t('biegung=w:2');
+    clean(bent);
+    expect(at(bent, -3, 21, -1)?.props).toMatchObject({ facing: 'east', half: 'top' });
+    expect(at(bent, -1, 21, -1)).toBeNull();
+    const rod = t('spitze=lightning_rod');
+    clean(rod);
+    expect(name(rod, -1, 22, -1)).toBe('lightning_rod');
+  });
 });
 
 describe('6.6 Zinnen, Bögen, Treppen', () => {
@@ -763,6 +797,51 @@ describe('7 Zier und Deko', () => {
     const n = cells(half, (_x, _y, _z, nm) => nm === 'poppy').length;
     expect(n).toBeGreaterThan(441 * 0.15);
     expect(n).toBeLessThan(441 * 0.45);
+  });
+
+  it('muster= bei efeu und bewuchs: flecken:n wächst in Flecken, einzeln verstreut, lagen geht nicht', () => {
+    /** Share of covered cells and how often a covered cell's next cell (east, south or down) is covered too. */
+    const clumps = (on: Set<string>, all: number, next: (k: string) => string[]) => {
+      let pairs = 0;
+      let both = 0;
+      for (const k of on)
+        for (const n of next(k)) {
+          pairs++;
+          if (on.has(n)) both++;
+        }
+      return { share: on.size / all, together: both / pairs };
+    };
+    const xz = (k: string) => {
+      const [x, y, z] = k.split(',').map(Number);
+      return [x < 39 ? `${x + 1},${y},${z}` : '', z < 39 ? `${x},${y},${z + 1}` : ''].filter(Boolean);
+    };
+    const moss = (m: string) => {
+      const out = c2(`box h 0,0,0 39,0,39 stein\nbewuchs h block=moss_carpet dichte=0.5 ${m}`);
+      clean(out);
+      return clumps(new Set(cells(out, (_x, _y, _z, n) => n === 'moss_carpet')), 1600, xz);
+    };
+    const patches = moss('muster=flecken:6');
+    const single = moss('muster=einzeln');
+    for (const r of [patches, single]) {
+      expect(r.share).toBeGreaterThan(0.3);
+      expect(r.share).toBeLessThan(0.7);
+    }
+    expect(patches.together).toBeGreaterThan(0.8);
+    expect(single.together).toBeLessThan(0.65);
+    // efeu takes the same patterns on a wall (laenge=1: no hanging).
+    const xy = (k: string) => {
+      const [x, y, z] = k.split(',').map(Number);
+      return [x < 39 ? `${x + 1},${y},${z}` : '', y > 0 ? `${x},${y - 1},${z}` : ''].filter(Boolean);
+    };
+    const ivy = (m: string) => {
+      const out = c2(`box h 0,0,0 39,19,3 stein\nefeu h seiten=n dichte=0.5 laenge=1 ${m}`);
+      clean(out);
+      return clumps(new Set(cells(out, (_x, _y, _z, n) => n === 'vine')), 800, xy);
+    };
+    expect(ivy('muster=flecken:6').together).toBeGreaterThan(0.8);
+    expect(ivy('muster=einzeln').together).toBeLessThan(0.65);
+    for (const cmd of ['bewuchs h block=moss_carpet', 'efeu h'])
+      expect(errors(c2(`box h 0,0,0 6,3,6 stein\n${cmd} muster=lagen:2`))[0].message).toContain('muster=lagen');
   });
 
   it('laub: Blätterwolke um eine Mitte, dauerhaft, Stamm und Äste bleiben', () => {
