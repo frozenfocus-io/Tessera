@@ -412,7 +412,11 @@ export class OutlineShape extends Shape2D {
 
 /** grundriss: ASCII plan, every character except space and `.` is inside. */
 export class PlanShape extends Shape2D {
-  constructor(readonly base: CellSet) {
+  /** `round`: a round outline in cells (half-round oriel); like a zylinder it has no corners. */
+  constructor(
+    readonly base: CellSet,
+    readonly round = false,
+  ) {
     super();
   }
   get cx(): number {
@@ -431,7 +435,7 @@ export class PlanShape extends Shape2D {
     return v === 0 ? this.base : v > 0 ? this.base.dilate(v) : this.base.erode(-v);
   }
   override corners(_v: number, outline: CellSet): CellSet {
-    return cellCorners(outline);
+    return this.round ? CellSet.EMPTY : cellCorners(outline);
   }
   /** Straight runs of at least two cells; single steps belong to slanted walls. */
   override pieces(_v: number, outline: CellSet): Piece[] {

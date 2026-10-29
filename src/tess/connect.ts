@@ -320,6 +320,69 @@ export function completeState(s: BlockState): BlockState {
       case 'big_dripleaf':
       case 'small_dripleaf':
         break;
+      // Plants and crops (Bau-Sprache 2: fields, flower boxes, scattered plants).
+      case 'wheat':
+      case 'carrots':
+      case 'potatoes':
+      case 'beetroots':
+      case 'melon_stem':
+      case 'pumpkin_stem':
+      case 'torchflower_crop':
+      case 'pitcher_crop':
+      case 'sweet_berry_bush':
+      case 'nether_wart':
+      case 'cactus':
+      case 'sugar_cane':
+        def('age', '0');
+        if (n === 'pitcher_crop') def('half', 'lower');
+        return makeState(s.name, p);
+      case 'sunflower':
+      case 'lilac':
+      case 'rose_bush':
+      case 'peony':
+      case 'tall_grass':
+      case 'large_fern':
+      case 'pitcher_plant':
+        def('half', 'lower');
+        return makeState(s.name, p);
+      case 'pink_petals':
+        def('facing', 'north');
+        def('flower_amount', '1');
+        return makeState(s.name, p);
+      case 'composter':
+        def('level', '0');
+        return makeState(s.name, p);
+      case 'cauldron':
+        return makeState(s.name, p);
+      case 'water_cauldron':
+      case 'powder_snow_cauldron':
+        def('level', '3');
+        return makeState(s.name, p);
+      case 'anvil':
+      case 'chipped_anvil':
+      case 'damaged_anvil':
+        def('facing', 'north');
+        return makeState(s.name, p);
+      case 'furnace':
+      case 'smoker':
+      case 'blast_furnace':
+        def('facing', 'north');
+        def('lit', 'false');
+        return makeState(s.name, p);
+      case 'grindstone':
+        def('face', 'floor');
+        def('facing', 'north');
+        return makeState(s.name, p);
+      case 'beehive':
+      case 'bee_nest':
+        def('facing', 'north');
+        def('honey_level', '0');
+        return makeState(s.name, p);
+      case 'scaffolding':
+        def('bottom', 'false');
+        def('distance', '0');
+        def('waterlogged', 'false');
+        return makeState(s.name, p);
     }
     if (CANDLE.test(n)) {
       def('candles', '1');

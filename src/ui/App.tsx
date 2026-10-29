@@ -64,7 +64,8 @@ export function App() {
           p.toggleDone();
           break;
         case 'Escape':
-          if (p.pinned.value) p.togglePinned(null);
+          if (p.markedLine.value !== null) p.markLine(null);
+          else if (p.pinned.value) p.togglePinned(null);
           else p.setViewMode('all');
           break;
         case 's':

@@ -2,7 +2,7 @@
 
 Lokale Bauhilfe für Minecraft Java 1.21.1: Gebäude als Bauplan beschreiben oder Schematics öffnen, in 3D ansehen und Ebene für Ebene nachbauen, wie in einem Slicer. Tessera läuft komplett im Browser, ohne Server. Keine Datei verlässt deinen PC.
 
-**Stand:** Etappe 4a – Formen und Dächer (Version 0.4.0); Etappe 4 von 6 läuft.
+**Stand:** Etappe 4b – Anbauten und Zier (Version 0.4.1); Etappe 4 von 6 läuft.
 
 ## Starten
 
@@ -30,11 +30,14 @@ Sie läuft unter <http://localhost:4173>. Gespeicherte Tabs hängen an der Adres
 
 **Baupläne (`.tess`)**
 
-- Ein Bauplan beschreibt ein Gebäude in der Bau-Sprache statt Block für Block. Tessera übersetzt ihn in Blöcke und zeigt ihn wie eine Schematic. Die Sprache ist für Claude gemacht; du musst sie nicht lesen, kannst sie aber ändern. Referenz: [docs/bau-sprache.md](docs/bau-sprache.md), Beispiele: [beispiele/wachturm.tess](beispiele/wachturm.tess) und [beispiele/haus-mit-rundturm.tess](beispiele/haus-mit-rundturm.tess).
+- Ein Bauplan beschreibt ein Gebäude in der Bau-Sprache statt Block für Block. Tessera übersetzt ihn in Blöcke und zeigt ihn wie eine Schematic. Die Sprache ist für Claude gemacht; du musst sie nicht lesen, kannst sie aber ändern. Referenz: [docs/bau-sprache.md](docs/bau-sprache.md), Beispiele: [beispiele/wachturm.tess](beispiele/wachturm.tess), [beispiele/fachwerkhaus.tess](beispiele/fachwerkhaus.tess) und [beispiele/haus-mit-rundturm.tess](beispiele/haus-mit-rundturm.tess).
 - **Formen:** Quader, Zylinder (auch elliptisch und in jeder Breite), regelmäßige Vielecke, freie Umrisse, ASCII-Grundrisse und Kugeln. Wände können sich pro Lage verschieben: vorkragen (mit Konsolen darunter), sich verjüngen oder einen Bauch bekommen. Dazu Sockel, Kranz, Eckpfeiler, Wandzonen nach Höhe und Fachwerk mit Riegeln, Streben, Kreuzen oder Rauten.
 - **Dächer:** Sattel-, Pult-, Krüppelwalm-, Walm-, Kegel-, Helm- und Flachdach, mit frei wählbarem Profil (steil, flach, Glocke, Mansarde, Zwiebel, Kuppel), Hexenhut-Biegung, Firstzier, Traufe und Spitze. Dächer, die sich berühren, verschneiden sich zu einem Dach mit Kehlen (L-Häuser, Kreuzgiebel, Turmhelme). Kranzdächer legen eine Schürze rund um einen Turm.
-- **Bauteile:** Fenster mit Bank, Sturz und Läden, Türen mit Rahmen und Zinnen, an allen Formen. Rollen-Paletten („stein“ = 50 % Steinziegel, 20 % bemoost, 20 % rissig) nehmen Treppen, Stufen, Zäune, Falltüren und weitere Glieder mit und mischen auf Wunsch fleckig oder in Bändern. Werte und Rechenausdrücke halten Maße an einer Stelle.
-- Bauteile rechnen Lage und Ausrichtung selbst. Tessera prüft beim Übersetzen, ob Fenster und Türen in einer Wand sitzen, keinen Pfosten oder Balken schneiden und sich nicht überschneiden; solche Hinweise stehen mit Zeilennummer in den Projektdaten.
+- **Bauteile an Wänden:** Fenster als Rechteck, Rund- und Spitzbogen, Rundfenster, Kreuzfenster und Schießscharte, mit Bank, Sturz, Laibung, Sprossen, Läden und Blumenkästen; Türen mit Oberlicht, Bogen, Stufen und Vordach; Tore mit Fallgitter; Gesims, Lisenen, Strebepfeiler und Kopfbänder; Zinnen mit Maschikuli; Bögen, gerade Treppen und Wendeltreppen innen und außen. Sie sitzen an jeder Seite, unter jedem Winkel und in Reihen rundum.
+- **Anbauten:** Balkone mit Pultdach, Umgänge mit Geländer und Stützen, Erker (eckig, halbrund, dreieckig) mit eigenem Dach, Gauben und Ecktürmchen. Sie setzen außen nur in Luft und melden, woran sie stoßen.
+- **Zier und Farmen:** Wandlaternen, Hängelaternen, Banner, Efeu, Bewuchs, Laubwolken und gestreute Blöcke; Felder mit Wasser in Reichweite, Zaun, Tor und Weg.
+- **Rollen-Paletten** („stein“ = 50 % Steinziegel, 20 % bemoost, 20 % rissig) nehmen Treppen, Stufen, Zäune, Falltüren und weitere Glieder mit und mischen auf Wunsch fleckig oder in Bändern. Werte und Rechenausdrücke halten Maße an einer Stelle.
+- Bauteile rechnen Lage und Ausrichtung selbst. Tessera prüft beim Übersetzen, ob Fenster und Türen in einer Wand sitzen, keinen Pfosten oder Balken schneiden und sich nicht überschneiden, ob eine Zeile Glas, Türen oder Anbauten einer früheren überdeckt, ob Fackeln, Laternen, Türen und Pflanzen Halt haben, ob Teile ohne Verbindung zum Boden schweben und ob Wasser ausfließt. Solche Hinweise stehen mit Zeilennummer in den Projektdaten; ein Klick darauf markiert die Blöcke der Zeile und dreht die Kamera hin.
 - Zu jedem Block zeigt die Hover-Karte die Zeile des Bauplans, die ihn gesetzt hat, z. B. „Zeile 37: dach helm og profil=glocke …“. So lässt sich „das da ist falsch“ direkt einer Zeile zuordnen.
 - Auch große Baupläne übersetzt Tessera schnell: zwei Millionen Blöcke in wenigen Sekunden.
 - Zäune, Mauern, Glasscheiben, Gitter und Treppen-Ecken bekommen ihre Verbindungen nach den Regeln des Spiels, alle Blöcke ihre vollständigen Zustände.
@@ -156,6 +159,8 @@ Spieldateien von Mojang und den Mod-Autoren gehören nicht in dieses Repository.
 | `npm run typecheck` | TypeScript prüfen |
 | `npm run build` | prüfen und bauen, Ergebnis in `dist/` |
 | `npm run build:artifact -- --out <ordner>` | Version zum Veröffentlichen als Claude-Artefakt, z. B. als Testversion fürs Handy |
+| `node scripts/lagen.mjs <datei.tess>` | Bauplan als Text: Meldungen, Lagen von oben, Schnitte, einzelne Blöcke mit Zeile |
+| `node scripts/fotos.mjs <datei.tess> --out <ordner>` | Bildschirmfotos aus mehreren Richtungen (nach `npm run build`, braucht Playwright) |
 
 Konzept, Spezifikation und Auftrag für die nächste Etappe liegen in `docs/`: [Konzept](docs/konzept.md), [Bau-Sprache (Ist)](docs/bau-sprache.md), [Bau-Sprache 2 (Soll)](docs/bau-sprache-2.md), [Auftrag Etappe 4](docs/etappe-4.md), [Future Fixes](docs/future-fixes.md) (Verbesserungsvorschläge, noch nicht umgesetzt). Hinweise für Claude stehen in [CLAUDE.md](CLAUDE.md).
 
@@ -196,7 +201,7 @@ src/
   platform/    Projektordner, Speichern von Dateien und Beispieldateien, je nach Umgebung
 beispiele/     Baupläne zum Ausprobieren
 docs/          Referenz der Bau-Sprache
-scripts/       Build-Hilfen (Artefakt-Version)
+scripts/       Build-Hilfen (Artefakt-Version), Lagen und Bildschirmfotos von Bauplänen
 test/          Tests
 ```
 
@@ -209,7 +214,7 @@ Technik: TypeScript, Three.js, Preact, Vite, fflate.
 3. [x] **Bau-Sprache, Testlauf:** kleines Haus mit Fenstern, Dach und einem Rundturm; `.tess`-Dateien im Projektordner
 4. [ ] **Bau-Sprache, Ausbau** ([Auftrag](docs/etappe-4.md), [Spezifikation](docs/bau-sprache-2.md))
    - [x] 4a Formen und Dächer: Profile, Vielecke, Dachmaschine mit Verschneidung, Herkunft pro Block
-   - [ ] 4b Anbauten und Zier: Fensterformen, Balkone, Umgänge, Erker, Gauben, Ecktürme, Treppen, Deko, Farmen
+   - [x] 4b Anbauten und Zier: Fensterformen, Balkone, Umgänge, Erker, Gauben, Ecktürme, Treppen, Deko, Farmen, Prüfungen
    - [ ] 4c Werkzeuge: Module, ASCII-Freistil, Bauabschnitte, Bearbeiten mit Undo/Redo und Versionen
 5. [ ] **Gelände-Scan:** Welt-Tab, Objekte platzieren, Erdarbeiten, Ingame-Koordinaten
 6. [ ] **Export:** `.schem`, `.nbt`, `.litematic` mit korrekt verbundenen Blöcken
@@ -226,4 +231,5 @@ Eine Desktop-App mit Tauri ist vorerst nicht geplant.
 - Alte `.schematic`-Dateien (vor 1.13) liest Tessera noch nicht.
 - Kisteninhalte, Schildertexte und Objekte wie Rüstungsständer oder Rahmen werden nicht angezeigt.
 - Verbundene Blöcke (Zäune, Mauern, Scheiben) aus Schematics erscheinen so, wie sie in der Datei gespeichert sind; nur Baupläne rechnet Tessera selbst. Mod-Blöcke mit eigenen Verbindungsregeln sind dabei nur abgedeckt, wenn sie den Vanilla-Namen folgen.
-- Die Bau-Sprache hat den Stand von Teil 4a: Fensterformen, Balkone, Umgänge, Erker, Gauben, Treppen, Bögen, Deko und Farmen kommen mit 4b, Module, Wiederholungen, Spiegelungen und ASCII-Ebenen mit 4c. Baupläne lassen sich in Tessera noch nicht bearbeiten (nur die Datei selbst).
+- Die Bau-Sprache hat den Stand von Teil 4b: Module, Wiederholungen, Spiegelungen, ASCII-Ebenen und Bauabschnitte kommen mit 4c. Baupläne lassen sich in Tessera noch nicht bearbeiten (nur die Datei selbst).
+- Banner zeigt der Viewer einen Block hoch und ohne Muster, Ranken als flache grüne Platten.
