@@ -77,6 +77,8 @@ export class Project {
   readonly recipeChoice = signal<Readonly<Record<string, string>>>({});
   /** Item pinned from the material list (its blocks stay highlighted). */
   readonly pinned = signal<string | null>(null);
+  /** Building plans: the line whose blocks are marked (a clicked hint). Not saved. */
+  readonly markedLine = signal<number | null>(null);
   readonly hover = signal<HoverInfo | null>(null);
   readonly meshProgress = signal<{ done: number; total: number } | null>(null);
   readonly sceneStats = signal<SceneStats | null>(null);
@@ -158,6 +160,55 @@ export class Project {
     if (x < 0 || y < 0 || z < 0 || x >= v.sizeX || y >= v.sizeY || z >= v.sizeZ) return null;
     const id = o.ids[(y * v.sizeZ + z) * v.sizeX + x];
     return id ? (o.table[id] ?? null) : null;
+  }
+
+  /**
+   * Building plans: all blocks a statement line has set, as block positions (x, y, z triples in
+   * volume coordinates) with their bounds; null when the line set no block.
+   */
+  lineCells(line: number): { positions: Float32Array; count: number; bounds: Bounds } | null {
+    const o = this.data.origins;
+    if (!o) return null;
+    const hit = new Uint8Array(o.table.length);
+    let any = false;
+    o.table.forEach((e, i) => {
+      if (i > 0 && e.line === line) {
+        hit[i] = 1;
+        any = true;
+      }
+    });
+    if (!any) return null;
+    const { sizeX, sizeZ } = this.data.volume;
+    const ids = o.ids;
+    let count = 0;
+    for (let i = 0; i < ids.length; i++) if (hit[ids[i]]) count++;
+    if (!count) return null;
+    const positions = new Float32Array(count * 3);
+    const b: Bounds = { minX: Infinity, minY: Infinity, minZ: Infinity, maxX: -Infinity, maxY: -Infinity, maxZ: -Infinity };
+    let k = 0;
+    const layer = sizeX * sizeZ;
+    for (let i = 0; i < ids.length; i++) {
+      if (!hit[ids[i]]) continue;
+      const y = Math.floor(i / layer);
+      const rem = i - y * layer;
+      const z = Math.floor(rem / sizeX);
+      const x = rem - z * sizeX;
+      positions[k++] = x;
+      positions[k++] = y;
+      positions[k++] = z;
+      if (x < b.minX) b.minX = x;
+      if (y < b.minY) b.minY = y;
+      if (z < b.minZ) b.minZ = z;
+      if (x + 1 > b.maxX) b.maxX = x + 1;
+      if (y + 1 > b.maxY) b.maxY = y + 1;
+      if (z + 1 > b.maxZ) b.maxZ = z + 1;
+    }
+    return { positions, count, bounds: b };
+  }
+
+  /** Marks the blocks of a line (clicked hint); the same line again or null clears it. */
+  markLine(line: number | null): void {
+    this.markedLine.value = line === null || this.markedLine.value === line ? null : line;
   }
 
   /** Blocks per type id over the whole project. */

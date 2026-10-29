@@ -1,0 +1,91 @@
+# Zielbau Etappe 4b: Fachwerkhaus mit Vorkragung und Kopfbändern, Kreuzgiebel, Gauben, Erker und Feld.
+# Koordinaten: x nach Osten, y nach oben, z nach Süden. Der Boden draußen liegt bei y=-1.
+tess 2
+projekt "Fachwerkhaus"
+samen 7
+
+rolle stein cobblestone:4 mossy_cobblestone:1 stone:2 muster=flecken:2
+rolle sockel stone_bricks:4 mossy_stone_bricks:1 cracked_stone_bricks:1
+rolle putz calcite
+rolle balken dark_oak_log
+rolle holz dark_oak_planks
+rolle rahmen spruce_planks
+rolle dach deepslate_tiles
+rolle glas glass_pane
+rolle laden spruce_trapdoor
+rolle tuer spruce_door
+rolle ziegel bricks
+rolle erde rooted_dirt
+
+# ---- Grundriss in Kreuzform: Langhaus (x) und Querhaus (z), Erdgeschoss aus Stein
+box fundament 0,-1,0 20,0,8 sockel
+box querfundament 7,-1,-4 13,0,12 sockel
+box eg 0,1,0 20,6,8 stein hohl boden=holz
+box quereg 7,1,-4 13,6,12 stein hohl boden=holz
+
+# Obergeschoss in Fachwerk; das Langhaus kragt vorne und hinten zwei Blöcke vor. Gerades
+# Fachwerk hält es hell, die Giebel des Querhauses haben Streben
+box og 0,7,-2 20,12,10 putz hohl fachwerk=balken raster=4 muster=gerade boden=holz
+box querog 7,7,-4 13,12,12 putz hohl fachwerk=balken raster=6 muster=strebe boden=holz
+
+# Wo sich Lang- und Querhaus kreuzen, fallen die Innenwände weg
+leer 8,2,0 12,6,0
+leer 8,2,8 12,6,8
+leer 7,2,1 7,6,7
+leer 13,2,1 13,6,7
+leer 8,8,-2 12,12,-2
+leer 8,8,10 12,12,10
+leer 7,8,-1 7,12,9
+leer 13,8,-1 13,12,9
+
+# Kopfbänder unter der Vorkragung: je zwei Treppen schräg von der Wand zur Schwelle
+strebe 0,5,9 richtung=s laenge=2 holz
+strebe 4,5,9 richtung=s laenge=2 holz
+strebe 16,5,9 richtung=s laenge=2 holz
+strebe 20,5,9 richtung=s laenge=2 holz
+strebe 0,5,-1 richtung=n laenge=2 holz
+strebe 4,5,-1 richtung=n laenge=2 holz
+strebe 16,5,-1 richtung=n laenge=2 holz
+strebe 20,5,-1 richtung=n laenge=2 holz
+
+# Erker mit schlankem Helm vorne links: er reicht durch die Traufe, sein Helm steht vor dem Dach
+erker og s y=9 x=1 b=5 h=5 art=halbrund putz dach=helm dachprofil=1/1,1/3 name=erker
+fenster erker s y=10 b=1 h=2 bank=nein sturz=nein
+
+# ---- Kreuzgiebel: zwei Satteldächer, die sich kreuzen
+dach sattel og first=x giebel=putz
+dach sattel querog first=z giebel=putz
+fenster querog s y=14 b=1 h=2 bank=nein sturz=nein
+fenster querog n y=14 b=1 h=2 bank=nein sturz=nein
+
+# Zwei Gauben, vorne rechts und hinten links
+gaube og s x=17 laeden=laden
+gaube og n x=3 laeden=laden
+
+# Schornstein am Westgiebel: breiter Steinfuß mit Schultern, schlanker Ziegelzug durch den
+# Ortgang bis über den First, oben ein Kragen
+box kaminfuss -3,-1,2 -1,4,5 sockel
+dach walm kaminfuss ueberstand=0 rolle=sockel
+box schornstein -2,5,3 -1,23,4 ziegel
+gesims schornstein y=22 sockel art=treppe
+
+# ---- Tür im Querhaus mit Vordach und Stufen, Laternen daneben
+tür quereg s stufen=2 vordach=holz
+wandlaterne quereg s y=4 versatz=-2 arm=holz
+wandlaterne quereg s y=4 versatz=2 arm=holz
+
+# Fenster mit Läden und Blumenkästen
+fenster eg s y=2 b=2 x=3 laeden=laden
+fenster eg s y=2 b=2 x=16 laeden=laden
+fenster eg n y=2 b=2 x=3 laeden=laden
+fenster eg n y=2 b=2 x=16 laeden=laden
+fenster eg o y=2 b=2 laeden=laden
+fenster quereg n y=2 b=2 laeden=laden
+fenster og s y=9 b=3 x=17 laeden=laden kasten=erde blumen=poppy,dandelion,cornflower
+fenster querog s y=9 b=3 laeden=laden kasten=erde blumen=cornflower,poppy,allium
+fenster querog n y=9 b=3 laeden=laden kasten=erde blumen=allium,poppy,oxeye_daisy
+fenster og n y=9 b=3 x=17 laeden=laden kasten=erde blumen=dandelion,azure_bluet,poppy
+fenster og o y=9 b=3 z=3 laeden=laden
+
+# ---- Feld mit Zaun und Tor daneben
+feld 24,-1,0 32,-1,8 frucht=wheat zaun=holz tor=w weg=dirt_path

@@ -1,4 +1,5 @@
-# Zielbau Etappe 4a: Wachturm mit Fachwerk-Obergeschoss, gestaffeltem Helm und L-förmigem Anbau.
+# Zielbau Etappe 4b: Wachturm mit Steinsockel, Holzumgang unter dem Fachwerk-Obergeschoss,
+# gestaffeltem Helm und L-förmigem Anbau.
 # Koordinaten: x nach Osten, y nach oben, z nach Süden. Der Boden draußen liegt bei y=-1.
 tess 2
 projekt "Wachturm"
@@ -17,7 +18,7 @@ rolle glas glass_pane
 rolle laden spruce_trapdoor
 rolle tuer spruce_door
 
-wert r=5        # Radius des Turms (Umkreis r+0,5)
+wert r=5        # Radius des Turmschafts (Umkreis r+0,5)
 
 # ---- Anbau: L aus zwei Flügeln in Fachwerk auf Steinsockel, die Dächer verschneiden sich
 box haus 7,0,-3 13,4,3 putz hohl sockel=sockel fachwerk=balken raster=3 boden=holz
@@ -25,32 +26,61 @@ box fluegel 9,0,3 13,4,10 putz hohl sockel=sockel fachwerk=balken raster=3 boden
 dach sattel haus first=x
 dach krueppelwalm fluegel first=z
 
-# ---- Turm: achteckig, unten zwei breiter, verjüngt bis Lage 12, ab Lage 18 einen vorgekragt
+# ---- Turm: achteckig, unten zwei breiter und bis Lage 8 verjüngt, ab Lage 18 einen Block
+#      vorgekragt mit Konsolen
 vieleck turm 0,0,0 n=8 r={r} h=24 stein hohl sockel=sockel:2 ecken=eckstein \
-        profil=0:2,3:2~,12:0,18:1 konsolen=zier boden=holz
+        profil=0:2,3:2~,8:0,18:1 konsolen=zier boden=holz
+gesims turm y=1 zier seiten=n,w,s
 
-# Obergeschoss in Fachwerk (Lage 18 bis 23): Schwelle, Riegel, Streben, Balken auch über die Schrägen
+# Obergeschoss in Fachwerk (Lage 18 bis 23) auf der Vorkragung
 vieleck og 0,18,0 n=8 r={r+1} h=6 putz hohl fachwerk=balken riegel=1 muster=strebe ringbalken=ja boden=holz
 
 # Gestaffelter Helm: Schürze am Fuß des Obergeschosses, darüber der Glockenhelm mit Spitze
 kranzdach og y={og.y0} breite=2
 dach helm og profil=glocke ueberstand=2 spitze=lightning_rod
 
-# Tür und Fenster in mehreren Höhen
+# Umgang unter dem Obergeschoss (unter den Konsolen zwei Blöcke Kopfhöhe): Geländer, Stützen
+# bis unter die Schürze, Streben zur Wand
+umgang turm y=15 tiefe=2 stuetzen=balken abstand=6
+haengelaterne 0,18,-7
+haengelaterne 7,18,0
+haengelaterne 0,18,7
+haengelaterne -7,18,0
+
+# Tür mit Laternen, Rundbogenfenster in mehreren Höhen
 tür turm s rahmen=holz
 block 0,0,7 zier:treppe
+wandlaterne turm s y=3 versatz=-2 arm=holz
+wandlaterne turm s y=3 versatz=2 arm=holz
 fenster turm w y=3 rahmen=holz
-fenster turm s y=7 rahmen=holz laeden=laden
-fenster turm n y=8 rahmen=holz
-fenster turm n y=14 rahmen=holz
-fenster turm w y=12 rahmen=holz
-fenster turm o y=14 rahmen=holz
+fenster turm n y=9 b=2 h=3 art=bogen rahmen=holz
+fenster turm o y=11 b=2 h=3 art=bogen rahmen=holz
+fenster turm s y=9 b=2 h=3 art=bogen rahmen=holz laeden=laden
+banner turm n y=13 farbe=rot
+banner turm s y=13 farbe=rot
+
+# Tür und Fenster zum Umgang
+tür turm n y=15 rahmen=holz
+fenster turm o y=15 rahmen=holz bank=nein
+fenster turm s y=15 rahmen=holz bank=nein
+
+# Balkon mit Pultdach auf der Westseite, Stützen bis auf den breiteren Sockel
+balkon turm w y=8 b=3 tiefe=2 dach=holz tuer=ja stuetzen=balken
+
+# Fenster im Obergeschoss
 fenster og n y=20 b=3 h=3 bank=nein sturz=nein laeden=laden
 fenster og s y=20 b=3 h=3 bank=nein sturz=nein laeden=laden
+fenster og o y=20 b=3 h=2 bank=nein sturz=nein
+fenster og w y=20 b=3 h=2 bank=nein sturz=nein
+
+# Efeu am Sockel
+efeu turm bis=5 dichte=0.2 laenge=3
 
 # Fenster und Tür am Anbau
 tür fluegel s
 block 11,0,11 zier:treppe
+wandlaterne fluegel s y=3 versatz=2 arm=holz
 fenster haus n y=2 x=8 b=2 anzahl=2 abstand=3
 fenster fluegel o y=2 z=4 b=2 anzahl=2 abstand=3 laeden=laden
 fenster fluegel w y=2 z=7 b=2 laeden=laden
+efeu haus seiten=n bis=2 dichte=0.25 laenge=2

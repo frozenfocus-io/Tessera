@@ -315,6 +315,38 @@ export class Viewer {
   }
 
   /**
+   * Turns the camera towards a part of the model: looks at the bounds from the given direction
+   * (from the target towards the camera) and fits them into the view, in perspective.
+   */
+  focus(bounds: Bounds, from: [number, number, number]): void {
+    const dir = new THREE.Vector3(...from);
+    if (dir.lengthSq() < 1e-9) dir.set(1, 0.85, 1.25);
+    dir.normalize();
+    const { center, radius, distance } = this.fitDistance(bounds, dir);
+    if (this.projection !== 'perspective') {
+      this.cam = this.perspective;
+      this.controls.object = this.cam;
+      this.onProjectionChange('perspective');
+    }
+    this.perspective.position.copy(center).addScaledVector(dir, Math.max(distance, 12));
+    this.perspective.up.set(0, 1, 0);
+    this.perspective.near = Math.max(0.05, radius / 500);
+    this.perspective.far = Math.max(this.perspective.far, distance + radius * 4);
+    this.perspective.updateProjectionMatrix();
+    this.controls.target.copy(center);
+    this.perspective.lookAt(center);
+    this.controls.update();
+    this.dirty = true;
+  }
+
+  /** Current viewing direction (from the target towards the camera). */
+  get viewDirection(): [number, number, number] {
+    const p = this.cam.position;
+    const t = this.controls.target;
+    return [p.x - t.x, p.y - t.y, p.z - t.z];
+  }
+
+  /**
    * Plan view: orthographic, straight down onto the given layer, north at the top of the
    * screen. Blocks line up exactly with the grid like on a blueprint.
    */

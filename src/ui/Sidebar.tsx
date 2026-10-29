@@ -221,9 +221,7 @@ function ProjectInfo({ project: p }: { project: Project }) {
           </button>
           {open ? (
             <div class="notice-body">
-              {warnings.map((w) => (
-                <p key={w}>{w}</p>
-              ))}
+              {p.isPlan && r.diagnostics?.length ? <PlanHints project={p} /> : warnings.map((w) => <p key={w}>{w}</p>)}
               {p.unknownBlocks.length ? (
                 <>
                   <p>
@@ -245,6 +243,40 @@ function ProjectInfo({ project: p }: { project: Project }) {
         </div>
       ) : null}
     </section>
+  );
+}
+
+/**
+ * Hints of a building plan, one button each: a click marks the blocks of that line in the model
+ * and turns the camera to them; a second click (or Esc) clears the marking.
+ */
+function PlanHints({ project: p }: { project: Project }) {
+  const marked = p.markedLine.value;
+  const hints = (p.data.diagnostics ?? []).filter((d) => d.level === 'warn');
+  return (
+    <>
+      <p class="muted hint-help">Klick auf einen Hinweis zeigt die Blöcke seiner Zeile.</p>
+      <ul class="plan-hints">
+        {hints.map((d, i) => (
+          <li key={i}>
+            <button
+              class={`plan-hint${marked === d.line ? ' is-on' : ''}`}
+              aria-pressed={marked === d.line}
+              title={marked === d.line ? 'Markierung lösen (Esc)' : 'Blöcke dieser Zeile markieren und hindrehen'}
+              onClick={() => {
+                if (marked !== d.line && !p.lineCells(d.line)) {
+                  showToast('info', `Zeile ${d.line} hat keinen Block gesetzt, den Tessera markieren könnte.`);
+                  return;
+                }
+                p.markLine(d.line);
+              }}
+            >
+              <span class="plan-hint-line">Zeile {d.line}</span> {d.message}
+            </button>
+          </li>
+        ))}
+      </ul>
+    </>
   );
 }
 
