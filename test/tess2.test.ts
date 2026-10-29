@@ -871,18 +871,34 @@ describe('Bau-Sprache 2: weitere Angaben', () => {
 });
 
 describe('Zielbau 4b: beispiele/wachturm.tess', () => {
-  const out = compileTess(readFileSync('beispiele/wachturm.tess', 'utf8'));
-  const west = (cells: Set<string>) => new Set([...cells].filter((c) => Number(c.split(',')[0]) <= 5)); // without the annex
-  const ring = (r: number) => west(layer(c2(`vieleck v 0,0,0 n=8 r=${r} h=1 stein hohl`), 0));
+  const src = readFileSync('beispiele/wachturm.tess', 'utf8');
+  const out = compileTess(src);
+  const lineOf = (start: string) => src.split('\n').findIndex((l) => l.startsWith(start)) + 1;
+  const ring = (r: number) => layer(c2(`vieleck v 0,0,0 n=8 r=${r} h=1 stein hohl`), 0);
+  /** The outline of a layer: every wall cell of the n-gon is occupied, and the form's own blocks lie only there. */
+  const outline = (y: number, r: number, line: number) => {
+    const want = ring(r);
+    for (const c of want) {
+      const [x, z] = c.split(',').map(Number);
+      expect(out.grid.has(x, y, z), `${x},${y},${z} fehlt`).toBe(true);
+    }
+    const own = blocksIn(out, y).filter(([x, , z]) => out.grid.cellInfo(x, y, z)?.line === line);
+    for (const [x, , z] of own) expect(want.has(`${x},${z}`), `${x},${y},${z} außerhalb von r=${r}`).toBe(true);
+  };
 
   it('übersetzt ohne Fehler und ohne Hinweise', () => clean(out));
 
-  it('Turm: achteckig, unten breiter, bis Lage 7 verjüngt, Gesims am Sockel, Rundbogenfenster', () => {
-    // r=5 with profile 0:2,3:2~,8:0 → r=7 up to layer 4, r=6 in 5 and 6, r=5 from 7 to 19.
-    expect(west(layer(out, 6))).toEqual(ring(6));
-    expect(west(layer(out, 12))).toEqual(ring(5));
-    expect(name(out, -6, 3, 0)).toBe('glass_pane');
+  it('Turm: unten zwei breiter, bis Lage 8 verjüngt, ab Lage 18 mit Konsolen vorgekragt; Gesims, Rundbogenfenster', () => {
+    const turm = lineOf('vieleck turm');
+    // r=5 with profile 0:2,3:2~,8:0,18:1 → r=7 up to layer 4, r=6 in 5 and 6, r=5 from 7 to 17, r=6 from 18.
+    outline(2, 7, turm);
+    outline(6, 6, turm);
+    outline(12, 5, turm);
+    // Corbels under the overhang: upside-down stairs facing the wall, the upper floor one block further out.
+    expect(at(out, 0, 17, -6)?.key).toBe('minecraft:stone_brick_stairs[facing=south,half=top,shape=straight,waterlogged=false]');
+    expect(at(out, -6, 17, 0)?.props).toMatchObject({ facing: 'east', half: 'top' });
     expect(name(out, 0, 1, 6)).toBe('spruce_door');
+    expect(name(out, -6, 3, 0)).toBe('glass_pane');
     // Gesims on n, w and s; the east side stays free for the annex.
     expect(at(out, -7, 1, 0)?.props).toMatchObject({ facing: 'east', half: 'top' });
     expect(name(out, -7, 1, 0)).toBe('stone_brick_stairs');
@@ -893,35 +909,41 @@ describe('Zielbau 4b: beispiele/wachturm.tess', () => {
     expect(at(out, 0, 11, -5)?.props).toMatchObject({ facing: 'east', half: 'top' });
   });
 
-  it('Umgang mit Geländer und Stützen unter dem Obergeschoss, Laternen, Banner', () => {
-    expect(name(out, 0, 16, -7)).toBe('spruce_planks');
-    expect(name(out, 0, 17, -7)).toBe('spruce_fence');
-    for (const y of [17, 18, 19, 20]) expect(at(out, 3, y, -7)?.key).toBe('minecraft:dark_oak_log[axis=y]');
-    expect(at(out, 3, 21, -7)?.props).toMatchObject({ facing: 'south', half: 'bottom' }); // the skirt rests on the post
-    expect(at(out, 3, 15, -7)?.props).toMatchObject({ facing: 'south', half: 'top' }); // brace
-    expect(at(out, 0, 19, -7)?.props).toMatchObject({ hanging: 'true' });
-    expect(name(out, 0, 20, -7)).toBe('chain');
-    expect(at(out, 0, 15, 6)?.key).toBe('minecraft:red_wall_banner[facing=south]');
+  it('Umgang unter dem Obergeschoss: Geländer, Stützen bis unter die Schürze, Kopfhöhe unter den Konsolen, Laternen, Banner', () => {
+    expect(name(out, 0, 14, -7)).toBe('spruce_planks');
+    expect(name(out, 0, 15, -7)).toBe('spruce_fence');
+    for (const y of [15, 16, 17, 18]) expect(at(out, 3, y, -7)?.key).toBe('minecraft:dark_oak_log[axis=y]');
+    expect(at(out, 3, 19, -7)?.props).toMatchObject({ facing: 'south', half: 'bottom' }); // the skirt rests on the post
+    expect(at(out, 3, 13, -7)?.props).toMatchObject({ facing: 'south', half: 'top' }); // brace
+    // Two free layers on the inner ring below the corbels, three on the outer ring below the skirt.
+    expect([at(out, 0, 15, -6), at(out, 0, 16, -6)]).toEqual([null, null]);
+    expect(name(out, 0, 15, -5)).toBe('spruce_door');
+    expect(at(out, 0, 17, -7)?.props).toMatchObject({ hanging: 'true' });
+    expect(name(out, 0, 18, -7)).toBe('chain');
+    expect(at(out, 0, 13, 6)?.key).toBe('minecraft:red_wall_banner[facing=south]');
+    expect(at(out, 0, 13, -6)?.key).toBe('minecraft:red_wall_banner[facing=north]');
     expect(name(out, 2, 3, 7)).toBe('spruce_fence'); // lantern arm beside the door
     expect(at(out, 2, 2, 7)?.props).toMatchObject({ hanging: 'true' });
     expect(out.grid.entries().some(([, y, , s]) => y <= 5 && s.name === 'minecraft:vine')).toBe(true);
   });
 
-  it('Balkon mit Pultdach auf der Westseite', () => {
-    expect([name(out, -6, 9, 0), name(out, -7, 9, 0)]).toEqual(['spruce_planks', 'spruce_planks']);
-    expect(name(out, -7, 10, 0)).toBe('spruce_fence');
-    expect(name(out, -5, 10, 0)).toBe('spruce_door');
-    for (const [x, y] of [[-8, 13], [-7, 14], [-6, 15]]) expect(at(out, x, y, 0)?.props).toMatchObject({ facing: 'east', half: 'bottom' });
+  it('Balkon mit Pultdach auf der Westseite, Stützen bis auf das Gesims', () => {
+    expect([name(out, -6, 7, 0), name(out, -7, 7, 0)]).toEqual(['spruce_planks', 'spruce_planks']);
+    expect(name(out, -7, 8, 0)).toBe('spruce_fence');
+    expect(name(out, -5, 8, 0)).toBe('spruce_door');
+    for (const [x, y] of [[-8, 11], [-7, 12], [-6, 13]]) expect(at(out, x, y, 0)?.props).toMatchObject({ facing: 'east', half: 'bottom' });
+    for (const y of [2, 3, 4, 5, 6]) expect(at(out, -7, y, 1)?.key).toBe('minecraft:dark_oak_log[axis=y]');
+    expect(name(out, -7, 1, 1)).toBe('stone_brick_stairs');
   });
 
   it('Obergeschoss in Fachwerk, gestaffelter Helm mit Spitze', () => {
-    expect(west(layer(out, 25))).toEqual(ring(7));
-    expect(at(out, 0, 20, -6)?.props.axis).toBe('x'); // sill beam
-    expect(at(out, 0, 21, -6)?.props.axis).toBe('x'); // riegel=1
-    expect(at(out, -2, 22, -6)?.props.axis).toBe('y'); // post
-    expect(name(out, -2, 23, -7)).toBe('spruce_trapdoor'); // shutter of the upper window
-    expect(at(out, -8, 20, 0)?.props).toMatchObject({ facing: 'east', half: 'bottom' });
-    expect(at(out, -7, 21, 0)?.props).toMatchObject({ facing: 'east', half: 'bottom' });
+    outline(23, 6, lineOf('vieleck og'));
+    expect(at(out, 0, 18, -6)?.props.axis).toBe('x'); // sill beam
+    expect(at(out, 0, 19, -6)?.props.axis).toBe('x'); // riegel=1
+    expect(at(out, -2, 20, -6)?.props.axis).toBe('y'); // post
+    expect(name(out, -2, 21, -7)).toBe('spruce_trapdoor'); // shutter of the upper window
+    expect(at(out, -8, 18, 0)?.props).toMatchObject({ facing: 'east', half: 'bottom' });
+    expect(at(out, -7, 19, 0)?.props).toMatchObject({ facing: 'east', half: 'bottom' });
     const top = Math.max(...out.grid.entries().map(([, y]) => y));
     expect(name(out, 0, top, 0)).toBe('lightning_rod');
     expect(name(out, 0, top - 1, 0)).toBe('deepslate_tiles');

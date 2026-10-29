@@ -26,23 +26,26 @@ box fluegel 9,0,3 13,4,10 putz hohl sockel=sockel fachwerk=balken raster=3 boden
 dach sattel haus first=x
 dach krueppelwalm fluegel first=z
 
-# ---- Turm: achteckig, unten zwei breiter und bis Lage 7 verjüngt, darüber gerade bis Lage 19
-vieleck turm 0,0,0 n=8 r={r} h=20 stein hohl sockel=sockel:2 ecken=eckstein profil=0:2,3:2~,8:0 boden=holz
+# ---- Turm: achteckig, unten zwei breiter und bis Lage 8 verjüngt, ab Lage 18 einen Block
+#      vorgekragt mit Konsolen
+vieleck turm 0,0,0 n=8 r={r} h=24 stein hohl sockel=sockel:2 ecken=eckstein \
+        profil=0:2,3:2~,8:0,18:1 konsolen=zier boden=holz
 gesims turm y=1 zier seiten=n,w,s
 
-# Obergeschoss in Fachwerk (Lage 20 bis 25), zwei Blöcke breiter als der Schaft
-vieleck og 0,20,0 n=8 r={r+2} h=6 putz hohl fachwerk=balken riegel=1 muster=strebe ringbalken=ja boden=holz
+# Obergeschoss in Fachwerk (Lage 18 bis 23) auf der Vorkragung
+vieleck og 0,18,0 n=8 r={r+1} h=6 putz hohl fachwerk=balken riegel=1 muster=strebe ringbalken=ja boden=holz
 
 # Gestaffelter Helm: Schürze am Fuß des Obergeschosses, darüber der Glockenhelm mit Spitze
 kranzdach og y={og.y0} breite=2
 dach helm og profil=glocke ueberstand=2 spitze=lightning_rod
 
-# Umgang unter dem Obergeschoss: Geländer, Stützen bis unter die Schürze, Streben zur Wand
-umgang turm y=17 tiefe=2 stuetzen=balken abstand=6
-haengelaterne 0,20,-7
-haengelaterne 7,20,0
-haengelaterne 0,20,7
-haengelaterne -7,20,0
+# Umgang unter dem Obergeschoss (unter den Konsolen zwei Blöcke Kopfhöhe): Geländer, Stützen
+# bis unter die Schürze, Streben zur Wand
+umgang turm y=15 tiefe=2 stuetzen=balken abstand=6
+haengelaterne 0,18,-7
+haengelaterne 7,18,0
+haengelaterne 0,18,7
+haengelaterne -7,18,0
 
 # Tür mit Laternen, Rundbogenfenster in mehreren Höhen
 tür turm s rahmen=holz
@@ -53,23 +56,22 @@ fenster turm w y=3 rahmen=holz
 fenster turm n y=9 b=2 h=3 art=bogen rahmen=holz
 fenster turm o y=11 b=2 h=3 art=bogen rahmen=holz
 fenster turm s y=9 b=2 h=3 art=bogen rahmen=holz laeden=laden
-banner turm n y=15 farbe=rot
-banner turm o y=15 farbe=rot
-banner turm s y=15 farbe=rot
+banner turm n y=13 farbe=rot
+banner turm s y=13 farbe=rot
 
 # Tür und Fenster zum Umgang
-tür turm n y=17 rahmen=holz
-fenster turm o y=17 rahmen=holz bank=nein
-fenster turm s y=17 rahmen=holz bank=nein
+tür turm n y=15 rahmen=holz
+fenster turm o y=15 rahmen=holz bank=nein
+fenster turm s y=15 rahmen=holz bank=nein
 
-# Balkon mit Pultdach auf der Westseite
-balkon turm w y=10 b=3 tiefe=2 dach=holz tuer=ja
+# Balkon mit Pultdach auf der Westseite, Stützen bis auf den breiteren Sockel
+balkon turm w y=8 b=3 tiefe=2 dach=holz tuer=ja stuetzen=balken
 
 # Fenster im Obergeschoss
-fenster og n y=22 b=3 h=3 bank=nein sturz=nein laeden=laden
-fenster og s y=22 b=3 h=3 bank=nein sturz=nein laeden=laden
-fenster og o y=22 b=3 h=2 bank=nein sturz=nein
-fenster og w y=22 b=3 h=2 bank=nein sturz=nein
+fenster og n y=20 b=3 h=3 bank=nein sturz=nein laeden=laden
+fenster og s y=20 b=3 h=3 bank=nein sturz=nein laeden=laden
+fenster og o y=20 b=3 h=2 bank=nein sturz=nein
+fenster og w y=20 b=3 h=2 bank=nein sturz=nein
 
 # Efeu am Sockel
 efeu turm bis=5 dichte=0.2 laenge=3
