@@ -1,7 +1,9 @@
 import { describe, expect, it } from 'vitest';
 import { compileTess } from '../src/tess/compile';
 import { waterRows } from '../src/tess/decor';
+import { ringCells } from '../src/tess/geometry';
 import { archEdge } from '../src/tess/stairs';
+import { cellAngle } from '../src/tess/wall';
 
 /**
  * Bau-Sprache 2, Etappe 4b (Anbauten und Zier): every instruction and option checks the
@@ -464,6 +466,17 @@ describe('6.5 Anbauten', () => {
     expect(errors(c2('box h 0,0,0 12,9,8 putz hohl\nerker h n y=3 b=4 h=3 art=halbrund holz'))[0].message).toContain('ungerade');
   });
 
+  it('erker halbrund ist rund wie ein zylinder: ein Fenster b=3 sitzt ohne Hinweis in der Front', () => {
+    const out = c2('box h 0,0,0 12,9,8 putz hohl\nerker h s y=4 b=5 h=4 art=halbrund holz name=e\nfenster e s y=5 b=3');
+    clean(out); // before: "sitzt bei 5,5,10 in der Hausecke" for both outer columns
+    for (const x of [5, 6, 7]) expect([name(out, x, 5, 10), name(out, x, 6, 10)]).toEqual(['glass_pane', 'glass_pane']);
+    expect(props(out, 6, 4, 11)).toMatchObject({ facing: 'north', half: 'top' }); // sill
+    expect(name(out, 6, 7, 10)).toBe('oak_planks'); // lintel
+    // An eckig oriel keeps its corners.
+    const box = c2('box h 0,0,0 12,9,8 putz hohl\nerker h s y=4 b=5 h=4 holz name=e\nfenster e s y=5 b=5 bank=nein sturz=nein');
+    expect(warnings(box).filter((w) => w.message.includes('Hausecke')).length).toBeGreaterThan(0);
+  });
+
   it('erker dach=sattel mit dachrolle, dach=flach nur vor der Wand', () => {
     const out = c2('box h 0,0,0 20,9,8 putz hohl\nerker h s y=3 x=2 b=5 h=3 holz dach=sattel dachrolle=stein\nerker h s y=3 x=12 b=5 h=3 holz dach=flach');
     clean(out);
@@ -633,14 +646,34 @@ describe('6.6 Zinnen, Bögen, Treppen', () => {
     expect(props(slabs, 1, 0, -2)).toMatchObject({ type: 'top' });
     expect(props(slabs, 2, 1, -1)).toMatchObject({ type: 'bottom' });
     expect(props(slabs, 2, 1, 0)).toMatchObject({ type: 'top' });
-    // breite=2: a second ring inside; each cell takes the height of the outer step at its angle.
-    const wide = c2('wendeltreppe 0,0,0 r=3 bis=3 holz breite=2');
+  });
+
+  it('wendeltreppe breite=2: der innere Ring gibt den Takt vor, kein Ring springt zwei Lagen, Absätze außen', () => {
+    // The inner ring has fewer cells; it rises one layer per cell, the outer ring joins its steps.
+    const wide = c2('wendeltreppe 0,0,0 r=3 bis=12 holz breite=2');
     clean(wide);
-    expect(props(wide, 0, 0, -3)).toMatchObject({ facing: 'east' });
-    expect(props(wide, 0, 0, -2)).toMatchObject({ facing: 'east' });
-    expect(name(wide, 1, 1, -2)).toBe('spruce_stairs');
-    expect(name(wide, 2, 3, -1)).toBe('spruce_stairs');
-    expect(name(wide, 3, 3, -1)).toBe('spruce_stairs');
+    expect(props(wide, 0, 0, -3)).toMatchObject({ facing: 'east', half: 'bottom' });
+    expect(props(wide, 0, 0, -2)).toMatchObject({ facing: 'east', half: 'bottom' });
+    expect(props(wide, 1, 1, -2)).toMatchObject({ facing: 'east' });
+    expect(props(wide, 2, 2, -1)).toMatchObject({ facing: 'south' }); // before the fix: (2,3,-1), two layers up
+    expect(props(wide, 3, 2, -1)).toMatchObject({ facing: 'south' });
+    // Two cells of the outer ring in one step: the first is a landing (bottom slab).
+    expect(at(wide, 2, 2, -2)?.key).toBe('minecraft:spruce_slab[type=bottom,waterlogged=false]');
+    // Walking along each ring, the next cell is at most one layer higher, for both directions.
+    for (const dir of ['rechts', 'links']) {
+      const out = c2(`wendeltreppe 0,0,0 r=5 bis=20 holz breite=3 richtung=${dir}`);
+      clean(out);
+      for (const rr of [3, 4, 5]) {
+        const ring = ringCells(rr).sort((p, q) => cellAngle(p[0], p[1], 0.5, 0.5) - cellAngle(q[0], q[1], 0.5, 0.5));
+        if (dir === 'links') ring.reverse();
+        ring.forEach(([x, z], i) => {
+          const [nx, nz] = ring[(i + 1) % ring.length];
+          for (let y = 0; y < 20; y++)
+            if (at(out, x, y, z)) expect(!!at(out, nx, y, nz) || !!at(out, nx, y + 1, nz), `${dir} r=${rr}: ${x},${y},${z} → ${nx},${nz}`).toBe(true);
+        });
+      }
+      expect(Math.max(...out.grid.entries().map(([, y]) => y))).toBe(20);
+    }
   });
 
   it('wendeltreppe aussen: Weg außen um die Form, Konsolen zur Wand, Geländer außen, schritt', () => {

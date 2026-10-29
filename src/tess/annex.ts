@@ -369,8 +369,9 @@ function oriel(
       }
     }
   }
-  // The oriel as a form (windows, fields).
-  const form = c.makeForm('grundriss', new PlanShape(F), y, y1, o.role, { name: o.name ?? '', annex: true });
+  // The oriel as a form (windows, fields). A half-round one is round: no corners, so windows may
+  // span the steps of its front.
+  const form = c.makeForm('grundriss', new PlanShape(F, o.art === 'halbrund'), y, y1, o.role, { name: o.name ?? '', annex: true });
   if (o.name) c.register(form);
   if (o.roofType === 'nein') return;
   // Roof: computed on the shape mirrored behind the wall plane, built only in front of it.

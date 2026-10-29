@@ -149,6 +149,8 @@ interface Step {
   /** Slabs: bottom or top; null for stairs. */
   slab: 'bottom' | 'top' | null;
   facing: Facing;
+  /** Cells ("x,z") that are landings (bottom slabs): their ring goes on within the same step. */
+  landings?: Set<string>;
 }
 
 /** Layer and slab type of step k. */
@@ -222,11 +224,13 @@ export function spiralCmd(c: Compiler, st: Statement): void {
   const head = a.int('kopffreiheit', 3, 0, 32);
   const px = x + 0.5;
   const pz = z + 0.5;
-  const ring = sortedRing(ringCells(r).map(([dx, dz]) => [x + dx, z + dz]), px, pz);
+  // With breite > 1 the innermost ring sets the pace: it has the fewest cells, and no ring may rise
+  // more than one layer from one cell to the next.
+  const r0 = r - breite + 1;
+  const ring = sortedRing(ringCells(r0).map(([dx, dz]) => [x + dx, z + dz]), px, pz);
   const n = ring.cells.length;
   const i0 = firstFrom(ring.angles, start);
   const steps: Step[] = [];
-  const angles: number[] = [];
   const total = slabs ? 2 * (bis - y) + 2 : bis - y + 1;
   for (let k = 0; k < total; k++) {
     const i = (((clockwise ? i0 + k : i0 - k) % n) + n) % n;
@@ -235,16 +239,22 @@ export function spiralCmd(c: Compiler, st: Statement): void {
     const tangent = ring.angles[i] + (clockwise ? 90 : -90);
     const hgt = stepHeight(k, y, 1, slabs, () => true);
     steps.push({ cells: [cell], layer: hgt.layer, slab: hgt.slab, facing: walkFacing(cell, ring.cells[iNext], tangent) });
-    angles.push(ring.angles[i]);
   }
-  if (breite > 1) {
-    const inner = new Map<number, ReturnType<typeof sortedRing>>();
-    const ringOf = (d: number) => {
-      let rr = inner.get(d);
-      if (!rr) inner.set(d, (rr = sortedRing(ringCells(r - d + 1).map(([dx, dz]) => [x + dx, z + dz]), px, pz)));
-      return rr;
-    };
-    widen(steps, angles, (_l, d) => ringOf(d), Array.from({ length: breite - 1 }, (_, i) => i + 2), clockwise);
+  // The outer rings (radius r0+1 … r) have more cells than the pacing ring. Their cells join the
+  // steps in walking order, spread evenly: cell J of a ring with m cells goes to step round(J·n/m).
+  // So every step gets at least one cell of each ring and no ring rises more than one layer from
+  // cell to cell. Where a ring has several cells in one step, all but the last are landings.
+  for (let rr = r0 + 1; rr <= r; rr++) {
+    const ringR = sortedRing(ringCells(rr).map(([dx, dz]) => [x + dx, z + dz]), px, pz);
+    const m = ringR.cells.length;
+    const j0 = firstFrom(ringR.angles, start);
+    for (let J = 0; ; J++) {
+      const k = Math.round((J * n) / m);
+      if (k >= total) break;
+      const cell = ringR.cells[(((clockwise ? j0 + J : j0 - J) % m) + m) % m];
+      steps[k].cells.push(cell);
+      if (!slabs && Math.round(((J + 1) * n) / m) === k) (steps[k].landings ??= new Set()).add(`${cell[0]},${cell[1]}`);
+    }
   }
   // Headroom first (also through floors), then the steps and the spindle.
   if (head) {
@@ -271,9 +281,10 @@ function startAngle(a: Args): number {
 function placeStep(c: Compiler, s: Step, ref: RoleRef, outside: boolean, what: string): void {
   for (const [x, z] of s.cells) {
     const p: Vec3 = [x, s.layer, z];
-    if (s.slab) {
-      if (outside) c.outPlace(p, ref, 'slab', { type: s.slab }, Part.Plain, undefined, what);
-      else c.place(p, ref, 'slab', { type: s.slab }, Part.Plain);
+    const slab = s.slab ?? (s.landings?.has(`${x},${z}`) ? 'bottom' : null);
+    if (slab) {
+      if (outside) c.outPlace(p, ref, 'slab', { type: slab }, Part.Plain, undefined, what);
+      else c.place(p, ref, 'slab', { type: slab }, Part.Plain);
     } else if (outside) c.outPlace(p, ref, 'stairs', { facing: s.facing, half: 'bottom' }, Part.Plain, undefined, what);
     else c.place(p, ref, 'stairs', { facing: s.facing, half: 'bottom' }, Part.Plain);
   }
