@@ -955,3 +955,62 @@ describe('Zielbau 4b: beispiele/wachturm.tess', () => {
     expect([name(out, 11, 8, 2), name(out, 11, 8, 3)]).toEqual(['deepslate_tile_slab', 'deepslate_tile_slab']);
   });
 });
+
+describe('Zielbau 4b: beispiele/fachwerkhaus.tess', () => {
+  const src = readFileSync('beispiele/fachwerkhaus.tess', 'utf8');
+  const out = compileTess(src);
+  const lineOf = (start: string) => src.split('\n').findIndex((l) => l.startsWith(start)) + 1;
+
+  it('übersetzt ohne Fehler und ohne Hinweise', () => clean(out));
+
+  it('zweigeschossig: Erdgeschoss aus Stein, Obergeschoss zwei Blöcke vorgekragt mit Kopfbändern, hell', () => {
+    expect(name(out, 2, 3, 8)).toBe('cobblestone');
+    expect(at(out, 2, 7, 10)?.key).toBe('minecraft:dark_oak_log[axis=x]'); // sill beam, two blocks further out
+    expect(at(out, 2, 6, 10)).toBeNull();
+    // Knee braces: two upside-down stairs each, from the wall up to the sill, front and back.
+    for (const [x, y, z] of [[4, 5, 9], [4, 6, 10], [16, 5, 9], [16, 6, 10], [0, 5, 9], [20, 6, 10]]) expect(at(out, x, y, z)?.props).toMatchObject({ facing: 'north', half: 'top' });
+    for (const [x, y, z] of [[4, 5, -1], [4, 6, -2]]) expect(at(out, x, y, z)?.props).toMatchObject({ facing: 'south', half: 'top' });
+    // Straight half-timbering: a field between two posts is plaster only.
+    for (let x = 1; x <= 3; x++) for (let y = 8; y <= 11; y++) expect(name(out, x, y, -2), `${x},${y},-2`).toBe('calcite');
+    expect(at(out, 0, 9, -2)?.props.axis).toBe('y'); // post
+  });
+
+  it('Kreuzgiebel mit Kehlen, zwei Gauben, Erker mit Helm vor dem Dach', () => {
+    expect(at(out, 10, 20, 4)?.key).toBe('minecraft:deepslate_tile_slab[type=bottom,waterlogged=false]'); // ridge along x
+    expect([name(out, 10, 17, -4), name(out, 10, 17, 12)]).toEqual(['deepslate_tile_slab', 'deepslate_tile_slab']); // cross wing
+    expect(out.grid.entries().some(([, , , s]) => s.name === 'minecraft:deepslate_tile_stairs' && s.props.shape?.startsWith('inner_'))).toBe(true);
+    expect(name(out, 0, 15, 4)).toBe('calcite'); // plastered gable
+    expect([name(out, 17, 14, 10), name(out, 3, 14, -2)]).toEqual(['glass_pane', 'glass_pane']); // dormer windows
+    expect(name(out, 18, 15, 11)).toBe('spruce_trapdoor');
+    // Half-round oriel in front of the upper floor, its helm above the main roof in front of it.
+    expect(name(out, 3, 10, 12)).toBe('glass_pane');
+    expect(name(out, 3, 9, 12)).toBe('calcite');
+    const erker = lineOf('erker og');
+    expect(out.grid.cellInfo(3, 19, 11)?.line).toBe(erker);
+    expect(at(out, 3, 20, 11)?.props).toMatchObject({ facing: 'north', half: 'bottom' });
+  });
+
+  it('Schornstein, Tür mit Vordach und Stufen, Fenster mit Läden und Blumenkästen', () => {
+    expect(name(out, -3, 4, 3)).toBe('stone_bricks'); // wide stone foot
+    expect(at(out, -3, 5, 3)?.props).toMatchObject({ facing: 'east', half: 'bottom' }); // shoulder
+    expect([name(out, -2, 20, 3), name(out, -2, 23, 3)]).toEqual(['bricks', 'bricks']); // above the ridge (y=20)
+    expect(at(out, -3, 22, 3)?.props).toMatchObject({ facing: 'east', half: 'top' }); // collar
+    expect(at(out, 10, 2, 12)?.props).toMatchObject({ facing: 'north', half: 'lower' });
+    for (const [y, z] of [[1, 13], [0, 14]]) expect(at(out, 10, y, z)?.props).toMatchObject({ facing: 'north', half: 'bottom' });
+    for (const x of [9, 10, 11]) expect(at(out, x, 5, 13)?.key).toBe('minecraft:dark_oak_stairs[facing=north,half=bottom,shape=straight,waterlogged=false]');
+    expect(name(out, 17, 9, 10)).toBe('glass_pane');
+    expect(at(out, 16, 9, 11)?.props).toMatchObject({ open: 'true' }); // shutter
+    expect([name(out, 17, 8, 11), name(out, 17, 9, 11)]).toEqual(['rooted_dirt', 'poppy']); // flower box
+    expect(at(out, 17, 8, 12)?.props).toMatchObject({ facing: 'south', open: 'true' });
+  });
+
+  it('Feld mit Zaun, Tor und Weg daneben', () => {
+    expect(at(out, 25, -1, 4)?.key).toBe('minecraft:farmland[moisture=7]');
+    expect(at(out, 25, 0, 4)?.key).toBe('minecraft:wheat[age=7]');
+    expect(name(out, 28, -1, 4)).toBe('water');
+    expect(at(out, 23, 0, 4)?.props).toMatchObject({ facing: 'west' });
+    expect(name(out, 23, 0, 4)).toBe('dark_oak_fence_gate');
+    expect(name(out, 23, 0, 0)).toBe('dark_oak_fence');
+    expect(name(out, 22, -1, 4)).toBe('dirt_path');
+  });
+});
