@@ -400,6 +400,7 @@ Die oberste Dachtreppe liegt bei (−7,12,0), die Wand in dieser Lage bei x=−5
 - `dach … rolle=` hat in Version 2 keinen eigenen Test.
 - Der Klick auf einen Hinweis (Markieren der Zeile, Kamera) ist nur headless geprüft, ohne Test.
 - Konsolen, Streben und Treppen an Ecken (Vieleck, Kreis, Kehlen) sind nicht systematisch geprüft.
+- Einige Angaben sind nur mit ihrem Standardwert getestet: `boden=`, `gelaender=` und `konsolen=` bei balkon und umgang; `tiefe=`, `konsolen=` und `stufen=` beim erker (`dachprofil=` nur über das Fachwerkhaus); `kopffreiheit=` und bei `wendeltreppe … aussen` auch `konsolen=` und `y=`/`ebene=`.
 
 **Vorschlag:** Je ein Verhaltenstest; für die Ecken ein Test, der für alle Treppen einer Lage prüft, dass sie zu einer Nachbarzelle der nächsten Lage blicken.
 
