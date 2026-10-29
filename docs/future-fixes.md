@@ -97,6 +97,124 @@ Legende: `v` `^` `>` `<` gerade Treppe mit Blick nach Süden, Norden, Osten, Wes
 
 ---
 
+## 5. Erker am Giebel verschmilzt mit dem Ortgang
+
+*Beim Bau des Fachwerkhauses aufgefallen (Etappe 4b). Status: offen.*
+
+**Beobachtung:** Ein Erker auf der Giebelseite eines Satteldachs bekommt kein eigenes Dach, sondern einen Klotz aus vollen Dachblöcken vor dem Giebel.
+
+```
+tess 2
+rolle putz white_terracotta
+rolle holz spruce_planks
+rolle rahmen oak_planks
+rolle dach deepslate_tiles
+box h 0,0,0 12,9,8 putz hohl
+dach sattel h first=x
+erker h o y=4 b=5 h=3 art=halbrund holz
+```
+
+Statt eines eigenen Kegels steht vor dem Ostgiebel ein Klotz aus Dachblöcken: bei x=13 in y=11 und 12 eine senkrechte Wand aus `deepslate_tiles` (z=3 bis 5), darunter Treppen, die in die Giebelfläche laufen. Mit `dach=helm` sieht es ähnlich aus.
+
+**Ursache:** Das Erkerdach wird auf der hinter die Wand gespiegelten Form gerechnet und verschneidet sich nach 5.3 mit dem Satteldach. Die Vereinigung der Lagen füllt die Zellen vor dem Giebel bis zum Ortgang.
+
+**Vorschlag:** Ein Erkerdach an einer Giebelseite nicht mit dem Hauptdach verschneiden, sondern nur dort setzen, wo es über dem Hauptdach liegt oder vor der Giebelwand frei steht. Ändert die Spezifikation 5.3 und 6.5 nicht, nur die Umsetzung. Neuer Test: Erker an der Giebelseite, Helm mit eigener Spitze, keine Dachblöcke in der Giebelebene darunter.
+
+---
+
+## 6. Gesims am Vieleck stößt an Anbauten
+
+*Beim Bau des Wachturms aufgefallen (Etappe 4b). Status: offen.*
+
+**Beobachtung:** Ein Gesims rundum stößt an jeden Anbau und meldet das als Hinweis. Am Wachturm braucht es deshalb `seiten=n,w,s`.
+
+```
+tess 2
+rolle stein stone_bricks
+rolle zier stone_bricks
+rolle putz white_terracotta
+vieleck t 0,0,0 n=8 r=5 h=6 stein hohl
+box 6,0,-2 10,4,2 putz
+gesims t y=1 zier
+```
+
+Meldung: „Zeile 7: Das Gesims stößt bei 6,1,-2 und 4 weiteren Stellen an Blöcke aus Zeile 6 und fehlt dort.“
+
+**Ursache:** Das Gesims setzt außen nur in Luft und meldet jedes Hindernis wie ein Anbau. `seiten=` wählt bei runden Formen nach Winkel (±45°, Schrägen ±22,5°); an einem Achteck mit Anbau an einer Seite passt das nur grob.
+
+**Vorschlag:** Wo das Band auf eine fremde Wand trifft (die Zelle grenzt an einen Block einer anderen Form), endet es ohne Hinweis; nur Fenster, Türen und Anbauten im Band bleiben ein Hinweis. Alternativ `seiten=` mit Ausschluss (`seiten=alle,-o`). Betrifft 6.4 nur in der Umsetzung, Test in `tess2b.test.ts` ergänzen.
+
+---
+
+## 7. Schmales Feld: Wasser am Rand
+
+*Beim Test von `feld` aufgefallen (Etappe 4b). Status: offen.*
+
+**Beobachtung:** Bei einem Feld mit zwei Zellen Breite liegt die Wasserreihe am Rand und fließt aus.
+
+```
+tess 2
+feld 0,0,0 19,0,1
+```
+
+Meldung: „Zeile 2: Fließen: Das Wasser bei 1,0,0 fließt aus (daneben oder darunter ist Luft); ebenso 17 weitere Zellen aus dieser Zeile.“
+
+**Ursache:** Die erste Reihe liegt auf Abstand min(4, (B−1)/2) vom Rand (8); bei B=2 ist das 0. Die Entscheidung „Wasser nie in der Randreihe“ greift nur, wenn es eine innere Reihe gibt.
+
+**Vorschlag:** Felder unter drei Zellen Breite bekommen kein eigenes Wasser, sondern einen Hinweis („zu schmal für Wasser, Wasser daneben anlegen“), oder die Wasserreihe kommt in einen Rand aus Blöcken, der außen geschlossen ist. Ändert 8 (Lücke der Spezifikation), Test mit B=1 und B=2.
+
+---
+
+## 8. Lücken der Prüfungen
+
+*Beim Test der Prüfungen aufgefallen (Etappe 4b). Status: offen.*
+
+**Beobachtung:** Drei Fälle melden nichts.
+
+1. **Wasser neben empfindlichen Blöcken:** Wasser schwemmt Fackeln und Blumen weg, eine wassergefüllte Stufe neben Luft fließt aus. Keine Meldung dazu (nur das Fließen des Wassers selbst):
+   ```
+   tess 2
+   rolle stein stone_bricks
+   box 0,0,0 4,0,4 stein
+   block 2,1,2 water
+   block 1,1,2 torch
+   block 2,1,1 stone_brick_slab[waterlogged=true]
+   ```
+2. **Plattform an Ketten:** Eine Plattform, die nur über Ketten an einem Balken hängt, gilt als verbunden. Im Spiel hält das; ob es gemeldet werden soll, ist offen:
+   ```
+   tess 2
+   rolle balken dark_oak_log
+   rolle holz spruce_planks
+   linie 0,0,0 0,6,0 balken
+   linie 1,6,0 3,6,0 balken
+   block 3,5,0 chain
+   block 3,4,0 chain
+   box 2,3,-1 4,3,1 holz
+   ```
+3. **Überschrieben:** Eine spätere Anweisung, die Fensterrahmen (Sturz, Bank), Fachwerk oder Dachblöcke ersetzt, meldet nichts; gemeldet werden nur Glas, Tür und Anbau:
+   ```
+   tess 2
+   rolle putz white_terracotta
+   rolle stein stone_bricks
+   rolle dach deepslate_tiles
+   rolle glas glass_pane
+   rolle rahmen oak_planks
+   rolle balken dark_oak_log
+   box h 0,0,0 8,4,6 putz hohl fachwerk=balken
+   fenster h s y=1 x=2
+   dach sattel h
+   block 2,3,6 stein
+   block 0,2,6 stein
+   block 4,7,3 stein
+   ```
+   Die drei `block`-Zeilen ersetzen den Sturz, einen Eckpfosten und einen Dachblock ohne Hinweis.
+
+**Ursache:** Die Prüfungen aus 11 decken genau die dort genannten Fälle ab.
+
+**Vorschlag:** (1) Fließen auch für `waterlogged=true` und ein Hinweis „Wasser schwemmt … weg“ für Fackeln, Pflanzen, Teppiche und Schienen neben Wasser. (2) Mit Adrian klären. (3) Überschrieben auf Rahmen, Fachwerk und Dach ausdehnen, aber nicht auf gewollte Freistil-Änderungen (Etappe 4c, `block`/`leer` am Dateiende). Alles ergänzt 11 der Spezifikation.
+
+---
+
 ## Vorlage für neue Einträge
 
 ```
