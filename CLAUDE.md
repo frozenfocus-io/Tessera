@@ -9,12 +9,15 @@ Tessera ist eine lokale Bauhilfe für Minecraft Java 1.21.1 (NeoForge 21.1.252, 
 3. `docs/bau-sprache.md` – Bau-Sprache, Ist-Stand
 4. `docs/bau-sprache-2.md` – Bau-Sprache 2, Soll-Spezifikation für Etappe 4 (verbindlich)
 5. `docs/etappe-4.md` – Auftrag Etappe 4 mit Teilen 4a, 4b, 4c, Zielbauten und Abnahme
+6. `docs/future-fixes.md` – Verbesserungsvorschläge, bewusst noch nicht umgesetzt (nur auf Adrians Anweisung anfassen)
+7. die jüngste Übergabe `docs/uebergabe-*.md` (Stand, Abweichungen, offene Punkte des letzten Teils), falls es eine gibt
 
 Im Code gezielt lesen, was die Aufgabe berührt; nicht alles auf Vorrat.
 
 ## Arbeitsweise
 
 - **Schritt für Schritt nach Konzept und Spezifikation. Nach jedem Teil stoppen** (z. B. nach 4a), Bericht geben (Vorlage in `docs/etappe-4.md`), auf Freigabe warten.
+- **Widersprüche und Richtungsfragen:** Bei echten Widersprüchen der Spezifikation selbst entscheiden, in `docs/bau-sprache.md` festhalten und im Bericht nennen. Bei Fragen, die die Richtung ändern, Adrian fragen statt raten.
 - **Sprache:** Oberfläche, README und Dokumentation auf Deutsch in du-Form. Code-Kommentare wie im bestehenden Code auf Englisch. Commit-Nachrichten auf Deutsch.
 - **Sparsam:** gezielt lesen, keine Abschweifungen, Bildschirmfotos nur am Ende eines Teils. Keine Arbeit an der Handy-Darstellung.
 - **Nicht ohne Adrians Anweisung:** Rohstoff-Aufschlüsselung für Chipped, FramedBlocks, Domum Ornamentum; echte Texturen; Etappen 5 und 6; Innenräume.
@@ -31,6 +34,14 @@ Im Code gezielt lesen, was die Aufgabe berührt; nicht alles auf Vorrat.
 - Meldungen der Bau-Sprache: deutsch, mit Zeile, ohne Folgefehler (`FollowUpError`).
 - Eigene Beispieldateien gehören nach `samples/` (nicht eingecheckt) oder, wenn sie Teil der Abnahme sind, nach `beispiele/`.
 
+## Reihenfolge in der Bau-Sprache
+
+Häufige Stolperstellen beim Schreiben und Prüfen von Bauplänen:
+
+- **Anbauten setzen nur in Luft:** Balkon, Umgang, Erker, Gaube, Ecktürmchen, Gesims, Pfeiler und Zier lassen stehen, was außen schon da ist, und melden es mit der Zeile des Hindernisses. Was getragen wird, sieht nur frühere Blöcke: Obergeschoss und Schürze vor `umgang`, Wände vor `efeu`, der Block über einer `haengelaterne` vor ihr.
+- **`hohl` räumt innen:** Eine hohle Form räumt pro Lage ihr Inneres, auch was frühere Zeilen dort gesetzt haben. Kreuzen sich zwei hohle boxen, bleiben ihre Innenwände stehen (mit `leer` räumen).
+- **Dächer verschneiden sich über die Grundfläche:** Berühren oder überlappen sich die Grundflächen zweier Dächer, werden sie ein Dach (Vereinigung der Lagen). Auch Erker-, Gauben- und Türmchendächer gehören dazu; ein Dach, das frei stehen soll, braucht Abstand.
+
 ## Befehle
 
 ```sh
@@ -43,6 +54,21 @@ npm run preview       # gebaute Version auf http://localhost:4173
 
 Optionale Tests: `TESSERA_MCMETA_BLOCKS` (Vanilla-Blockzustände), `TESSERA_SAMPLE_SCHEM`, `TESSERA_MC_ROOT` (siehe README).
 
+Die mcmeta-Datei holt jede Sitzung neu, außerhalb des Repos:
+
+```sh
+git clone --depth 1 --branch 1.21.1-summary https://github.com/misode/mcmeta /tmp/mcmeta
+TESSERA_MCMETA_BLOCKS=/tmp/mcmeta/blocks/data.min.json npm test
+```
+
+Dieser Test verlangt für alle Dateien in `beispiele/` null Meldungen.
+
+## Baupläne ansehen
+
+- `node scripts/lagen.mjs <datei.tess> [y=a-b] [x=a-b] [z=a-b] [schnitt=x:N|z:N] [block=x,y,z …]` druckt Meldungen, Lagen von oben, senkrechte Schnitte und einzelne Blöcke mit der Zeile, die sie gesetzt hat. Für Fehlplatzierungen ohne Bildschirmfoto.
+- `node scripts/fotos.mjs <datei.tess> --out <ordner> [--ansichten sw,so,no,nw] [--ziel x,y,z --abstand 0.5]` macht Bildschirmfotos aus mehreren Richtungen. Vorher `npm run build`; das Skript startet `vite preview` selbst und nutzt Playwright (lokal oder global installiert) mit Chromium und SwiftShader. Ein Dev-Server übersteht das Ende einer Antwort nicht, darum läuft alles in einem Aufruf.
+- Bildschirmfotos zum Prüfen unterwegs sind erlaubt; im Chat zeigen erst im Bericht am Ende eines Teils.
+
 ## Im Browser prüfen
 
 - `window.__tessera.status()` liefert Projekte, Blockzahl, Meshing-Stand; `window.__tessera.camera([x,y,z],[x,y,z])` setzt die Kamera.
@@ -53,6 +79,12 @@ Optionale Tests: `TESSERA_MCMETA_BLOCKS` (Vanilla-Blockzustände), `TESSERA_SAMP
 ## Git
 
 - Pro Teil ein Branch von `main`: `etappe-4a`, `etappe-4b`, `etappe-4c`. Ist der vorige Teil noch nicht gemergt, vom vorigen Branch abzweigen.
-- Am Ende des Teils pushen und einen Pull Request nach `main` öffnen. Adrian prüft und merged. Nicht direkt auf `main` pushen, außer Adrian sagt es ausdrücklich.
+- Am Ende des Teils pushen und einen Pull Request öffnen: nach `main`, wenn der vorige Teil gemergt ist, sonst gegen den Branch des vorigen Teils. Adrian prüft und merged. Nicht direkt auf `main` pushen, außer Adrian sagt es ausdrücklich. Kein Force-Push.
+- `gh` nur über die REST-API (GraphQL ist gesperrt, `gh pr create` scheitert). Pull Request öffnen:
+  ```sh
+  gh api repos/frozenfocus-io/Tessera/pulls --method POST -f title="…" -f head=etappe-4c -f base=main -f body="…"
+  ```
+  Ob ein PR gemergt ist: `gh api repos/frozenfocus-io/Tessera/pulls/<nr> --jq .merged`.
+- Vor dem Push `git fetch origin main`, sonst schickt ein flacher Klon den ganzen Baum und der Push scheitert mit HTTP 413.
 - Commits mit den üblichen Co-Authored-By-Zeilen, so wie sie die Umgebung vorgibt.
 - `node_modules/`, `dist/` und `samples/*` nie einchecken.
