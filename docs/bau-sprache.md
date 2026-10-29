@@ -467,4 +467,4 @@ Lücken der Spezifikation, so entschieden:
 - **Halt (11):** In der untersten Lage des Projekts gelten „darunter“, Boden und Schwerkraft als erfüllt (das Gelände gehört nicht zum Bauplan).
 - **Erweiterung:** `wandlaterne` ohne `arm=` stellt die Laterne auf einen Block aus `rahmen`.
 
-Bekannte Lücken stehen in [future-fixes.md](future-fixes.md) (Einträge 5 bis 8).
+Bekannte Lücken und Schwächen stehen in [future-fixes.md](future-fixes.md) (ab Eintrag 5).
