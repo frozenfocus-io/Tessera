@@ -30,7 +30,9 @@ export function hintsFor(c: Catalog | null): BlockHints | undefined {
   const families: Record<string, Partial<Record<string, string>>> = {};
   for (const [base, f] of Object.entries(c.families)) {
     const m: Partial<Record<string, string>> = {};
-    for (const role of ['stairs', 'slab', 'wall', 'fence'] as const) if (f.members[role]) m[role] = f.members[role];
+    for (const role of ['stairs', 'slab', 'wall', 'fence', 'fence_gate', 'trapdoor', 'door', 'button', 'pressure_plate', 'pane', 'carpet'] as const) {
+      if (f.members[role]) m[role] = f.members[role];
+    }
     families[base] = m;
   }
   const hints: BlockHints = { known: Object.keys(c.blocks), families };

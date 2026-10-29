@@ -1,4 +1,5 @@
 import type { HoverInfo, Project } from '../app/project';
+import { originLabel } from '../core/formats/tess';
 import { propLabel, valueLabel } from '../blocks/names';
 import { blockName } from '../catalog/runtime';
 import { css, num } from './format';
@@ -12,6 +13,7 @@ export function HoverDetails({ project: p, hover: h, pinned, touch = false }: { 
   const inLayer = p.typeCountInLayer(h.typeId, h.y);
   const x = h.x - (p.bounds?.minX ?? 0);
   const z = h.z - (p.bounds?.minZ ?? 0);
+  const origin = p.isPlan ? p.originAt(h.x, h.y, h.z) : null;
   return (
     <>
       <div class="hc-head">
@@ -44,6 +46,11 @@ export function HoverDetails({ project: p, hover: h, pinned, touch = false }: { 
           {num(inProject)} gesamt, {num(inLayer)} in dieser Ebene
         </dd>
       </dl>
+      {origin ? (
+        <p class="hc-origin" title={originLabel(origin, Infinity)}>
+          {originLabel(origin, 72)}
+        </p>
+      ) : null}
       {type.mod && type.mod !== 'minecraft' ? <p class="hc-meta">Mod: {modName(p, type.mod)}</p> : null}
       {type.family && type.family !== type.name ? <p class="hc-meta">Familie: {blockName(p.catalog, type.family)}</p> : null}
       {entry.colors.marked ? (

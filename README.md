@@ -2,7 +2,7 @@
 
 Lokale Bauhilfe für Minecraft Java 1.21.1: Gebäude als Bauplan beschreiben oder Schematics öffnen, in 3D ansehen und Ebene für Ebene nachbauen, wie in einem Slicer. Tessera läuft komplett im Browser, ohne Server. Keine Datei verlässt deinen PC.
 
-**Stand:** Etappe 3 von 6 – Bau-Sprache, Testlauf (Version 0.3.0)
+**Stand:** Etappe 4a – Formen und Dächer (Version 0.4.0); Etappe 4 von 6 läuft.
 
 ## Starten
 
@@ -30,8 +30,13 @@ Sie läuft unter <http://localhost:4173>. Gespeicherte Tabs hängen an der Adres
 
 **Baupläne (`.tess`)**
 
-- Ein Bauplan beschreibt ein Gebäude in der Bau-Sprache statt Block für Block: Formen (box, zylinder, linie), Bauteile (Fenster mit Bank, Sturz und Läden, Türen mit Rahmen, Sattel-, Walm- und Kegeldach, Zinnen) und Rollen-Paletten („mauer“ = 60 % Steinziegel, 20 % bemoost, 20 % rissig). Tessera übersetzt ihn in Blöcke und zeigt ihn wie eine Schematic. Die Sprache ist für Claude gemacht; du musst sie nicht lesen, kannst sie aber ändern. Referenz: [docs/bau-sprache.md](docs/bau-sprache.md), Beispiel: [beispiele/haus-mit-rundturm.tess](beispiele/haus-mit-rundturm.tess).
+- Ein Bauplan beschreibt ein Gebäude in der Bau-Sprache statt Block für Block. Tessera übersetzt ihn in Blöcke und zeigt ihn wie eine Schematic. Die Sprache ist für Claude gemacht; du musst sie nicht lesen, kannst sie aber ändern. Referenz: [docs/bau-sprache.md](docs/bau-sprache.md), Beispiele: [beispiele/wachturm.tess](beispiele/wachturm.tess) und [beispiele/haus-mit-rundturm.tess](beispiele/haus-mit-rundturm.tess).
+- **Formen:** Quader, Zylinder (auch elliptisch und in jeder Breite), regelmäßige Vielecke, freie Umrisse, ASCII-Grundrisse und Kugeln. Wände können sich pro Lage verschieben: vorkragen (mit Konsolen darunter), sich verjüngen oder einen Bauch bekommen. Dazu Sockel, Kranz, Eckpfeiler, Wandzonen nach Höhe und Fachwerk mit Riegeln, Streben, Kreuzen oder Rauten.
+- **Dächer:** Sattel-, Pult-, Krüppelwalm-, Walm-, Kegel-, Helm- und Flachdach, mit frei wählbarem Profil (steil, flach, Glocke, Mansarde, Zwiebel, Kuppel), Hexenhut-Biegung, Firstzier, Traufe und Spitze. Dächer, die sich berühren, verschneiden sich zu einem Dach mit Kehlen (L-Häuser, Kreuzgiebel, Turmhelme). Kranzdächer legen eine Schürze rund um einen Turm.
+- **Bauteile:** Fenster mit Bank, Sturz und Läden, Türen mit Rahmen und Zinnen, an allen Formen. Rollen-Paletten („stein“ = 50 % Steinziegel, 20 % bemoost, 20 % rissig) nehmen Treppen, Stufen, Zäune, Falltüren und weitere Glieder mit und mischen auf Wunsch fleckig oder in Bändern. Werte und Rechenausdrücke halten Maße an einer Stelle.
 - Bauteile rechnen Lage und Ausrichtung selbst. Tessera prüft beim Übersetzen, ob Fenster und Türen in einer Wand sitzen, keinen Pfosten oder Balken schneiden und sich nicht überschneiden; solche Hinweise stehen mit Zeilennummer in den Projektdaten.
+- Zu jedem Block zeigt die Hover-Karte die Zeile des Bauplans, die ihn gesetzt hat, z. B. „Zeile 37: dach helm og profil=glocke …“. So lässt sich „das da ist falsch“ direkt einer Zeile zuordnen.
+- Auch große Baupläne übersetzt Tessera schnell: zwei Millionen Blöcke in wenigen Sekunden.
 - Zäune, Mauern, Glasscheiben, Gitter und Treppen-Ecken bekommen ihre Verbindungen nach den Regeln des Spiels, alle Blöcke ihre vollständigen Zustände.
 - Fehler im Bauplan meldet Tessera mit Zeilennummer, alle auf einmal, z. B. „Zeile 12: Rolle „zier“ ist nicht festgelegt“.
 - Mit eingelesenem Katalog nimmt Tessera Treppen und Stufen aus dessen Blockfamilien, auch für Mod-Blöcke, und markiert Blöcke, die im Modpack fehlen.
@@ -66,7 +71,7 @@ Sie läuft unter <http://localhost:4173>. Gespeicherte Tabs hängen an der Adres
 
 **Hover und Markieren**
 
-- Zum Block unter der Maus zeigt Tessera Name, Block-ID, Zustände (z. B. „Richtung: Nord“, „Hälfte: unten“) und die Position im Modell.
+- Zum Block unter der Maus zeigt Tessera Name, Block-ID, Zustände (z. B. „Richtung: Nord“, „Hälfte: unten“) und die Position im Modell, bei Bauplänen auch die Zeile, die ihn gesetzt hat.
 - Alle Blöcke derselben Sorte bekommen ein Wireframe-Outline. Ein Klick auf einen Block oder auf eine Zeile der Materialliste hält die Markierung fest; Esc löst sie.
 
 **Materialliste und Baufortschritt**
@@ -152,7 +157,7 @@ Spieldateien von Mojang und den Mod-Autoren gehören nicht in dieses Repository.
 | `npm run build` | prüfen und bauen, Ergebnis in `dist/` |
 | `npm run build:artifact -- --out <ordner>` | Version zum Veröffentlichen als Claude-Artefakt, z. B. als Testversion fürs Handy |
 
-Konzept, Spezifikation und Auftrag für die nächste Etappe liegen in `docs/`: [Konzept](docs/konzept.md), [Bau-Sprache (Ist)](docs/bau-sprache.md), [Bau-Sprache 2 (Soll)](docs/bau-sprache-2.md), [Auftrag Etappe 4](docs/etappe-4.md). Hinweise für Claude stehen in [CLAUDE.md](CLAUDE.md).
+Konzept, Spezifikation und Auftrag für die nächste Etappe liegen in `docs/`: [Konzept](docs/konzept.md), [Bau-Sprache (Ist)](docs/bau-sprache.md), [Bau-Sprache 2 (Soll)](docs/bau-sprache-2.md), [Auftrag Etappe 4](docs/etappe-4.md), [Future Fixes](docs/future-fixes.md) (Verbesserungsvorschläge, noch nicht umgesetzt). Hinweise für Claude stehen in [CLAUDE.md](CLAUDE.md).
 
 Die Tests erzeugen ihre Testdateien selbst, auch kleine Jars mit Modellen, Texturen und Rezepten. Eigene Schematics zum Ausprobieren gehören in den Ordner `samples/`; er wird nicht eingecheckt. Zwei Tests laufen nur, wenn du Pfade angibst: der gegen die Beispieldatei aus Etappe 1 und der gegen die echte Minecraft-Jar (liest alle Vanilla-Blöcke und prüft Farben und Namen):
 
@@ -166,17 +171,19 @@ In der Windows-PowerShell:
 $env:TESSERA_SAMPLE_SCHEM = "samples\a05cccd2-32011.schem"; $env:TESSERA_MC_ROOT = "$env:APPDATA\.minecraft"; npm test
 ```
 
-Ein dritter optionaler Test prüft jeden Blockzustand, den die Bau-Sprache erzeugt, gegen die Vanilla-Daten von 1.21.1. Die Datei kommt aus [misode/mcmeta](https://github.com/misode/mcmeta) (Zweig `1.21.1-summary`, `blocks/data.min.json`) und gehört nicht ins Repository:
+Ein dritter optionaler Test prüft jeden Blockzustand, den die Bau-Sprache in den Bauplänen unter `beispiele/` erzeugt, gegen die Vanilla-Daten von 1.21.1. Die Datei kommt aus [misode/mcmeta](https://github.com/misode/mcmeta) (Zweig `1.21.1-summary`, `blocks/data.min.json`) und gehört nicht ins Repository:
 
 ```sh
 TESSERA_MCMETA_BLOCKS=pfad/zu/data.min.json npm test
 ```
 
+Immer dabei sind zwei Tests, die die Bau-Sprache absichern: `test/tess1-regression.test.ts` vergleicht Baupläne mit `tess 1` über Prüfsummen mit dem Stand von 0.3.0, `test/tess-leistung.test.ts` übersetzt einen erzeugten Bauplan mit über zwei Millionen Blöcken (Ziel unter 5 Sekunden, jeder Zielbau unter 1 Sekunde).
+
 **Aufbau**
 
 ```text
 src/
-  tess/        Bau-Sprache: Syntax, Rollen, Compiler, verbundene Blöcke
+  tess/        Bau-Sprache: Syntax, Ausdrücke, Rollen, Formen, Dachmaschine, Compiler (Version 1 eingefroren in v1.ts), verbundene Blöcke
   core/        NBT lesen und schreiben, Formate (.tess, .schem, .litematic, .nbt), Versionen, Umbenennungen
   blocks/      Blockwissen: Farben, Formen, Namen, Items (eingebaute Tabelle und Anbindung an den Katalog)
   catalog/     Block-Katalog: Jars lesen, PNG dekodieren, Modelle und Blockzustände auflösen, Tags, Rezepte, Familien
@@ -201,7 +208,7 @@ Technik: TypeScript, Three.js, Preact, Vite, fflate.
 2. [x] **Block-Katalog:** Minecraft-Jar und `mods`-Ordner einlesen; echte Namen, Farben, Familien, Rezepte; Rohstoff-Aufschlüsselung
 3. [x] **Bau-Sprache, Testlauf:** kleines Haus mit Fenstern, Dach und einem Rundturm; `.tess`-Dateien im Projektordner
 4. [ ] **Bau-Sprache, Ausbau** ([Auftrag](docs/etappe-4.md), [Spezifikation](docs/bau-sprache-2.md))
-   - [ ] 4a Formen und Dächer: Profile, Vielecke, Dachmaschine mit Verschneidung, Herkunft pro Block
+   - [x] 4a Formen und Dächer: Profile, Vielecke, Dachmaschine mit Verschneidung, Herkunft pro Block
    - [ ] 4b Anbauten und Zier: Fensterformen, Balkone, Umgänge, Erker, Gauben, Ecktürme, Treppen, Deko, Farmen
    - [ ] 4c Werkzeuge: Module, ASCII-Freistil, Bauabschnitte, Bearbeiten mit Undo/Redo und Versionen
 5. [ ] **Gelände-Scan:** Welt-Tab, Objekte platzieren, Erdarbeiten, Ingame-Koordinaten
@@ -219,4 +226,4 @@ Eine Desktop-App mit Tauri ist vorerst nicht geplant.
 - Alte `.schematic`-Dateien (vor 1.13) liest Tessera noch nicht.
 - Kisteninhalte, Schildertexte und Objekte wie Rüstungsständer oder Rahmen werden nicht angezeigt.
 - Verbundene Blöcke (Zäune, Mauern, Scheiben) aus Schematics erscheinen so, wie sie in der Datei gespeichert sind; nur Baupläne rechnet Tessera selbst. Mod-Blöcke mit eigenen Verbindungsregeln sind dabei nur abgedeckt, wenn sie den Vanilla-Namen folgen.
-- Die Bau-Sprache ist im Testlauf-Umfang: noch keine Module, Wiederholungen, Spiegelungen, ASCII-Ebenen, Bögen, Kuppeln oder Farmen, und Baupläne lassen sich in Tessera noch nicht bearbeiten (nur die Datei selbst).
+- Die Bau-Sprache hat den Stand von Teil 4a: Fensterformen, Balkone, Umgänge, Erker, Gauben, Treppen, Bögen, Deko und Farmen kommen mit 4b, Module, Wiederholungen, Spiegelungen und ASCII-Ebenen mit 4c. Baupläne lassen sich in Tessera noch nicht bearbeiten (nur die Datei selbst).

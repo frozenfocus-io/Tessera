@@ -8,7 +8,7 @@ Diese Datei ist die maßgebliche Fassung des Konzepts. Sie ist aus Adrians Claud
 
 Tessera ist eine lokale Bauhilfe für Minecraft: Gelände um die Base einlesen, Gebäude in 3D planen und Ebene für Ebene wie in einem Slicer nachbauen. Claude erzeugt Gebäude als kompakte `.tess`-Dateien, Adrian lädt sie in Tessera und bearbeitet sie dort.
 
-**Stand:** Etappen 1 bis 3 sind fertig (Viewer, Block-Katalog mit Rohstoff-Aufschlüsselung, Bau-Sprache im Testlauf mit Projektordner). Etappe 4 ist in drei Teile gegliedert, siehe [etappe-4.md](etappe-4.md).
+**Stand:** Etappen 1 bis 3 sind fertig (Viewer, Block-Katalog mit Rohstoff-Aufschlüsselung, Bau-Sprache im Testlauf mit Projektordner). Etappe 4 ist in drei Teile gegliedert, siehe [etappe-4.md](etappe-4.md); Teil 4a (Formen und Dächer) ist umgesetzt.
 
 ### Rahmenbedingungen
 
@@ -113,7 +113,7 @@ Die Bau-Sprache beschreibt, *wie* ein Gebäude aufgebaut ist, statt jeden Block 
 
 **Dokumente**
 
-- Version 1 (umgesetzt, Etappe 3): Referenz [bau-sprache.md](bau-sprache.md).
+- Ist-Stand (Version 1 aus Etappe 3, Version 2 im Umfang von Teil 4a): Referenz [bau-sprache.md](bau-sprache.md).
 - Version 2 (Etappe 4): Soll-Spezifikation [bau-sprache-2.md](bau-sprache-2.md). Sie legt Profile für Wände und Dächer, beliebige Grundrisse, eine Dachmaschine mit Verschneidung, Anbauten und Zier, Freistil, Module und Prüfungen fest.
 
 ## Import und Export
@@ -157,7 +157,7 @@ Verbundene Blöcke müssen im Export bereits den richtigen Zustand haben. Für B
 2. [x] **Block-Katalog:** Jars einlesen; echte Namen, Farben, Familien, Rezepte; Rohstoff-Aufschlüsselung.
 3. [x] **Bau-Sprache, Testlauf:** Haus mit Fenstern, Dach und Rundturm; `.tess` im Projektordner.
 4. [ ] **Bau-Sprache, Ausbau** (Details: [etappe-4.md](etappe-4.md))
-   - [ ] **4a Formen und Dächer:** Ausdrücke, Anker, Vielecke und freie Grundrisse, Wandprofile mit Vorkragung und Verjüngung, Dachmaschine (Profile, alle Dachformen, Verschneidung, Biegung), Kranzdächer, Herkunftszeile im Hover, schnellerer Compiler. Zielbau: Wachturm.
+   - [x] **4a Formen und Dächer:** Ausdrücke, Anker, Vielecke und freie Grundrisse, Wandprofile mit Vorkragung und Verjüngung, Dachmaschine (Profile, alle Dachformen, Verschneidung, Biegung), Kranzdächer, Herkunftszeile im Hover, schnellerer Compiler. Zielbau: Wachturm.
    - [ ] **4b Anbauten und Zier:** Fensterformen, Türen, Gesims, Pfeiler, Fachwerkmuster, Balkon, Umgang, Erker, Gaube, Ecktürmchen, Zinnen, Bögen, Treppen und Wendeltreppen, Deko, Farmen, Halt- und Schwebeprüfung. Zielbau: Fachwerkhaus mit Vorkragung.
    - [ ] **4c Werkzeuge:** Module, Wiederholung, Spiegelung, Freistil per ASCII, Bauabschnitte, Bearbeiten in der App mit Undo/Redo und Versionen. Zielbau: Zauberturm.
 5. [ ] **Gelände-Scan:** Welt-Tab, Objekte platzieren, Erdarbeiten, Ingame-Koordinaten.
