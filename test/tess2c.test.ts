@@ -142,7 +142,7 @@ describe('Module und baue', () => {
     ] as const) {
       const out = quiet(`${mod}baue m 10,0,10 drehung=${turn}`);
       clean(out);
-      expect(name(out, ...pos), `drehung=${turn}`).toBe('stone_bricks');
+      expect(name(out, pos[0], pos[1], pos[2]), `drehung=${turn}`).toBe('stone_bricks');
       const stairs = turn === 0 ? [10, 0, 11] : turn === 90 ? [9, 0, 10] : turn === 180 ? [10, 0, 9] : [11, 0, 10];
       expect(props(out, stairs[0], stairs[1], stairs[2])?.facing, `drehung=${turn}`).toBe(facing);
       expect(props(out, 10, 1, 10)?.axis).toBe(axis);
