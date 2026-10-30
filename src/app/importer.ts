@@ -1,3 +1,4 @@
+import { backupText } from './planEdit';
 import { batch } from '@preact/signals';
 import { looksLikeTess } from '../core/formats/tess';
 import { importFile, ImportError, type ImportResult } from '../core/importFile';
@@ -104,7 +105,8 @@ export function scheduleSave(p: Project): void {
     p.id,
     setTimeout(() => {
       saveTimers.delete(p.id);
-      if (projects.value.includes(p)) void saveProjectState(storedOf(p));
+      // A version opened read-only is not kept across restarts.
+      if (projects.value.includes(p) && !p.readOnly) void saveProjectState(storedOf(p));
     }, 400),
   );
 }
@@ -115,7 +117,7 @@ let workspaceRestored = false;
 export function persistWorkspace(): void {
   if (!workspaceRestored) return;
   void saveWorkspace(
-    projects.value.map((p) => p.id),
+    projects.value.filter((p) => !p.readOnly).map((p) => p.id),
     activeId.value,
   );
 }
@@ -274,6 +276,8 @@ async function restoreTabs(): Promise<void> {
         const file = await readProjectFile(link.name);
         if (file) {
           fromFolder = file.stamp.lastModified !== link.lastModified || file.stamp.size !== link.size;
+          // Changed outside while Tessera was closed: keep the last text the tab showed as a version.
+          if (fromFolder) await backupText(link, s.id, source);
           bytes = file.bytes;
           link = { name: link.name, ...file.stamp };
         }

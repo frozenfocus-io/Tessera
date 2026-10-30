@@ -95,8 +95,8 @@ export class Project {
   readonly recipeChoice = signal<Readonly<Record<string, string>>>({});
   /** Item pinned from the material list (its blocks stay highlighted). */
   readonly pinned = signal<string | null>(null);
-  /** Building plans: the line whose blocks are marked (a clicked hint). Not saved. */
-  readonly markedLine = signal<number | null>(null);
+  /** Building plans: the line whose blocks are marked (a clicked hint), in modules with its chain. Not saved. */
+  readonly markedLine = signal<{ line: number; ctx: string } | null>(null);
   readonly hover = signal<HoverInfo | null>(null);
   readonly meshProgress = signal<{ done: number; total: number } | null>(null);
   readonly sceneStats = signal<SceneStats | null>(null);
@@ -259,13 +259,14 @@ export class Project {
    * Building plans: all blocks a statement line has set, as block positions (x, y, z triples in
    * volume coordinates) with their bounds; null when the line set no block.
    */
-  lineCells(line: number): { positions: Float32Array; count: number; bounds: Bounds } | null {
+  lineCells(line: number, ctx?: string): { positions: Float32Array; count: number; bounds: Bounds } | null {
     const o = this.data.origins;
     if (!o) return null;
     const hit = new Uint8Array(o.table.length);
     let any = false;
     o.table.forEach((e, i) => {
-      if (i > 0 && e.line === line) {
+      // A hint inside a module marks the blocks of its own instance (same chain).
+      if (i > 0 && e.line === line && (ctx === undefined || (e.ctx ?? '') === ctx)) {
         hit[i] = 1;
         any = true;
       }
@@ -300,8 +301,9 @@ export class Project {
   }
 
   /** Marks the blocks of a line (clicked hint); the same line again or null clears it. */
-  markLine(line: number | null): void {
-    this.markedLine.value = line === null || this.markedLine.value === line ? null : line;
+  markLine(line: number | null, ctx = ''): void {
+    const m = this.markedLine.value;
+    this.markedLine.value = line === null || (m && m.line === line && m.ctx === ctx) ? null : { line, ctx };
   }
 
   /** Blocks per type id over the scope. */

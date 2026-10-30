@@ -63,6 +63,8 @@ export abstract class CompilerBase {
   suffixes: string[] = [''];
   /** `erlaube schweben`: no floating check for this file. */
   allowFloating = false;
+  /** First line of the section "Änderungen in Tessera" (app edits replace blocks without a hint). */
+  editFrom = Infinity;
   /** Hints of the running statement, merged by key (several cells, one message). */
   protected readonly pending = new Map<string, { line: number; text: (n: number, first: Vec3) => string; first: Vec3; n: number }>();
   /** Cells whose overlap the running statement has reported already (no second hint). */
@@ -106,6 +108,7 @@ export abstract class CompilerBase {
    * Cells the statement already reported as an overlap (windows, doors) are left out.
    */
   protected checkCover(x: number, y: number, z: number, origin: number): void {
+    if (this.line >= this.editFrom && !this.chain.length) return;
     const v = this.grid.infoAt(x, y, z);
     if (v === 0) return;
     const part = infoPart(v);

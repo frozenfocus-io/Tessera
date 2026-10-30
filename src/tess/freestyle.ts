@@ -1,13 +1,12 @@
 import { makeState } from '../core/blockstate';
 import { Args, YES, NO } from './args';
 import type { Compiler, Vec3 } from './compile';
-import { completeState } from './connect';
 import { ccw, cw, DIR, opposite, type Facing } from './geometry';
 import { cellKey, Part } from './grid';
 import type { BlockSpec } from './palette';
 import { asciiKey, TessError, type AsciiLine, type Statement } from './syntax';
 import { cellAngle, mainOf, readSpots, SPOT_KEYS } from './wall';
-import { turnState } from './xform';
+import { turnWritten } from './xform';
 
 /**
  * Freistil (Bau-Sprache 2, section 9): characters for drawings (`zeichen`), drawn layers
@@ -66,8 +65,8 @@ function scopeChars(c: Compiler): Map<string, CharDef> {
 }
 
 function findChar(c: Compiler, ch: string, line: number): CharDef {
-  for (let i = c.frames.length - 1; i >= 0; i--) {
-    const d = (c.frames[i].chars as Map<string, CharDef>).get(ch);
+  for (const f of c.visibleFrames()) {
+    const d = (f.chars as Map<string, CharDef>).get(ch);
     if (d) return d;
   }
   throw new TessError(line, `Das Zeichen „${ch}“ ist nicht festgelegt (zeichen ${ch} <block>).`);
@@ -97,7 +96,7 @@ function put(c: Compiler, d: CharDef, p: Vec3, out: Facing | null, line: number)
     fixedProps[k] = v === 'aussen' ? out : v === 'innen' ? opposite(out) : (v === 'rechts') !== m ? ccw(out) : cw(out);
   }
   let s = makeState(id, base);
-  if (c.xf.turns) s = turnState(completeState(s), c.xf);
+  if (c.xf.turns) s = turnWritten(s, c.xf);
   const props = { ...s.props, ...fixedProps };
   c.put(p[0], p[1], p[2], c.sid(s.name, Object.keys(props).length ? props : null), Part.Plain);
   if (d.fixed) c.grid.fixed.add(cellKey(p[0], p[1], p[2]));

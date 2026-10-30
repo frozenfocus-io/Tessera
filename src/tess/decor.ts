@@ -333,7 +333,9 @@ export function fieldCmd(c: Compiler, st: Statement): void {
   const L = z1 - z0 + 1;
   const crop = c.spec(a.str('frucht') ?? 'wheat');
   const fence = a.has('zaun') ? c.memberRef(c.roleOrBlockName(a.str('zaun')!), 'fence') : null;
-  const gateSide = a.has('tor') ? parseSide(asciiKey(a.str('tor')!)) : null;
+  const gateLocal = a.has('tor') ? parseSide(asciiKey(a.str('tor')!)) : null;
+  // In a turned or mirrored module the side is local.
+  const gateSide = gateLocal && c.xf.facing(gateLocal);
   if (a.has('tor') && !gateSide) throw new TessError(st.line, `„tor=${a.str('tor')}“ ist keine Seite (n, o, s oder w).`);
   if (gateSide && !fence) throw new TessError(st.line, '„tor=“ braucht einen Zaun („zaun=“).');
   const path = a.has('weg') ? c.ref(c.roleOrBlockName(a.str('weg')!)) : null;

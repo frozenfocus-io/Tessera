@@ -1,4 +1,5 @@
 import { makeState, type BlockState } from '../core/blockstate';
+import { completeState } from './connect';
 import type { Facing } from './geometry';
 
 /**
@@ -184,3 +185,18 @@ export function turnState(s: BlockState, xf: Xf): BlockState {
 
 /** Rail shapes name north/south before east/west (north_south, south_east, north_west …). */
 const RAIL_ORDER: Facing[] = ['north', 'south', 'east', 'west'];
+
+/**
+ * A state as written in the file (zeichen, block, spitze= …), turned with a module: states that
+ * Tessera would complete by itself turn too (a stair without facing faces north, so it turns),
+ * but only what was written or changes by turning is kept. Other defaults (the age of crops)
+ * stay open for the command and the completion afterwards.
+ */
+export function turnWritten(s: BlockState, xf: Xf): BlockState {
+  if (!xf.turns) return s;
+  const full = completeState(s);
+  const turned = turnState(full, xf);
+  const props: Record<string, string> = {};
+  for (const [k, v] of Object.entries(turned.props)) if (k in s.props || full.props[k] !== v) props[k] = v;
+  return makeState(s.name, props);
+}

@@ -1,12 +1,13 @@
 import { signal } from '@preact/signals';
 import { makeState, type BlockState } from '../core/blockstate';
 import { log } from '../debug/log';
-import { folderStatus, folderVersions, writeProjectFile } from '../platform/folder';
+import { folderStatus, folderVersions, grantAccess, writeProjectFile } from '../platform/folder';
+import { completeState } from '../tess/connect';
 import { composeOrient, cellLine, replaceRoleSort, setCellEdit, setOrientation } from '../tess/edit';
 import { turnState, Xf } from '../tess/xform';
 import { backupVersion, EditHistory, listVersions, versionDir, versionLabel, type VersionBackend } from './editCore';
 import { openBytes, parseFile } from './importer';
-import { browserVersions } from './persistence';
+import { browserVersions, type FileLink } from './persistence';
 import type { Project } from './project';
 import { replaceProject } from './planFiles';
 import { activeId, projects, showToast } from './workspace';
@@ -84,20 +85,29 @@ function serial<T>(id: string, task: () => Promise<T>): Promise<T> {
 
 // ---- versions
 
-function backendOf(p: Project): { b: VersionBackend; dir: string } {
-  const link = p.link.value;
+/** Where the versions of a tab live: next to its file in the project folder, else in the browser. */
+function backendFor(link: FileLink | null, tabId: string): { b: VersionBackend; dir: string } {
   if (link && folderStatus.value === 'ready') return { b: folderVersions, dir: versionDir(link.name) };
-  return { b: browserVersions, dir: `tab-${p.id}` };
+  return { b: browserVersions, dir: `tab-${tabId}` };
 }
 
-/** Keeps the tab's current text as a version (before a write or a change from outside). */
-export async function keepVersion(p: Project, bytes: Uint8Array = p.source): Promise<void> {
-  const { b, dir } = backendOf(p);
+function backendOf(p: Project): { b: VersionBackend; dir: string } {
+  return backendFor(p.link.value, p.id);
+}
+
+/** Keeps a text as a version of a tab (before a write or before a change from outside is taken over). */
+export async function backupText(link: FileLink | null, tabId: string, bytes: Uint8Array): Promise<void> {
+  const { b, dir } = backendFor(link, tabId);
   try {
     await backupVersion(b, dir, bytes);
   } catch (e) {
-    log.warn('versions', `Version von ${p.name} konnte nicht gesichert werden`, e);
+    log.warn('versions', `Version von ${link?.name ?? tabId} konnte nicht gesichert werden`, e);
   }
+}
+
+/** Keeps the tab's current text as a version. */
+export function keepVersion(p: Project, bytes: Uint8Array = p.source): Promise<void> {
+  return backupText(p.link.value, p.id, bytes);
 }
 
 export interface VersionEntry {
@@ -151,8 +161,14 @@ async function writePlan(p: Project, bytes: Uint8Array): Promise<Project | null>
   }
   const live = current(p.id);
   if (!live) return null;
-  await keepVersion(live);
   let link = live.link.value;
+  // A tab linked to a file writes only into that file: without access the change is not made
+  // (otherwise tab and file would drift apart).
+  if (link && folderStatus.value !== 'ready' && !(folderStatus.value === 'needs-permission' && (await grantAccess()))) {
+    showToast('error', 'Der Projektordner ist nicht erreichbar; die Änderung wurde nicht geschrieben.', 'Unter „Projekte“ den Zugriff erlauben und noch einmal versuchen.');
+    return null;
+  }
+  await keepVersion(live);
   if (link && folderStatus.value === 'ready') {
     selfWrites.add(link.name);
     try {
@@ -288,12 +304,20 @@ function writtenProps(s: BlockState): Record<string, string> {
   return out;
 }
 
+/** States equal to what Tessera completes by itself are left out of the line (shorter, same result). */
+function shortState(s: BlockState): BlockState {
+  const def = completeState(makeState(s.name)).props;
+  const out: Record<string, string> = {};
+  for (const [k, v] of Object.entries(s.props)) if (def[k] !== v) out[k] = v;
+  return makeState(s.name, out);
+}
+
 /** Sets a cell to a block (or air with null); the line goes to "Änderungen in Tessera". */
 export function setCell(p: Project, x: number, y: number, z: number, state: BlockState | null): Promise<boolean> {
   const [fx, fy, fz] = fileCell(p, x, y, z);
   const o = p.data.plan?.orient ?? { turn: 0, mirror: null };
   // The file is not turned: write the state as it is before ausrichtung.
-  const written = state ? turnState(makeState(state.name, writtenProps(state)), Xf.of(o.turn, o.mirror).inverse()) : null;
+  const written = state ? shortState(turnState(makeState(state.name, writtenProps(state)), Xf.of(o.turn, o.mirror).inverse())) : null;
   return edit(p, (t) => setCellEdit(t, fx, fy, fz, cellLine(fx, fy, fz, written)));
 }
 

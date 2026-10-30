@@ -145,7 +145,8 @@ export async function checkLinkedFiles(): Promise<void> {
       const issue = p.fileIssue.value;
       if (issue && same(issue.stamp, stamp)) continue;
       const file = await readProjectFile(link.name);
-      if (!file || selfWrites.has(link.name)) continue;
+      // Written by Tessera meanwhile, or the tab was rebuilt meanwhile: not a change from outside.
+      if (!file || selfWrites.has(link.name) || !projects.value.includes(p) || p.link.value !== link) continue;
       // Before a change from outside is taken over, the text the tab shows is kept as a version.
       await keepVersion(p);
       const fresh = await rebuild(p, file.bytes, { name: link.name, ...file.stamp }, 'Datei geändert, neu aufgebaut');

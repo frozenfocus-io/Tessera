@@ -12,6 +12,7 @@ import { doorCmd, gateCmd, windowCmd } from './openings';
 import { stringHash, type BlockHints } from './palette';
 import { archCmd, spiralCmd, stairsCmd } from './stairs';
 import { asciiKey, classify, detectVersion, FollowUpError, parseStatements2, TessError, tokenText, type Diagnostic, type RawToken, type Statement, type Token } from './syntax';
+import { EDIT_MARKER } from './edit';
 import { turnGrid } from './turngrid';
 import { Xf } from './xform';
 import { compileV1 } from './v1';
@@ -123,8 +124,8 @@ export class Compiler extends CompilerRoofs {
 
   readonly env: ExprEnv = {
     value: (name) => {
-      for (let i = this.frames.length - 1; i >= 0; i--) {
-        const v = this.frames[i].vars.get(name);
+      for (const f of this.visibleFrames()) {
+        const v = f.vars.get(name);
         if (v !== undefined) return v;
       }
       if (this.failedValues.has(name)) throw new FollowUpError(this.line, `„${name}“ fehlt, weil Zeile ${this.failedValues.get(name)} fehlerhaft ist.`);
@@ -260,10 +261,16 @@ export class Compiler extends CompilerRoofs {
     // Settings: given values, otherwise the defaults (evaluated here).
     const vars = new Map<string, number>();
     const words = new Map<string, string>();
-    for (const [key, def] of mod.params) {
-      const v = a.has(key) ? a.str(key)! : this.substWords(substitute(def.text, this.env, st.line));
-      if (/^-?\d+$/.test(v)) vars.set(key, parseInt(v, 10));
-      else words.set(key, v);
+    // Given settings come from here; defaults are evaluated where the module is written (the file).
+    const outer = this.frames.splice(1);
+    try {
+      for (const [key, def] of mod.params) {
+        const v = a.has(key) ? a.str(key)! : substitute(def.text, this.env, st.line);
+        if (/^-?\d+$/.test(v)) vars.set(key, parseInt(v, 10));
+        else words.set(key, v);
+      }
+    } finally {
+      this.frames.push(...outer);
     }
     mod.instances++;
     const inst = asciiKey(a.str('name') ?? `${mod.name}${mod.instances}`);
@@ -432,10 +439,26 @@ export class Compiler extends CompilerRoofs {
   }
 
   /** Word settings of the modules around (innermost first), or null outside modules. */
+  /**
+   * Scopes visible here, innermost first: the loops inside the running module (or the file),
+   * that module, and the file. A module sees the file, not the module that built it.
+   */
+  visibleFrames(): Frame[] {
+    const out: Frame[] = [];
+    for (let i = this.frames.length - 1; i >= 0; i--) {
+      out.push(this.frames[i]);
+      if (this.frames[i].module) {
+        if (i > 0) out.push(this.frames[0]);
+        break;
+      }
+    }
+    return out;
+  }
+
   private wordMap(): Map<string, string> | null {
     let out: Map<string, string> | null = null;
-    for (let i = this.frames.length - 1; i >= 0; i--) {
-      for (const [k, v] of this.frames[i].words) {
+    for (const f of this.visibleFrames()) {
+      for (const [k, v] of f.words) {
         out ??= new Map();
         if (!out.has(k)) out.set(k, v);
       }
@@ -490,6 +513,7 @@ export class Compiler extends CompilerRoofs {
       case 'wert':
         return this.valueCmd(st);
       case 'rolle':
+        if (this.chain.length) throw new TessError(st.line, 'Ein Modul legt keine Rollen an; Rollen stehen in der Datei und sind im Modul sichtbar.');
         this.palette.define(st, this.tokens(st));
         return;
       case 'box':
@@ -623,8 +647,24 @@ export class Compiler extends CompilerRoofs {
       throw new TessError(this.line, `„${path.join('.')}“: Eine Form „${objName}“ gibt es (noch) nicht.`);
     }
     const bbox = f ? f.bbox : r!.bbox;
-    const [x0, y0, z0, x1, y1, z1] = bbox;
+    let [x0, y0, z0, x1, y1, z1] = bbox;
     const centre = f && (f.kind === 'zylinder' || f.kind === 'vieleck' || f.kind === 'kugel');
+    let cx = centre ? (f!.sphere ? f!.sphere.cx : f!.shape!.cx) : 0;
+    let cz = centre ? (f!.sphere ? f!.sphere.cz : f!.shape!.cz) : 0;
+    let top = f ? (f.roofTop ?? f.y1) : r!.top;
+    // In a module and in the mirrored pass of spiegle coordinates are local, so are fields:
+    // written into a coordinate there, they map back to where the form is.
+    if (!this.xf.identity) {
+      const inv = this.xf.inverse();
+      const [ax, az] = inv.mapXZ(x0, z0);
+      const [bx, bz] = inv.mapXZ(x1, z1);
+      [x0, x1] = [Math.min(ax, bx), Math.max(ax, bx)];
+      [z0, z1] = [Math.min(az, bz), Math.max(az, bz)];
+      y0 -= this.xf.ty;
+      y1 -= this.xf.ty;
+      top -= this.xf.ty;
+      if (centre) [cx, cz] = inv.mapXZ(cx, cz);
+    }
     switch (fieldName) {
       case 'x0':
         return x0;
@@ -645,16 +685,16 @@ export class Compiler extends CompilerRoofs {
       case 'bz':
         return z1 - z0 + 1;
       case 'mx':
-        return centre ? (f!.sphere ? f!.sphere.cx : f!.shape!.cx) : Math.floor((x0 + x1) / 2);
+        return centre ? cx : Math.floor((x0 + x1) / 2);
       case 'mz':
-        return centre ? (f!.sphere ? f!.sphere.cz : f!.shape!.cz) : Math.floor((z0 + z1) / 2);
+        return centre ? cz : Math.floor((z0 + z1) / 2);
       case 'r':
         if (f?.sphere) return f.sphere.r;
         if (f?.shape instanceof DiscShape) return f.shape.radius;
         if (f?.shape instanceof PolygonShape) return f.shape.r;
         throw new TessError(this.line, `„${path.join('.')}“: Einen Radius r haben nur zylinder, vieleck und kugel.`);
       case 'dach':
-        return f ? (f.roofTop ?? f.y1) : r!.top;
+        return top;
     }
     throw new TessError(this.line, `„${path.join('.')}“: Das Feld „${fieldName}“ gibt es nicht (Felder: ${FIELDS}).`);
   }
@@ -708,6 +748,9 @@ export function compileTess(source: string, opts: CompileOptions = {}): CompileO
   }
   const { statements, diagnostics } = parseStatements2(source);
   const c = new Compiler(opts.hints);
+  // Changes made in the app (section at the end of the file) are meant to replace blocks.
+  const marker = source.split(/\r?\n/).findIndex((l) => l.trim() === EDIT_MARKER);
+  if (marker >= 0) c.editFrom = marker + 1;
   if (opts.limits?.statements !== undefined) c.maxStatements = opts.limits.statements;
   if (opts.limits?.blocks !== undefined) c.maxBlocks = opts.limits.blocks;
   c.run(statements);

@@ -397,3 +397,62 @@ describe('Zielbau 4c: beispiele/zauberturm.tess', () => {
     expect([...used].filter((s) => s > 0).length).toBeGreaterThanOrEqual(2);
   });
 });
+
+describe('Gültigkeit und Felder in Modulen', () => {
+  it('gibt Felder von Formen im Modul lokal an, wie von Hand gedreht', () => {
+    const mod = 'modul m\n  box k 0,0,0 2,2,4 stein hohl\n  block {k.x1+1},0,{k.mz} holz\n  block {haus.x1},{k.y1+1},{haus.z1} holz\nende\nbox haus 30,0,0 32,1,1 stein\n';
+    const out = quiet(`${mod}baue m 10,0,0 drehung=90`);
+    clean(out);
+    // Local (3, 0, 2) → absolute (10 − 2, 0, 3) = (8, 0, 3).
+    expect(name(out, 8, 0, 3)).toBe('spruce_planks');
+    // A form of the file seen from the turned module: its local corner (x1, z1) maps back to an
+    // absolute corner of the form (here 30,…,1).
+    expect(name(out, 30, 3, 1)).toBe('spruce_planks');
+    const byHand = quiet('box k 6,0,0 10,2,2 stein hohl\nblock 8,0,3 holz\nblock 30,3,1 holz\nbox haus 30,0,0 32,1,1 stein');
+    expect(blocks(out)).toEqual(blocks(byHand));
+    // In the mirrored pass of spiegle fields follow the mirrored form.
+    const sp = quiet('spiegle x=10\n  box t 12,0,0 13,0,0 stein\n  block {t.x1+1},0,0 holz\nende');
+    expect([name(sp, 14, 0, 0), name(sp, 6, 0, 0)]).toEqual(['spruce_planks', 'spruce_planks']);
+  });
+
+  it('sieht im Modul die Datei, nicht das Modul, das es baut', () => {
+    const out = quiet('wert a=1\nmodul innen\n  block {a},0,{b} stein\nende\nmodul aussen b=5 wand=holz\n  baue innen 0,0,0\nende\nbaue aussen 0,0,0');
+    expect(errors(out)).toEqual([expect.objectContaining({ line: line(4), ctx: expect.stringContaining('in modul innen'), message: expect.stringContaining('b') })]);
+    // Word settings do not leak into modules built inside: "wand" stays the role of the file.
+    const w = quiet('rolle wand cobblestone\nmodul innen\n  block 0,0,0 wand\nende\nmodul aussen wand=holz\n  block 0,1,0 wand\n  baue innen 0,0,0\nende\nbaue aussen 0,0,0');
+    clean(w);
+    expect([name(w, 0, 0, 0), name(w, 0, 1, 0)]).toEqual(['cobblestone', 'spruce_planks']);
+  });
+
+  it('lehnt Rollen im Modul ab', () => {
+    expect(errors(c2('modul m\n  rolle x stone\nende\nbaue m 0,0,0'))[0].message).toContain('keine Rollen');
+  });
+
+  it('dreht das Tor eines Feldes im Modul mit', () => {
+    const out = quiet('modul m\n  feld 0,0,0 6,0,4 zaun=holz tor=s\nende\nbaue m 20,0,0 drehung=90');
+    const byHand = quiet('feld 16,0,0 20,0,6 zaun=holz tor=w');
+    expect(blocks(out)).toEqual(blocks(byHand));
+  });
+});
+
+describe('Änderungen aus der App', () => {
+  const body = 'box h 0,0,0 6,4,6 stein hohl\nfenster h s y=2 glas=glas\n';
+  it('melden kein „Überdeckt“, Zeilen davor schon', () => {
+    const before = c2(`${body}leer 3,2,6`);
+    expect(before.diagnostics.map((d) => d.message).join()).toContain('Überdeckt das Fenster');
+    const after = c2(`${body}# ---- Änderungen in Tessera ----\nleer 3,2,6`);
+    clean(after);
+    expect(after.grid.get(3, 2, 6)).toBeNull();
+  });
+
+  it('wirken vor der ausrichtung: eine Zelle des gedrehten Ergebnisses rechnet zurück in Dateikoordinaten', () => {
+    const src = `${body}ausrichtung drehung=90 spiegel=x\n`;
+    const out = c2(src);
+    clean(out);
+    const [x, y, z] = out.grid.entries().find(([, , , s]) => s.name === 'minecraft:glass_pane')!;
+    const [fx, fy, fz] = Xf.of(90, 'x').inverse().map(x, y, z);
+    const edited = c2(`${src}# ---- Änderungen in Tessera ----\nleer ${fx},${fy},${fz}`);
+    expect(edited.grid.get(x, y, z)).toBeNull();
+    expect(edited.grid.size).toBe(out.grid.size - 1);
+  });
+});

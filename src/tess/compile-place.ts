@@ -1,6 +1,5 @@
 import { makeState } from '../core/blockstate';
-import { completeState } from './connect';
-import { turnState } from './xform';
+import { turnWritten } from './xform';
 import { Args, NO } from './args';
 import { CompilerBase, pack3, type Vec3 } from './compile-base';
 import { hasAxis } from './connect';
@@ -94,7 +93,7 @@ export abstract class CompilerPlace extends CompilerBase {
    */
   spec(text: string): BlockSpec {
     const s = this.palette.blockSpec(text, this.line);
-    if (s.kind === 'state' && this.xf.turns) return { kind: 'state', state: turnState(completeState(s.state), this.xf) };
+    if (s.kind === 'state' && this.xf.turns) return { kind: 'state', state: turnWritten(s.state, this.xf) };
     return s;
   }
 
@@ -187,8 +186,8 @@ export abstract class CompilerPlace extends CompilerBase {
     if (spec.kind === 'role' && this.xf.turns) {
       // A role member's default state (stairs to the north …) turns with the module.
       const id = this.palette.pick(spec.ref.role, spec.ref.member, p[0], p[1], p[2], this.line);
-      const s = turnState(completeState(makeState(id)), this.xf);
-      this.put(p[0], p[1], p[2], this.sid(s.name, { ...s.props }), Part.Plain);
+      const s = turnWritten(makeState(id), this.xf);
+      this.put(p[0], p[1], p[2], this.sid(s.name, Object.keys(s.props).length ? { ...s.props } : null), Part.Plain);
     } else if (spec.kind === 'role') this.place(p, spec.ref, spec.ref.member);
     else this.placeSpec(p, spec, Part.Plain);
   }

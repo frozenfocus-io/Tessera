@@ -262,24 +262,28 @@ function PlanHints({ project: p }: { project: Project }) {
     <>
       <p class="muted hint-help">Klick auf einen Hinweis zeigt die Blöcke seiner Zeile.</p>
       <ul class="plan-hints">
-        {hints.map((d, i) => (
-          <li key={i}>
-            <button
-              class={`plan-hint${marked === d.line ? ' is-on' : ''}`}
-              aria-pressed={marked === d.line}
-              title={marked === d.line ? 'Markierung lösen (Esc)' : 'Blöcke dieser Zeile markieren und hindrehen'}
-              onClick={() => {
-                if (marked !== d.line && !p.lineCells(d.line)) {
-                  showToast('info', `Zeile ${d.line} hat keinen Block gesetzt, den Tessera markieren könnte.`);
-                  return;
-                }
-                p.markLine(d.line);
-              }}
-            >
-              <span class="plan-hint-line">{diagLabel(d)}</span> {d.message}
-            </button>
-          </li>
-        ))}
+        {hints.map((d, i) => {
+          const ctx = d.ctx ?? '';
+          const on = !!marked && marked.line === d.line && marked.ctx === ctx;
+          return (
+            <li key={i}>
+              <button
+                class={`plan-hint${on ? ' is-on' : ''}`}
+                aria-pressed={on}
+                title={on ? 'Markierung lösen (Esc)' : 'Blöcke dieser Zeile markieren und hindrehen'}
+                onClick={() => {
+                  if (!on && !p.lineCells(d.line, ctx)) {
+                    showToast('info', `${diagLabel(d)} hat keinen Block gesetzt, den Tessera markieren könnte.`);
+                    return;
+                  }
+                  p.markLine(d.line, ctx);
+                }}
+              >
+                <span class="plan-hint-line">{diagLabel(d)}</span> {d.message}
+              </button>
+            </li>
+          );
+        })}
       </ul>
     </>
   );
@@ -290,6 +294,13 @@ function PlanFile({ project: p }: { project: Project }) {
   const link = p.link.value;
   const issue = p.fileIssue.value;
   const unsupported = folderStatus.value === 'unsupported';
+  if (p.readOnly) {
+    return (
+      <div class="plan-file">
+        <p class="muted">Schreibgeschützte Version. Wiederherstellen geht im Tab des Bauplans über „Versionen“.</p>
+      </div>
+    );
+  }
   return (
     <div class="plan-file">
       {link && !p.fileMissing.value ? (
