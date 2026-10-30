@@ -2,7 +2,7 @@
 
 Lokale Bauhilfe für Minecraft Java 1.21.1: Gebäude als Bauplan beschreiben oder Schematics öffnen, in 3D ansehen und Ebene für Ebene nachbauen, wie in einem Slicer. Tessera läuft komplett im Browser, ohne Server. Keine Datei verlässt deinen PC.
 
-**Stand:** Etappe 4c – Werkzeuge (Version 0.4.2); Etappe 4 von 6 ist fertig.
+**Stand:** Etappe 4c – Werkzeuge (Version 0.4.3); Etappe 4 von 6 ist fertig.
 
 ## Starten
 

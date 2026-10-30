@@ -180,7 +180,7 @@ profil=<y>:<v>[~],<y>:<v>[~],…
 - Versatz des Umrisses je nach Form:
   - box: jede Seite um v
   - zylinder: Radien +v
-  - vieleck: r+v
+  - vieleck: jede gerade Seite um v; der Umkreis wächst dafür um v / cos(180°/n) (beim Achteck um v · 1,08)
   - umriss und grundriss: Erweitern oder Schrumpfen um |v| mit 8er-Nachbarschaft (Chebyshev-Abstand)
 - Ein Umriss, der dabei leer wird, ist ein Fehler.
 - Jede Lage wird mit ihrem eigenen Umriss gebaut, einschließlich `hohl`, `wand`, `ecken` und Fachwerk. Bauteile verwenden den Umriss der Lage, in der sie sitzen.
@@ -189,7 +189,7 @@ profil=<y>:<v>[~],<y>:<v>[~],…
 
 - Wächst der Versatz von Lage L−1 auf Lage L um Δ ≥ 1, entsteht ein Überhang aus Δ Ringen.
 - Der Ring j (j = 1 innen bis Δ außen, gemessen als Abstand zum Umriss von L−1) bekommt in Lage L−1−(Δ−j) eine umgedrehte Treppe (`R:treppe`, `half=top`), die zur Wand blickt. Darüber bis Lage L−1 kommen volle Blöcke `R`.
-- „Zur Wand“ heißt: zur seitlich angrenzenden Zelle des Umrisses von L−1; hat die Zelle nur einen schrägen Nachbarn, die x-Richtung. Die Treppen-Ecken bildet die Verbindungsberechnung.
+- „Zur Wand“ heißt: zur seitlich angrenzenden Zelle des Umrisses von L−1. An Ecken gilt dieselbe Regel wie für Dachtreppen (5.2): Grenzt die Zelle an zwei Seiten über Eck an (Innenecke), blickt sie in x-Richtung; hat sie nur einen schrägen Nachbarn (Außenecke), in z-Richtung. Die Treppen-Ecken bildet die Verbindungsberechnung.
 
 Beispiele:
 
@@ -244,14 +244,14 @@ dach <typ> <form> [name=…] [ueberstand=1] [profil=…|steil=k] [dicke=1] [roll
 
 Die Dachmaschine rechnet in **Lagen**. Lage 0 ist die erste Lage über der obersten Wandlage der Form.
 
-1. **Grundfläche F:** der Umriss der Form in ihrer obersten Lage (mit Wandprofil), erweitert um `ueberstand`. Bei box als Rechteck; bei zylinder und kegel über den Radius; bei vieleck über r; sonst mit 8er-Nachbarschaft.
+1. **Grundfläche F:** der Umriss der Form in ihrer obersten Lage (mit Wandprofil), erweitert um `ueberstand`. Bei box als Rechteck; bei zylinder und kegel über den Radius; bei vieleck wie der Versatz in 4.3 (jede gerade Seite rückt um `ueberstand`, `ueberstand=1` ist an jeder Seite ein Block); sonst mit 8er-Nachbarschaft.
 2. **Profil:** `profil=dx/dy,dx/dy,…` von der Traufe aufwärts. Jedes Element verschiebt den Rand um dx Zellen nach innen, verteilt auf dy Lagen. dx ist eine ganze Zahl, auch 0 (senkrecht) oder negativ (nach außen, Bauch). dy ≥ 1. Das letzte Element wiederholt sich, bis das Dach geschlossen ist.
    - Einzug der Lage y innerhalb eines Elements, das in Lage y₀ mit Einzug a₀ beginnt: `a(y) = a₀ + floor(dx·(y−y₀)/dy)`. Nach dem Element gilt a₀+dx.
    - Beispiele: `1/1` (45°), `1/2` (steil, wie `steil=2` in Version 1), `2/1` (flach, Stufe und Treppe im Wechsel), `0/2` (zwei Lagen senkrecht).
-3. **Lagenumriss O(y):** F um a(y) geschrumpft (Typ-Metrik aus 5.1; Kreise über den Radius R−a; bei a < 0 erweitert). Optional verschoben durch `biegung` (5.4). Das Dach ist geschlossen, sobald O(y) leer ist.
+3. **Lagenumriss O(y):** F um a(y) geschrumpft (Typ-Metrik aus 5.1; Kreise und Vielecke über den Radius des Umkreises, R−a; bei a < 0 erweitert). Optional verschoben durch `biegung` (5.4). Das Dach ist geschlossen, sobald O(y) leer ist.
 4. **Blöcke einer Lage y:**
    - **Stufenkante** = O(y) ohne O(y+1).
-     - Zellen, die seitlich an O(y+1) grenzen, werden Treppen der Rolle (`half=bottom`), blickend zur angrenzenden Zelle von O(y+1). Bei mehreren Möglichkeiten gilt die Reihenfolge n, o, s, w; bei nur schräger Nachbarschaft die z-Richtung, wie im Walmdach von Version 1.
+     - Zellen, die seitlich an O(y+1) grenzen, werden Treppen der Rolle (`half=bottom`), blickend zur angrenzenden Zelle von O(y+1). Grenzt eine Zelle an zwei Seiten über Eck an O(y+1) (Innenecke, auch Kehle), blickt sie in x-Richtung, also nach Osten oder Westen; grenzt sie nur schräg an (Außenecke), in z-Richtung, wie im Walmdach von Version 1. So werden Schrägen, die in einer Lage um zwei Zellen einrücken, ein Zickzack aus Außen- und Innenecken; die Treppen-Ecken bildet die Verbindungsberechnung.
      - Ist die Stufenkante breiter als 1 (flache Profile), werden die Zellen nach ihrem Abstand j zu O(y+1) gesetzt (j=1 grenzt an): j=1 wird Treppe, j ≥ 2 wird untere Stufe (`type=bottom`).
    - **Schale:** Zellen von O(y) mit einem Seitennachbarn außerhalb von O(y), die nicht in der Stufenkante liegen, werden volle Blöcke. Sie ergeben senkrechte Dachabschnitte. Bei `dicke=n` gilt ein Abstand nach außen von höchstens n.
    - **Bauch:** Zellen von O(y+1), die nicht in O(y) liegen, werden in Lage y+1 als umgedrehte Treppen (`half=top`) gesetzt, blickend zur angrenzenden Zelle von O(y). Danach gilt Punkt 4 für Lage y+1 wie für jede Lage; eine dort verbleibende Bauch-Zelle bleibt die umgedrehte Treppe.
@@ -296,7 +296,7 @@ kranzdach <form> y=<lage> [breite=2] [profil=…|steil=k] [rolle=dach] [kante=ja
 
 - Ein ringförmiges Dach außen um die Form, das zur Wand hin ansteigt und an der Wand endet. Typisch für gestaffelte Türme und Vordächer rundum.
 - Grundfläche: alle Zellen außerhalb des Umrisses der Form in Lage y mit Abstand (8er-Nachbarschaft) ≤ breite.
-- Die Dachmaschine läuft mit dem Abstand zur Wand statt zum Rand: Lage k umfasst die Zellen mit Abstand ≤ breite − a(k). Treppen blicken zur Wand.
+- Die Dachmaschine läuft mit dem Abstand zur Wand statt zum Rand: Lage k umfasst die Zellen mit Abstand ≤ breite − a(k). Treppen blicken zur Wand, an Ecken wie in 5.2 (Innenecken in x-, Außenecken in z-Richtung).
 - Wo die Schürze auf Fenster trifft, setzt sie nur in Luft und meldet einen Hinweis.
 
 ---

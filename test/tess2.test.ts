@@ -415,6 +415,30 @@ describe('Bau-Sprache 2: Wandprofile und Konsolen', () => {
     expect(errors(c2('box b 0,0,0 2,3,2 stein profil=2:1,1:0'))[0].message).toContain('aufsteigen');
   });
 
+  it('vieleck: Der Versatz rückt jede gerade Seite um v, Schrägen wachsen gleich; zylinder wie bisher über den Radius', () => {
+    // Octagon r=5: straight sides 5 cells from the middle, slants at |x|+|z| ≤ 7. profil=0:2 makes
+    // every side two wider: straight sides at 7, slants at |x|+|z| ≤ 10 (3 cell diagonals, 2.1).
+    const out = c2('vieleck v 0,0,0 n=8 r=5 h=4 stein profil=0:2,2:0');
+    clean(out);
+    const reach = (y: number, nx: number, nz: number) =>
+      Math.max(...[...layer(out, y)].map((k) => k.split(',').map(Number)).map(([x, z]) => (x * nx + z * nz) / Math.hypot(nx, nz)));
+    const sides = [[0, -1], [1, 0], [0, 1], [-1, 0]];
+    const slants = [[1, -1], [1, 1], [-1, 1], [-1, -1]];
+    for (const [nx, nz] of sides) {
+      expect(reach(2, nx, nz)).toBe(5);
+      expect(reach(0, nx, nz)).toBe(7);
+    }
+    for (const [nx, nz] of slants) {
+      expect(reach(2, nx, nz) * Math.SQRT2).toBeCloseTo(7);
+      expect(reach(0, nx, nz) * Math.SQRT2).toBeCloseTo(10);
+      // Grown by two blocks like the straight sides, up to the raster (half a cell diagonal).
+      expect(Math.abs(reach(0, nx, nz) - reach(2, nx, nz) - 2)).toBeLessThan(0.36);
+    }
+    // zylinder: the radius grows by v, as before.
+    const disc = c2('zylinder z 0,0,0 r=5 h=2 stein profil=0:2,1:0');
+    expect(layer(disc, 0)).toEqual(layer(c2('zylinder z 0,0,0 r=7 h=1 stein'), 0));
+  });
+
   it('baut jede Lage mit ihrem eigenen Umriss, auch hohl', () => {
     const out = c2('box b 0,0,0 6,4,6 stein hohl profil=2:1');
     expect(name(out, -1, 2, 3)).toBe('stone_bricks');
@@ -430,8 +454,8 @@ describe('Bau-Sprache 2: Wandprofile und Konsolen', () => {
     expect(at(out, 7, 2, 3)?.props).toMatchObject({ facing: 'west', half: 'top' });
     expect(name(out, 3, 2, -1)).toBe('spruce_stairs');
     expect(at(out, 3, 1, -1)).toBeNull();
-    // Corner with only a diagonal neighbour: along x.
-    expect(at(out, -1, 2, -1)?.props.facing).toBe('east');
+    // Corner with only a diagonal neighbour: along z, as on roofs (an outer corner either way).
+    expect(at(out, -1, 2, -1)?.props).toMatchObject({ facing: 'south', shape: expect.stringMatching(/^outer_/) });
     expect(errors(c2('box b 0,0,0 6,5,6 stein konsolen=holz'))[0].message).toContain('profil');
   });
 
@@ -667,7 +691,10 @@ describe('Bau-Sprache 2: Dachmaschine', () => {
   it('verschneidet Dächer: Vereinigung der Lagen, Kehle als Treppen-Innenecke, innere Giebel entfallen', () => {
     const out = c2('box a 0,0,0 10,3,6 stein hohl\ndach sattel a first=x\nbox b 3,0,6 7,3,15 stein hohl\ndach sattel b first=z');
     clean(out);
-    expect(at(out, 4, 6, 5)?.props).toMatchObject({ facing: 'north', half: 'bottom', shape: expect.stringMatching(/^inner_/) });
+    // The valley stays an inner corner; it touches the next layer on two sides around a corner,
+    // so it faces along x.
+    expect(at(out, 4, 6, 5)?.props).toMatchObject({ facing: 'east', half: 'bottom', shape: expect.stringMatching(/^inner_/) });
+    expect(at(out, 6, 6, 5)?.props.facing).toBe('west');
     expect(at(out, 6, 6, 5)?.props.shape).toMatch(/^inner_/);
     expect(at(out, 3, 5, 6)?.props.shape).toMatch(/^inner_/);
     for (let z = 5; z <= 16; z++) expect(name(out, 5, 7, z)).toBe('spruce_slab'); // ridge of b runs into a
@@ -676,6 +703,46 @@ describe('Bau-Sprache 2: Dachmaschine', () => {
     // Roofs that neither overlap nor touch stay apart.
     const apart = c2('box a 0,0,0 4,2,4 stein hohl\ndach walm a\nbox b 20,0,0 24,2,4 stein hohl\ndach walm b');
     same(apart, c2('box a 0,0,0 4,2,4 stein hohl\ndach walm a\nbox b 20,0,0 24,2,4 stein hohl\nbox c 20,0,0 24,2,4 stein hohl\ndach walm c'));
+  });
+
+  it('Innenecken blicken in x-Richtung, Außenecken in z-Richtung: Zickzack an Achteck-Schrägen mit Doppelschritt', () => {
+    // Layer 3: the slants step from |x|+|z| = 7 to 5, two cells at a time.
+    const out = c2('vieleck v 0,0,0 n=8 r=6 h=2 stein hohl\ndach walm v ueberstand=0');
+    clean(out);
+    const Y = 3;
+    for (const [sx, sz] of [[1, -1], [1, 1], [-1, 1], [-1, -1]]) {
+      const slant = `Schräge ${sx},${sz}`;
+      // Outer corners touch the next layer only diagonally: z-direction.
+      for (const [i, j] of [[2, 5], [3, 4], [4, 3], [5, 2]]) {
+        const p = at(out, sx * i, Y, sz * j)?.props;
+        expect(p?.shape, `${slant}: ${sx * i},${sz * j}`).toMatch(/^outer_/);
+        expect(p?.facing).toBe(sz < 0 ? 'south' : 'north');
+      }
+      // Inner corners touch it on two sides around a corner: x-direction.
+      for (const [i, j] of [[2, 4], [3, 3], [4, 2]]) {
+        const p = at(out, sx * i, Y, sz * j)?.props;
+        expect(p?.shape, `${slant}: ${sx * i},${sz * j}`).toMatch(/^inner_/);
+        expect(p?.facing).toBe(sx < 0 ? 'east' : 'west');
+      }
+    }
+    // The zigzag is closed: no sealing blocks behind the stairs in this layer.
+    for (const [, , , s] of blocksIn(out, Y)) expect(s.name).toBe('minecraft:spruce_stairs');
+  });
+
+  it('vieleck: ueberstand=1 heißt an jeder Seite ein Block', () => {
+    for (const r of [5, 6]) {
+      // fuellen makes roof layer 0 (y=1) the whole base area F.
+      const out = c2(`vieleck v 0,0,0 n=8 r=${r} h=1 stein\ndach helm v ueberstand=1 fuellen`);
+      clean(out);
+      const wall = layer(out, 0);
+      const around = new Set(wall);
+      for (const k of wall) {
+        const [x, z] = k.split(',').map(Number);
+        for (const [dx, dz] of [[0, -1], [1, 0], [0, 1], [-1, 0]]) around.add(`${x + dx},${z + dz}`);
+      }
+      // Straight sides and slants one cell further out (r=6: the straight sides used to stay).
+      expect(layer(out, 1), `r=${r}`).toEqual(around);
+    }
   });
 
   it('Krüppelwalm an einem anderen Dach: Walm nur an der freien Giebelseite', () => {
@@ -874,10 +941,10 @@ describe('Zielbau 4b: beispiele/wachturm.tess', () => {
   const src = readFileSync('beispiele/wachturm.tess', 'utf8');
   const out = compileTess(src);
   const lineOf = (start: string) => src.split('\n').findIndex((l) => l.startsWith(start)) + 1;
-  const ring = (r: number) => layer(c2(`vieleck v 0,0,0 n=8 r=${r} h=1 stein hohl`), 0);
-  /** The outline of a layer: every wall cell of the n-gon is occupied, and the form's own blocks lie only there. */
-  const outline = (y: number, r: number, line: number) => {
-    const want = ring(r);
+  const ring = (r: number, v: number) => layer(c2(`vieleck v 0,0,0 n=8 r=${r} h=1 stein hohl${v ? ` profil=0:${v}` : ''}`), 0);
+  /** The outline of a layer: every wall cell of the n-gon (sides moved by v) is occupied, and the form's own blocks lie only there. */
+  const outline = (y: number, r: number, line: number, v = 0) => {
+    const want = ring(r, v);
     for (const c of want) {
       const [x, z] = c.split(',').map(Number);
       expect(out.grid.has(x, y, z), `${x},${y},${z} fehlt`).toBe(true);
@@ -888,25 +955,27 @@ describe('Zielbau 4b: beispiele/wachturm.tess', () => {
 
   it('übersetzt ohne Fehler und ohne Hinweise', () => clean(out));
 
-  it('Turm: unten zwei breiter, bis Lage 8 verjüngt, ab Lage 18 mit Konsolen vorgekragt; Gesims, Rundbogenfenster', () => {
+  it('Turm: unten zwei breiter, bis Lage 12 verjüngt, ab Lage 18 mit Konsolen vorgekragt; Gesims, Rundbogenfenster', () => {
     const turm = lineOf('vieleck turm');
-    // r=5 with profile 0:2,3:2~,8:0,18:1 → r=7 up to layer 4, r=6 in 5 and 6, r=5 from 7 to 17, r=6 from 18.
-    outline(2, 7, turm);
-    outline(6, 6, turm);
+    // r=5 with profile 0:2,3:2~,12:0,18:1: every side two further out up to layer 5, one from 6 to 9,
+    // none from 10 to 17, one from 18.
+    outline(2, 5, turm, 2);
+    outline(5, 5, turm, 2);
+    outline(8, 5, turm, 1);
     outline(12, 5, turm);
     // Corbels under the overhang: upside-down stairs facing the wall, the upper floor one block further out.
     expect(at(out, 0, 17, -6)?.key).toBe('minecraft:stone_brick_stairs[facing=south,half=top,shape=straight,waterlogged=false]');
     expect(at(out, -6, 17, 0)?.props).toMatchObject({ facing: 'east', half: 'top' });
-    expect(name(out, 0, 1, 6)).toBe('spruce_door');
-    expect(name(out, -6, 3, 0)).toBe('glass_pane');
+    expect(name(out, 0, 1, 7)).toBe('spruce_door');
+    expect(name(out, -7, 3, 0)).toBe('glass_pane');
     // Gesims on n, w and s; the east side stays free for the annex.
-    expect(at(out, -7, 1, 0)?.props).toMatchObject({ facing: 'east', half: 'top' });
-    expect(name(out, -7, 1, 0)).toBe('stone_brick_stairs');
-    expect(name(out, 7, 1, 0)?.endsWith('_stairs')).toBe(false);
-    // Round-arched window: glass below, the outer cells of the top row as stairs.
-    expect([name(out, -1, 9, -5), name(out, 0, 10, -5)]).toEqual(['glass_pane', 'glass_pane']);
-    expect(at(out, -1, 11, -5)?.props).toMatchObject({ facing: 'west', half: 'top' });
-    expect(at(out, 0, 11, -5)?.props).toMatchObject({ facing: 'east', half: 'top' });
+    expect(at(out, -8, 1, 0)?.props).toMatchObject({ facing: 'east', half: 'top' });
+    expect(name(out, -8, 1, 0)).toBe('stone_brick_stairs');
+    expect(name(out, 8, 1, 0) ?? '').not.toMatch(/_stairs$/);
+    // Round-arched window (in the part one block out): glass below, the outer cells of the top row as stairs.
+    expect([name(out, -1, 7, -6), name(out, 0, 8, -6)]).toEqual(['glass_pane', 'glass_pane']);
+    expect(at(out, -1, 9, -6)?.props).toMatchObject({ facing: 'west', half: 'top' });
+    expect(at(out, 0, 9, -6)?.props).toMatchObject({ facing: 'east', half: 'top' });
   });
 
   it('Umgang unter dem Obergeschoss: Geländer, Stützen bis unter die Schürze, Kopfhöhe unter den Konsolen, Laternen, Banner', () => {
@@ -922,18 +991,18 @@ describe('Zielbau 4b: beispiele/wachturm.tess', () => {
     expect(name(out, 0, 18, -7)).toBe('chain');
     expect(at(out, 0, 13, 6)?.key).toBe('minecraft:red_wall_banner[facing=south]');
     expect(at(out, 0, 13, -6)?.key).toBe('minecraft:red_wall_banner[facing=north]');
-    expect(name(out, 2, 3, 7)).toBe('spruce_fence'); // lantern arm beside the door
-    expect(at(out, 2, 2, 7)?.props).toMatchObject({ hanging: 'true' });
+    expect(name(out, 2, 3, 8)).toBe('spruce_fence'); // lantern arm beside the door
+    expect(at(out, 2, 2, 8)?.props).toMatchObject({ hanging: 'true' });
     expect(out.grid.entries().some(([, y, , s]) => y <= 5 && s.name === 'minecraft:vine')).toBe(true);
   });
 
   it('Balkon mit Pultdach auf der Westseite, Stützen bis auf das Gesims', () => {
-    expect([name(out, -6, 7, 0), name(out, -7, 7, 0)]).toEqual(['spruce_planks', 'spruce_planks']);
-    expect(name(out, -7, 8, 0)).toBe('spruce_fence');
-    expect(name(out, -5, 8, 0)).toBe('spruce_door');
-    for (const [x, y] of [[-8, 11], [-7, 12], [-6, 13]]) expect(at(out, x, y, 0)?.props).toMatchObject({ facing: 'east', half: 'bottom' });
-    for (const y of [2, 3, 4, 5, 6]) expect(at(out, -7, y, 1)?.key).toBe('minecraft:dark_oak_log[axis=y]');
-    expect(name(out, -7, 1, 1)).toBe('stone_brick_stairs');
+    expect([name(out, -7, 7, 0), name(out, -8, 7, 0)]).toEqual(['spruce_planks', 'spruce_planks']);
+    expect(name(out, -8, 8, 0)).toBe('spruce_fence');
+    expect(name(out, -6, 8, 0)).toBe('spruce_door');
+    for (const [x, y] of [[-9, 11], [-8, 12], [-7, 13]]) expect(at(out, x, y, 0)?.props).toMatchObject({ facing: 'east', half: 'bottom' });
+    for (const y of [2, 3, 4, 5, 6]) expect(at(out, -8, y, 1)?.key).toBe('minecraft:dark_oak_log[axis=y]');
+    expect(name(out, -8, 1, 1)).toBe('stone_brick_stairs');
   });
 
   it('Obergeschoss in Fachwerk, gestaffelter Helm mit Spitze', () => {
@@ -944,13 +1013,17 @@ describe('Zielbau 4b: beispiele/wachturm.tess', () => {
     expect(name(out, -2, 21, -7)).toBe('spruce_trapdoor'); // shutter of the upper window
     expect(at(out, -8, 18, 0)?.props).toMatchObject({ facing: 'east', half: 'bottom' });
     expect(at(out, -7, 19, 0)?.props).toMatchObject({ facing: 'east', half: 'bottom' });
+    // ueberstand=1: the helm starts one block beyond the upper floor (glocke: stair and slab).
+    expect(at(out, 0, 24, -6)?.props).toMatchObject({ facing: 'south', half: 'bottom' });
+    expect(name(out, 0, 24, -7)).toBe('deepslate_tile_slab');
+    expect(at(out, 0, 24, -8)).toBeNull();
     const top = Math.max(...out.grid.entries().map(([, y]) => y));
     expect(name(out, 0, top, 0)).toBe('lightning_rod');
     expect(name(out, 0, top - 1, 0)).toBe('deepslate_tiles');
   });
 
   it('Anbau: L aus zwei boxen, Kehle als Innenecke, Krüppelwalm nur an der freien Seite', () => {
-    expect(at(out, 8, 5, 4)?.props).toMatchObject({ facing: 'north', shape: expect.stringMatching(/^inner_/) });
+    expect(at(out, 8, 5, 4)?.props).toMatchObject({ facing: 'east', shape: expect.stringMatching(/^inner_/) });
     expect(at(out, 11, 7, 10)?.props).toMatchObject({ facing: 'north', half: 'bottom' });
     expect([name(out, 11, 8, 2), name(out, 11, 8, 3)]).toEqual(['deepslate_tile_slab', 'deepslate_tile_slab']);
   });

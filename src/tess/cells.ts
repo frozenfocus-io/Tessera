@@ -370,7 +370,9 @@ export function sideTowards(x: number, z: number, target: (x: number, z: number)
 
 /**
  * Facing towards `target`: a side neighbour in order n, o, s, w; with only a diagonal
- * neighbour, along z (roofs) or x (corbels) towards it.
+ * neighbour, along z or x towards it. Used by the parts that keep the rule of Etappe 4
+ * (cornice, walkway, battlements, outer stairs, turret corbels); roofs, Kranzdach and the
+ * corbels of 4.3 use `cornerFacing`.
  */
 export function facingTowardsSet(x: number, z: number, target: (x: number, z: number) => boolean, diagonalAxis: 'x' | 'z'): Facing | null {
   const side = sideTowards(x, z, target);
@@ -380,5 +382,22 @@ export function facingTowardsSet(x: number, z: number, target: (x: number, z: nu
     if (diagonalAxis === 'z') return dz < 0 ? 'north' : 'south';
     return dx < 0 ? 'west' : 'east';
   }
+  return null;
+}
+
+/**
+ * Facing of a roof stair, Kranzdach stair or corbel towards `target` (spec 4.3, 5.2, 5.5):
+ * towards its side neighbour; with side neighbours around a corner (inner corner, valley)
+ * along x, i.e. east or west; with only a diagonal neighbour (outer corner) along z. On a slant
+ * that steps two cells at a time, inner and outer corners then face along different axes and
+ * the connection pass turns them into a zigzag of corners, alike on all four slants. Opposite
+ * neighbours only (a gap): east before west, north before south.
+ */
+export function cornerFacing(x: number, z: number, target: (x: number, z: number) => boolean): Facing | null {
+  if (target(x + 1, z)) return 'east';
+  if (target(x - 1, z)) return 'west';
+  if (target(x, z - 1)) return 'north';
+  if (target(x, z + 1)) return 'south';
+  for (const [dx, dz] of DIAGONALS) if (target(x + dx, z + dz)) return dz < 0 ? 'north' : 'south';
   return null;
 }
