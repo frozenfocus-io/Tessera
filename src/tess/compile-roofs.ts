@@ -285,7 +285,9 @@ export abstract class CompilerRoofs extends CompilerForms {
     if (a.has('biegung')) {
       const m = /^([a-zäöüß]+):(-?\d+)$/i.exec(a.str('biegung')!.trim());
       if (!m) throw new TessError(this.line, `„biegung=${a.str('biegung')}“ hat die Form Seite:n, z. B. biegung=n:3.`);
-      const vec = bendVector(asciiKey(m[1]));
+      const local = bendVector(asciiKey(m[1]));
+      // In a turned or mirrored module the side is local: turn the direction with it.
+      const vec = local && (this.xf.turns ? this.xf.dir(local[0], local[1]) : local);
       if (!vec) throw new TessError(this.line, `„biegung=${a.str('biegung')}“: „${m[1]}“ ist keine Seite (n, no, o, so, s, sw, w, nw).`);
       const n = parseInt(m[2], 10);
       const K = layers.length - 1;

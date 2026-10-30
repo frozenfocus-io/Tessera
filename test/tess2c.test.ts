@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import { readFileSync } from 'node:fs';
 import { makeState } from '../src/core/blockstate';
 import { parseTess } from '../src/core/formats/tess';
 import { compileTess } from '../src/tess/compile';
@@ -180,6 +181,13 @@ describe('Module und baue', () => {
     expect(blocks(out)).toEqual(blocks(byHand));
   });
 
+  it('dreht Bogen mit tiefe= und die Biegung von Helmen wie von Hand gedreht', () => {
+    const mod = 'modul m\n  bogen 0,0,0 6,0,0 hoehe=3 stein tiefe=2\n  box k 0,0,4 4,3,8 stein hohl\n  dach helm k biegung=o:2 rolle=dach\nende\n';
+    const turned = quiet(`${mod}baue m 0,0,0 drehung=90`);
+    const byHand = quiet('bogen -1,0,0 -1,0,6 hoehe=3 stein tiefe=2\nbox k -8,0,0 -4,3,4 stein hohl\ndach helm k biegung=s:2 rolle=dach');
+    expect(blocks(turned)).toEqual(blocks(byHand));
+  });
+
   it('rechnet x=, versatz= und winkel= im gedrehten Modul lokal', () => {
     const mod = 'modul m\n  box h 0,0,0 8,4,6 stein hohl\n  fenster h s x=1 y=2 glas=glas\n  fenster h n versatz=2 y=2 glas=glas\nende\n';
     const out = c2(`${mod}baue m 0,0,0 drehung=180`);
@@ -303,5 +311,89 @@ describe('Freistil', () => {
     clean(out);
     expect(name(out, 10, 0, 0)).toBe('stone_bricks');
     expect(props(out, 10, 0, 1)?.facing).toBe('east');
+  });
+});
+
+describe('Zielbau 4c: beispiele/zauberturm.tess', () => {
+  const src = readFileSync('beispiele/zauberturm.tess', 'utf8');
+  const out = compileTess(src);
+  const g = out.grid;
+  const lineOf = (start: string) => src.split('\n').findIndex((l) => l.startsWith(start)) + 1;
+  /** Blocks whose origin matches: [x, y, z, name]. */
+  const where = (pred: (o: { line: number; ctx: string }) => boolean) => {
+    const list: [number, number, number, string][] = [];
+    g.forEach((x, y, z, id, info) => {
+      const o = g.origins[info >>> 4];
+      if (o && pred(o)) list.push([x, y, z, g.states[id].name]);
+    });
+    return list;
+  };
+
+  it('übersetzt ohne Fehler und ohne Hinweise', () => clean(out));
+
+  it('Hauptturm: rund mit Bauch in der Mitte, Wendeltreppe außen über zwei Drittel der Höhe', () => {
+    const turm = where((o) => o.line === lineOf('zylinder turm') && !o.ctx);
+    const reach = (y: number) => Math.max(...turm.filter((b) => b[1] === y).map((b) => Math.abs(b[0])));
+    expect(reach(18)).toBe(reach(3) + 2);
+    expect(reach(38)).toBe(reach(3));
+    const stairs = where((o) => o.line === lineOf('wendeltreppe turm aussen'));
+    const top = Math.max(...turm.map((b) => b[1]));
+    expect(Math.max(...stairs.map((b) => b[1]))).toBeGreaterThanOrEqual(Math.floor(((top - 1) * 2) / 3));
+    expect(stairs.some((b) => b[3].endsWith('_stairs'))).toBe(true);
+  });
+
+  it('drei Türmchen aus einem Modul in verschiedenen Höhen und Drehungen, Hexenhut mit Biegung', () => {
+    const calls = src
+      .split('\n')
+      .map((l, i) => [l, i + 1] as const)
+      .filter(([l]) => l.startsWith('baue tuermchen'));
+    expect(calls).toHaveLength(3);
+    const bottoms: number[] = [];
+    const centres: [number, number][] = [[0, -8], [8, 0], [-8, 0]];
+    calls.forEach(([, line], k) => {
+      const blocks = where((o) => o.ctx.startsWith(`in modul tuermchen, gebaut in Zeile ${line}`));
+      expect(blocks.length).toBeGreaterThan(100);
+      bottoms.push(Math.min(...blocks.map((b) => b[1])));
+      // The window of local south faces away from the main tower.
+      const glass = blocks.filter((b) => b[3].includes('glass'));
+      expect(Math.max(...glass.map((b) => Math.hypot(b[0], b[2])))).toBeGreaterThanOrEqual(11);
+      // The tip of the witch hat leans to the side given with knick=, turned with the instance.
+      const roof = blocks.filter((b) => b[3].startsWith('minecraft:dark_prismarine') || b[3].startsWith('minecraft:prismarine'));
+      const topY = Math.max(...roof.map((b) => b[1]));
+      const tip = roof.filter((b) => b[1] === topY);
+      const [cx, cz] = centres[k];
+      const dx = tip.reduce((s, b) => s + b[0], 0) / tip.length - cx;
+      const dz = tip.reduce((s, b) => s + b[2], 0) / tip.length - cz;
+      // knick=w turned by 180 → east; o turned by 270 → north; s turned by 90 → west.
+      if (k === 0) expect(dx).toBeGreaterThan(0.9);
+      if (k === 1) expect(dz).toBeLessThan(-0.9);
+      if (k === 2) expect(dx).toBeLessThan(-0.9);
+    });
+    expect(new Set(bottoms).size).toBe(3);
+    // The third one sits on the oriel: blocks of the oriel right below its lowest layer.
+    const erker = where((o) => o.line === lineOf('erker turm w'));
+    expect(erker.some((b) => b[1] === bottoms[2] - 1)).toBe(true);
+  });
+
+  it('Fassade per ansicht: Rosette aus Treppen und vorstehender Rahmen', () => {
+    const view = where((o) => o.line === lineOf('ansicht turm s'));
+    expect(view.filter((b) => b[3] === 'minecraft:shroomlight')).toHaveLength(1);
+    const stairs = view.filter((b) => b[3].endsWith('_stairs')).map((b) => g.get(b[0], b[1], b[2])!.props);
+    const count = (facing: string, half: string) => stairs.filter((p) => p.facing === facing && p.half === half).length;
+    // Seen from the south: links = west, rechts = east; upper ring upside down.
+    expect([count('west', 'top'), count('east', 'top'), count('west', 'bottom'), count('east', 'bottom')]).toEqual([2, 2, 2, 2]);
+    // The frame stands one block in front of the wall: in front of the glass and with a block behind it.
+    const glassZ = Math.max(...view.filter((b) => b[3].includes('glass')).map((b) => b[2]));
+    const frame = view.filter((b) => b[3] === 'minecraft:polished_deepslate');
+    expect(frame.length).toBe(16);
+    expect(frame.filter((b) => b[2] > glassZ).length).toBeGreaterThanOrEqual(5);
+    for (const [x, y, z] of frame) expect(g.has(x, y, z - 1), `${x},${y},${z}`).toBe(true);
+  });
+
+  it('hat mindestens zwei Bauabschnitte', () => {
+    expect(g.sections.length - 1).toBeGreaterThanOrEqual(2);
+    const used = new Set<number>();
+    g.forEach((_x, _y, _z, _id, info) => used.add(g.origins[info >>> 4].section));
+    expect([...used].filter((s) => s > 0).length).toBeGreaterThanOrEqual(2);
   });
 });

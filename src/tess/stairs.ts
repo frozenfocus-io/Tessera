@@ -82,6 +82,9 @@ export function archCmd(c: Compiler, st: Statement): void {
   const span = hi - lo;
   if (span < 2) throw new TessError(st.line, 'Zwischen den Bogenfüßen muss Platz sein (Abstand mindestens 2).');
   const [loDir, hiDir]: Facing[] = alongX ? ['west', 'east'] : ['north', 'south'];
+  // tiefe= goes to +z (feet along x) or +x (feet along z); in a turned module that is local.
+  const localDepth: [number, number] = c.xf.swaps ? (alongX ? [1, 0] : [0, 1]) : alongX ? [0, 1] : [1, 0];
+  const [ddx, ddz] = c.xf.turns ? c.xf.dir(localDepth[0], localDepth[1]) : alongX ? [0, 1] : [1, 0];
   const low = Array.from({ length: span + 1 }, (_, u) => Math.floor(archEdge(art, span, h, u) + 1e-9));
   for (let u = 0; u <= span; u++) {
     const e = archEdge(art, span, h, u);
@@ -92,8 +95,8 @@ export function archCmd(c: Compiler, st: Statement): void {
     const inner = u * 2 < span ? u + 1 : u * 2 > span ? u - 1 : -1;
     const fill = Math.max(dicke, inner >= 0 ? low[inner] - k0 : 0);
     for (let d = 0; d < tiefe; d++) {
-      const x = alongX ? lo + u : p[0] + d;
-      const z = alongX ? p[2] + d : lo + u;
+      const x = alongX ? lo + u : p[0] + d * ddx;
+      const z = alongX ? p[2] + d * ddz : lo + u;
       for (let k = 0; k < fill; k++) {
         const pos: Vec3 = [x, p[1] + k0 + k, z];
         if (k === 0 && stair) c.place(pos, ref, 'stairs', { facing: u * 2 < span ? loDir : hiDir, half: 'top' }, Part.Plain);

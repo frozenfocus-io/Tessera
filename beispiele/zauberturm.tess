@@ -1,0 +1,91 @@
+# Zielbau Etappe 4c: Zauberturm. Schlanker runder Hauptturm mit Bauch, Wendeltreppe außen über
+# zwei Drittel der Höhe, drei Türmchen aus einem Modul mit Hexenhut (eins auf einem Erker), eine
+# gezeichnete Fassade mit Rosette und vorstehendem Rahmen. Bauabschnitte: Sockel, Hauptturm,
+# Türmchen.
+# Koordinaten: x nach Osten, y nach oben, z nach Süden. Der Boden draußen liegt bei y=-1.
+tess 2
+projekt "Zauberturm"
+samen 4
+
+rolle stein stone_bricks:5 mossy_stone_bricks:2 cracked_stone_bricks:2 andesite:1 muster=flecken:3
+rolle sockel cobblestone:3 mossy_cobblestone:2 andesite:1 muster=flecken:2
+rolle zier polished_deepslate
+rolle putz calcite:5 diorite:1 muster=flecken:2
+rolle holz dark_oak_planks
+rolle rahmen dark_oak_planks
+rolle balken dark_oak_log
+rolle dach dark_prismarine:4 prismarine_bricks:1 muster=flecken:3
+rolle glas purple_stained_glass_pane
+rolle tuer dark_oak_door
+rolle laden dark_oak_trapdoor
+
+wert r=4        # Radius des Hauptturms (unten und oben), in der Mitte zwei Blöcke Bauch
+wert h=40       # Höhe des Schafts
+
+# ---- Türmchen: rundes Obergeschoss auf Konsolen, Hexenhut mit Glockenprofil und Biegung.
+#      Der Hauptturm liegt im Modul im Norden (−z); das Türmchen steckt einen Block in seiner Wand.
+modul tuermchen hoehe=6 wand=putz knick=o
+  zylinder t 0,0,0 r=3 h={hoehe} wand hohl sockel=zier profil=0:-1,2:0 konsolen=zier
+  fenster t s ebene=2 b=1 h=2 rahmen=holz bank=nein
+  fenster t o ebene=3 b=1 h=1 rahmen=holz bank=nein
+  fenster t w ebene=3 b=1 h=1 rahmen=holz bank=nein
+  dach helm t profil=glocke ueberstand=1 biegung=knick:2
+ende
+
+abschnitt "Sockel"
+# Felsiger Sockel mit Stufen zur Tür
+zylinder fels 0,-1,0 r={r+3} h=2 sockel
+treppe -1,0,8 richtung=n laenge=1 zier breite=3
+
+abschnitt "Hauptturm"
+# Schaft: unten r, ab Lage 6 langsam bis Lage 14 zwei Blöcke Bauch, ab Lage 27 bis 35 wieder r
+zylinder turm 0,1,0 r={r} h={h} stein hohl sockel=sockel:2 boden=holz \
+         profil=0:0,6:0~,14:2,27:2~,35:0
+# Obergeschoss: einen Block vorgekragt auf Konsolen, darauf Schürze und Glockenhelm
+zylinder kranz 0,{h-1},0 r={r} h=2 zier hohl profil=0:0,1:1 konsolen=zier
+zylinder og 0,{h+1},0 r={r+1} h=6 putz hohl boden=holz
+kranzdach og y={og.y0} breite=1
+dach helm og profil=glocke ueberstand=2 biegung=nw:2 spitze=end_rod
+
+# Wendeltreppe außen über zwei Drittel der Höhe, mit Geländer und Konsolen
+wendeltreppe turm aussen bis=27 holz y=1 start=s richtung=rechts gelaender=balken konsolen=zier
+
+# Tür im Süden und gezeichnete Fassade darüber: Rosette aus Treppen, Rahmen steht vor
+tür turm s y=1 rahmen=holz
+zeichen R zier tiefe=1
+zeichen r zier
+zeichen ( zier:treppe facing=links half=top
+zeichen ) zier:treppe facing=rechts half=top
+zeichen [ zier:treppe facing=links
+zeichen ] zier:treppe facing=rechts
+zeichen G glas
+zeichen L shroomlight
+ansicht turm s y=31
+|  RRR
+| R(G)R
+|R(GGG)R
+|RGGLGGR
+|R[GGG]R
+| R[G]R
+|  RRR
+
+# Fenster mit Läden entlang der Treppe, oben im Obergeschoss rundum
+fenster turm w y=13 b=1 h=2 rahmen=holz bank=nein
+fenster turm n y=8 b=1 h=2 rahmen=holz laeden=laden
+fenster turm o y=17 b=1 h=2 rahmen=holz bank=nein
+fenster og s y={h+3} b=3 h=2 rahmen=holz bank=nein
+fenster og n y={h+3} b=3 h=2 rahmen=holz bank=nein
+fenster og o y={h+3} b=1 h=2 rahmen=holz bank=nein
+fenster og w y={h+3} b=1 h=2 rahmen=holz bank=nein
+
+# Erker-Geschoss im Westen, darauf das dritte Türmchen
+erker turm w y=30 b=7 h=3 art=halbrund putz dach=nein konsolen=zier stufen=3 name=erker
+
+abschnitt "Türmchen"
+baue tuermchen 0,13,-8 drehung=180 hoehe=6 knick=w
+baue tuermchen 8,22,0 drehung=270 hoehe=5
+baue tuermchen {erker.mx},{erker.y1+1},0 drehung=90 hoehe=6 wand=stein knick=s
+
+# Efeu am Sockel
+abschnitt "Hauptturm"
+efeu turm bis=6 dichte=0.15 laenge=3
