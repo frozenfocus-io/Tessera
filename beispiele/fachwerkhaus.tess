@@ -62,6 +62,15 @@ fenster querog n y=14 b=1 h=2 bank=nein sturz=nein
 gaube og s x=17 laeden=laden
 gaube og n x=3 laeden=laden
 
+# Hinter dem Erkerhelm läuft die Dachfläche weiter, die Traufe endet im Westen gerade. Die
+# Dachmaschine rechnet die gespiegelte Hälfte des Erkerdachs mit und ließe hier Löcher
+# (docs/future-fixes.md, Nr. 9).
+linie 0,14,10 6,14,10 dach:treppe
+linie 0,15,9 6,15,9 dach:treppe
+linie 1,16,8 5,16,8 dach:treppe
+block -1,13,11 dach:treppe
+block -1,13,10 deepslate_tile_stairs[facing=o,half=top]
+
 # Schornstein am Westgiebel: breiter Steinfuß mit Schultern, schlanker Ziegelzug durch den
 # Ortgang bis über den First, oben ein Kragen
 box kaminfuss -3,-1,2 -1,4,5 sockel

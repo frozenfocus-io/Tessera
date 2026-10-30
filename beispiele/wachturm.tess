@@ -26,18 +26,24 @@ box fluegel 9,0,3 13,4,10 putz hohl sockel=sockel fachwerk=balken raster=3 boden
 dach sattel haus first=x
 dach krueppelwalm fluegel first=z
 
-# ---- Turm: achteckig, unten zwei breiter und bis Lage 8 verjüngt, ab Lage 18 einen Block
+# ---- Turm: achteckig, unten zwei breiter und bis Lage 12 verjüngt, ab Lage 18 einen Block
 #      vorgekragt mit Konsolen
 vieleck turm 0,0,0 n=8 r={r} h=24 stein hohl sockel=sockel:2 ecken=eckstein \
-        profil=0:2,3:2~,8:0,18:1 konsolen=zier boden=holz
+        profil=0:2,3:2~,12:0,18:1 konsolen=zier boden=holz
 gesims turm y=1 zier seiten=n,w,s
+# Absatz der Verjüngung über Lage 5: Die Schrägen rücken dort um zwei Zellen ein, die Wand der
+# Stärke 1 ließe auf dem Absatz Zellen zum Inneren offen (docs/future-fixes.md, Nr. 24).
+linie 3,5,-6 5,5,-4 stein
+linie -3,5,-6 -6,5,-3 stein
+linie -6,5,3 -3,5,6 stein
+linie 3,5,6 5,5,4 stein
 
 # Obergeschoss in Fachwerk (Lage 18 bis 23) auf der Vorkragung
 vieleck og 0,18,0 n=8 r={r+1} h=6 putz hohl fachwerk=balken riegel=1 muster=strebe ringbalken=ja boden=holz
 
 # Gestaffelter Helm: Schürze am Fuß des Obergeschosses, darüber der Glockenhelm mit Spitze
 kranzdach og y={og.y0} breite=2
-dach helm og profil=glocke ueberstand=2 spitze=lightning_rod
+dach helm og profil=glocke ueberstand=1 spitze=lightning_rod
 
 # Umgang unter dem Obergeschoss (unter den Konsolen zwei Blöcke Kopfhöhe): Geländer, Stützen
 # bis unter die Schürze, Streben zur Wand
@@ -49,13 +55,13 @@ haengelaterne -7,18,0
 
 # Tür mit Laternen, Rundbogenfenster in mehreren Höhen
 tür turm s rahmen=holz
-block 0,0,7 zier:treppe
+block 0,0,8 zier:treppe
 wandlaterne turm s y=3 versatz=-2 arm=holz
 wandlaterne turm s y=3 versatz=2 arm=holz
 fenster turm w y=3 rahmen=holz
-fenster turm n y=9 b=2 h=3 art=bogen rahmen=holz
+fenster turm n y=7 b=2 h=3 art=bogen rahmen=holz
 fenster turm o y=11 b=2 h=3 art=bogen rahmen=holz
-fenster turm s y=9 b=2 h=3 art=bogen rahmen=holz laeden=laden
+fenster turm s y=7 b=2 h=3 art=bogen rahmen=holz laeden=laden
 banner turm n y=13 farbe=rot
 banner turm s y=13 farbe=rot
 
