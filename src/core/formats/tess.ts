@@ -1,4 +1,4 @@
-import { compileTess } from '../../tess/compile';
+import { compileTess, type PlanMeta } from '../../tess/compile';
 import { infoOrigin } from '../../tess/grid';
 import type { BlockHints } from '../../tess/palette';
 import { diagLabel, type Diagnostic } from '../../tess/syntax';
@@ -50,6 +50,8 @@ export interface PlanOrigins {
 export interface TessResult extends FormatResult {
   diagnostics: Diagnostic[];
   origins: PlanOrigins;
+  /** Version 2: roles and ausrichtung for editing in the app. */
+  plan?: PlanMeta;
 }
 
 /** "Zeile 57: dach helm turm profil=glocke …", shortened to `max` characters; with modules the call chain. */
@@ -118,5 +120,6 @@ export function parseTess(bytes: Uint8Array, hints?: BlockHints): TessResult {
     },
     diagnostics: out.diagnostics,
     origins: { ids, table, sections: [...grid.sections] },
+    plan: out.plan,
   };
 }

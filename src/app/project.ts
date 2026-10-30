@@ -4,7 +4,7 @@ import { itemName } from '../catalog/runtime';
 import type { Catalog } from '../catalog/types';
 import type { OriginEntry } from '../core/formats/tess';
 import type { ImportResult } from '../core/importFile';
-import type { Bounds } from '../core/volume';
+import { analyzeVolume, type Bounds, type VolumeAnalysis } from '../core/volume';
 import { MaterialIndex } from '../materials/materialList';
 import type { OutlineInfo, ProjectScene, SceneStats } from '../render/ProjectScene';
 import type { CameraState } from '../render/Viewer';
@@ -26,6 +26,21 @@ export interface PersistedState {
   recipeChoice?: Record<string, string>;
   /** Material list or raw materials. */
   materialView?: 'blocks' | 'raw';
+  /** Building plans: chosen Bauabschnitt by name ('' = whole building). */
+  section?: string;
+  /** Finished layers per Bauabschnitt (by name). */
+  sectionDone?: Record<string, number[]>;
+}
+
+/** What layers, materials and progress refer to: the whole building or one Bauabschnitt. */
+export interface Scope {
+  section: number;
+  analysis: VolumeAnalysis;
+  materials: MaterialIndex;
+  minLayer: number;
+  maxLayer: number;
+  /** Per cell (volume order): 1 inside the section; null for the whole building. */
+  mask: Uint8Array | null;
 }
 
 export interface HoverInfo {
@@ -60,12 +75,15 @@ export class Project {
   readonly source: Uint8Array;
   readonly data: ImportResult;
   readonly model: BlockModel;
-  readonly materials: MaterialIndex;
   readonly bounds: Bounds | null;
-  /** Lowest and highest non-empty layer (schematic y, inclusive). */
-  readonly minLayer: number;
-  readonly maxLayer: number;
   readonly unknownBlocks: UnknownBlock[];
+  /** A version opened from the version store: nothing can be edited or saved. */
+  readonly readOnly: boolean;
+  /** Building plans: the Bauabschnitt that layers, materials and progress refer to (0 = all). */
+  readonly section = signal(0);
+  private readonly scopes = new Map<number, Scope>();
+  /** Finished layers of the other Bauabschnitte (the current one is `done`). */
+  private readonly doneOf = new Map<number, ReadonlySet<number>>();
 
   readonly layer = signal(0);
   readonly viewMode = signal<ViewMode>('all');
@@ -107,6 +125,7 @@ export class Project {
     source: Uint8Array;
     data: ImportResult;
     catalog?: Catalog | null;
+    readOnly?: boolean;
   }) {
     this.id = opts.id ?? newId();
     this.name = opts.name;
@@ -115,12 +134,9 @@ export class Project {
     this.source = opts.source;
     this.data = opts.data;
     this.catalog = opts.catalog ?? null;
+    this.readOnly = opts.readOnly ?? false;
     this.model = buildBlockModel(opts.data.volume.palette, this.catalog);
-    const catalog = this.catalog;
-    this.materials = new MaterialIndex(this.model.entries, opts.data.analysis.layerHist, opts.data.volume.sizeY, (item) => itemName(catalog, item));
     this.bounds = opts.data.analysis.bounds;
-    this.minLayer = this.bounds ? this.bounds.minY : 0;
-    this.maxLayer = this.bounds ? this.bounds.maxY - 1 : 0;
     this.layer.value = this.minLayer;
 
     const totals = opts.data.analysis.paletteTotals;
@@ -137,6 +153,83 @@ export class Project {
   /** A building plan (.tess) rather than an imported schematic. */
   get isPlan(): boolean {
     return this.data.format === 'tess';
+  }
+
+  /** Names of the Bauabschnitte (index 0 = the whole building). */
+  get sections(): readonly string[] {
+    return this.data.origins?.sections ?? [''];
+  }
+
+  /** Layers, materials and progress of the chosen Bauabschnitt (or the whole building). */
+  get scope(): Scope {
+    const s = this.section.value;
+    let sc = this.scopes.get(s);
+    if (!sc) {
+      sc = this.makeScope(s);
+      this.scopes.set(s, sc);
+    }
+    return sc;
+  }
+
+  private makeScope(s: number): Scope {
+    const v = this.data.volume;
+    let analysis = this.data.analysis;
+    let mask: Uint8Array | null = null;
+    const o = this.data.origins;
+    if (s > 0 && o) {
+      mask = new Uint8Array(v.data.length);
+      const inSection = o.table.map((e) => e.section === s);
+      const data = new Uint16Array(v.data.length) as typeof v.data;
+      for (let i = 0; i < v.data.length; i++) {
+        if (v.data[i] && inSection[o.ids[i]]) {
+          mask[i] = 1;
+          data[i] = v.data[i];
+        }
+      }
+      analysis = analyzeVolume({ ...v, data });
+    }
+    const catalog = this.catalog;
+    const materials = new MaterialIndex(this.model.entries, analysis.layerHist, v.sizeY, (item) => itemName(catalog, item));
+    const b = analysis.bounds;
+    return { section: s, analysis, materials, minLayer: b ? b.minY : 0, maxLayer: b ? b.maxY - 1 : 0, mask };
+  }
+
+  get materials(): MaterialIndex {
+    return this.scope.materials;
+  }
+
+  /** Lowest and highest non-empty layer of the scope (schematic y, inclusive). */
+  get minLayer(): number {
+    return this.scope.minLayer;
+  }
+
+  get maxLayer(): number {
+    return this.scope.maxLayer;
+  }
+
+  /** Blocks per layer and in all of the scope. */
+  get layerCounts(): Uint32Array {
+    return this.scope.analysis.layerCounts;
+  }
+
+  get blockTotal(): number {
+    return this.scope.analysis.nonAir;
+  }
+
+  /** "Nordturm" or null for the whole building. */
+  get sectionName(): string | null {
+    const s = this.section.value;
+    return s > 0 ? (this.sections[s] ?? null) : null;
+  }
+
+  /** Switches the Bauabschnitt; layer and progress follow it. */
+  setSection(s: number): void {
+    if (s === this.section.value || s < 0 || s >= this.sections.length) return;
+    this.doneOf.set(this.section.value, this.done.value);
+    this.section.value = s;
+    this.done.value = this.doneOf.get(s) ?? new Set();
+    this.layer.value = this.clampLayer(this.layer.value);
+    this.touch();
   }
 
   get layerCount(): number {
@@ -211,9 +304,9 @@ export class Project {
     this.markedLine.value = line === null || this.markedLine.value === line ? null : line;
   }
 
-  /** Blocks per type id over the whole project. */
+  /** Blocks per type id over the scope. */
   typeCount(typeId: number): number {
-    const totals = this.data.analysis.paletteTotals;
+    const totals = this.scope.analysis.paletteTotals;
     let n = 0;
     this.model.entries.forEach((e, i) => {
       if (e.typeId === typeId) n += totals[i];
@@ -223,7 +316,7 @@ export class Project {
 
   /** Blocks of a type in one layer. */
   typeCountInLayer(typeId: number, y: number): number {
-    const { offsets, pairs } = this.data.analysis.layerHist;
+    const { offsets, pairs } = this.scope.analysis.layerHist;
     let n = 0;
     for (let i = offsets[y]; i < offsets[y + 1]; i++) if (this.model.table.typeId[pairs[i * 2]] === typeId) n += pairs[i * 2 + 1];
     return n;
@@ -232,7 +325,7 @@ export class Project {
   /** Placed blocks in finished layers. */
   doneBlocks(): number {
     let n = 0;
-    for (const y of this.done.value) n += this.data.analysis.layerCounts[y] ?? 0;
+    for (const y of this.done.value) n += this.layerCounts[y] ?? 0;
     return n;
   }
 
@@ -240,13 +333,22 @@ export class Project {
     return {
       layer: this.layer.value,
       viewMode: this.viewMode.value,
-      done: [...this.done.value].sort((a, b) => a - b),
+      done: [...(this.section.value > 0 ? (this.doneOf.get(0) ?? new Set<number>()) : this.done.value)].sort((a, b) => a - b),
       materialMode: this.materialMode.value,
       camera: this.camera,
       pinned: this.pinned.value,
       recipeChoice: { ...this.recipeChoice.value },
       materialView: this.materialView.value,
+      ...(this.sections.length > 1 ? { section: this.sectionName ?? '', sectionDone: this.sectionDoneByName() } : {}),
     };
+  }
+
+  private sectionDoneByName(): Record<string, number[]> {
+    const out: Record<string, number[]> = {};
+    const all = new Map(this.doneOf);
+    all.set(this.section.value, this.done.value);
+    for (const [s, set] of all) if (s > 0 && set.size && this.sections[s]) out[this.sections[s]] = [...set].sort((a, b) => a - b);
+    return out;
   }
 
   restore(s: Partial<PersistedState>): void {
@@ -264,6 +366,21 @@ export class Project {
       this.recipeChoice.value = clean;
     }
     if (s.materialView === 'blocks' || s.materialView === 'raw') this.materialView.value = s.materialView;
+    if (s.sectionDone && typeof s.sectionDone === 'object') {
+      for (const [name, list] of Object.entries(s.sectionDone)) {
+        const i = this.sections.indexOf(name);
+        if (i > 0 && Array.isArray(list)) this.doneOf.set(i, new Set(list.filter((y) => typeof y === 'number')));
+      }
+    }
+    if (typeof s.section === 'string' && s.section) {
+      const i = this.sections.indexOf(s.section);
+      if (i > 0) {
+        this.doneOf.set(0, this.done.value);
+        this.section.value = i;
+        this.done.value = this.doneOf.get(i) ?? new Set();
+        if (typeof s.layer === 'number') this.layer.value = this.clampLayer(s.layer);
+      }
+    }
   }
 
   touch(): void {

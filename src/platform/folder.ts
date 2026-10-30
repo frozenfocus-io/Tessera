@@ -1,6 +1,7 @@
 import { signal } from '@preact/signals';
 import { log } from '../debug/log';
 import { loadFolderHandle, saveFolderHandle } from '../app/persistence';
+import type { VersionBackend } from '../app/editCore';
 
 /**
  * The project folder on disk (File System Access API). The person picks a folder once, e.g.
@@ -189,3 +190,53 @@ export function tessFileName(name: string): string {
   const base = name.replace(/\.tess$/i, '').replace(/[\\/:*?"<>|]+/g, '_').trim().slice(0, 80) || 'bauplan';
   return `${base}${TESS_EXT}`;
 }
+
+// ---- versions (projekte/.versionen/<name>/…)
+
+export const VERSIONS_DIR = '.versionen';
+
+async function versionFolder(dir: string, create: boolean): Promise<FileSystemDirectoryHandle | null> {
+  if (!projectsDir) return null;
+  try {
+    const all = await projectsDir.getDirectoryHandle(VERSIONS_DIR, { create });
+    return await all.getDirectoryHandle(dir, { create });
+  } catch (e) {
+    const n = (e as { name?: string } | null)?.name;
+    if (n === 'NotFoundError' || n === 'TypeError') return null;
+    if (n === 'NotAllowedError' || n === 'SecurityError') lost(e);
+    throw e;
+  }
+}
+
+/** Versions of plans in the project folder. */
+export const folderVersions: VersionBackend = {
+  async list(dir) {
+    const d = await versionFolder(dir, false);
+    if (!d) return [];
+    const out: string[] = [];
+    for await (const entry of (d as IterableDirectory).values()) if (entry.kind === 'file') out.push(entry.name);
+    return out;
+  },
+  async write(dir, name, bytes) {
+    const d = await versionFolder(dir, true);
+    if (!d) throw new Error('Kein Projektordner');
+    const h = await d.getFileHandle(name, { create: true });
+    const w = await h.createWritable();
+    await w.write(bytes as BlobPart);
+    await w.close();
+  },
+  async read(dir, name) {
+    const d = await versionFolder(dir, false);
+    if (!d) return null;
+    try {
+      const f = await (await d.getFileHandle(name)).getFile();
+      return new Uint8Array(await f.arrayBuffer());
+    } catch {
+      return null;
+    }
+  },
+  async remove(dir, name) {
+    const d = await versionFolder(dir, false);
+    if (d) await d.removeEntry(name);
+  },
+};

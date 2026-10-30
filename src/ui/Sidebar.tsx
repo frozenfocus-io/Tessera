@@ -11,6 +11,7 @@ import { RawMaterials } from './RawMaterials';
 import { PerfLine } from './Viewport';
 import { bytes, css, num } from './format';
 import { diagLabel } from '../tess/syntax';
+import { PlanEditPanel, SectionPicker } from './PlanEdit';
 
 export function Sidebar() {
   const p = activeProject.value;
@@ -25,6 +26,7 @@ export function Sidebar() {
   return (
     <aside class="sidebar" aria-label="Projekt">
       <ProjectInfo project={p} />
+      <PlanEditPanel project={p} />
       <LayerPanel project={p} />
       <MaterialPanel project={p} />
     </aside>
@@ -48,7 +50,7 @@ function Sheet({ project: p }: { project: Project }) {
   const expanded = side || sheetExpanded.value;
   const tab = sheetTab.value;
   const swipe = useRef<{ y: number; moved: boolean } | null>(null);
-  const progress = p.data.analysis.nonAir ? (p.doneBlocks() / p.data.analysis.nonAir) * 100 : 0;
+  const progress = p.blockTotal ? (p.doneBlocks() / p.blockTotal) * 100 : 0;
   return (
     <aside
       class={`sheet${expanded ? ' is-expanded' : ''}${side ? ' is-side' : ''}`}
@@ -132,13 +134,15 @@ function LayerStrip({ project: p }: { project: Project }) {
   const isDone = done.has(layer);
   const total = p.layerCount;
   const doneCount = [...done].filter((y) => y >= p.minLayer && y <= p.maxLayer).length;
-  const inLayer = p.data.analysis.layerCounts[layer] ?? 0;
+  const inLayer = p.layerCounts[layer] ?? 0;
   return (
     <section class="layer-strip" aria-label="Ebene">
       <div class="strip-row">
         <div class="strip-text">
           <div>
-            <span class="layer-big">Ebene {p.displayLayer(layer)}</span>
+            <span class="layer-big">
+              {p.sectionName ? `${p.sectionName}, ` : ''}Ebene {p.displayLayer(layer)}
+            </span>
             <span class="muted"> von {num(total)}</span>
           </div>
           <div class="strip-sub">
@@ -328,8 +332,8 @@ function LayerPanel({ project: p }: { project: Project }) {
   const total = p.layerCount;
   const doneCount = [...done].filter((y) => y >= p.minLayer && y <= p.maxLayer).length;
   const blocksDone = p.doneBlocks();
-  const blocksAll = p.data.analysis.nonAir;
-  const inLayer = p.data.analysis.layerCounts[layer] ?? 0;
+  const blocksAll = p.blockTotal;
+  const inLayer = p.layerCounts[layer] ?? 0;
   return (
     <section class="panel">
       <div class="panel-head">
@@ -349,9 +353,12 @@ function LayerPanel({ project: p }: { project: Project }) {
           ))}
         </div>
       </div>
+      <SectionPicker project={p} />
       <div class="layer-now">
         <div>
-          <span class="layer-big">Ebene {p.displayLayer(layer)}</span>
+          <span class="layer-big">
+            {p.sectionName ? `${p.sectionName}, ` : ''}Ebene {p.displayLayer(layer)}
+          </span>
           <span class="muted"> von {num(total)}</span>
         </div>
         <div class="muted">{num(inLayer)} Blöcke in dieser Ebene</div>

@@ -31,6 +31,7 @@ void main() {
 const fragmentShader = /* glsl */ `
 precision highp float;
 precision highp int;
+precision highp sampler3D;
 
 uniform float uLayer;
 uniform int uMode;
@@ -41,6 +42,8 @@ uniform float uDimOthers;
 uniform sampler2D uTypeMask;
 uniform sampler2D uLayerMask;
 uniform vec3 uHighlightColor;
+uniform sampler3D uSection;
+uniform int uSectionOn;
 
 in vec3 vWorld;
 in vec3 vColor;
@@ -86,6 +89,12 @@ void main() {
     col *= 1.0 - line * uGrid * fade;
   }
 
+  // Bauabschnitte: blocks of other sections appear grey.
+  if (uSectionOn == 1 && texelFetch(uSection, ivec3(int(cell.x), int(cell.z), int(cell.y)), 0).r < 0.5) {
+    float l = dot(col, vec3(0.299, 0.587, 0.114));
+    col = vec3(0.30, 0.32, 0.35) + l * 0.25;
+  }
+
   vec4 tm = texelFetch(uTypeMask, ivec2(vType % ${MASK_WIDTH}, vType / ${MASK_WIDTH}), 0);
 
   // Unknown / modded blocks: diagonal red stripes.
@@ -126,8 +135,13 @@ export interface BlockMaterials {
   setDimOthers(v: number): void;
   setMarkUnknown(on: boolean): void;
   setGrid(strength: number): void;
+  /** Bauabschnitt: per cell 1 inside (volume order x fastest, then z, then y); null = all. */
+  setSection(mask: Uint8Array | null, sizeX: number, sizeY: number, sizeZ: number): void;
   dispose(): void;
 }
+
+/** Largest 3D texture side every WebGL 2 device supports beyond the minimum; larger plans stay coloured. */
+const MAX_3D = 2048;
 
 function makeMask(count: number): THREE.DataTexture {
   const height = Math.max(1, Math.ceil(Math.max(1, count) / MASK_WIDTH));
@@ -140,10 +154,25 @@ function makeMask(count: number): THREE.DataTexture {
   return tex;
 }
 
+function make3D(data: Uint8Array, w: number, h: number, d: number): THREE.Data3DTexture {
+  // 0/1 per cell; the shader compares with 0.5, so scale to the full byte range.
+  const bytes = data.length === 1 ? data : data.map((v) => (v ? 255 : 0));
+  const tex = new THREE.Data3DTexture(bytes, w, h, d);
+  tex.format = THREE.RedFormat;
+  tex.type = THREE.UnsignedByteType;
+  tex.magFilter = THREE.NearestFilter;
+  tex.minFilter = THREE.NearestFilter;
+  tex.unpackAlignment = 1;
+  tex.generateMipmaps = false;
+  tex.needsUpdate = true;
+  return tex;
+}
+
 /** Materials for one project (uniforms are per project, so projects stay independent). */
 export function createBlockMaterials(typeCount: number, layerCount: number): BlockMaterials {
   const typeMask = makeMask(typeCount);
   const layerMask = makeMask(layerCount);
+  let sectionTex = make3D(new Uint8Array([255]), 1, 1, 1);
   const uniforms = () => ({
     uLayer: { value: 0 },
     uMode: { value: MODE_ALL },
@@ -154,6 +183,8 @@ export function createBlockMaterials(typeCount: number, layerCount: number): Blo
     uTypeMask: { value: typeMask },
     uLayerMask: { value: layerMask },
     uHighlightColor: { value: new THREE.Color(0xffd23f) },
+    uSection: { value: sectionTex },
+    uSectionOn: { value: 0 },
   });
   // Three compiles ShaderMaterials as GLSL ES 3.00, so flat varyings and texelFetch are available
   // and gl_FragColor is mapped to the output (no explicit glslVersion needed).
@@ -206,7 +237,17 @@ export function createBlockMaterials(typeCount: number, layerCount: number): Blo
     setGrid(strength) {
       for (const m of both) m.uniforms.uGrid.value = strength;
     },
+    setSection(mask, sizeX, sizeY, sizeZ) {
+      const on = !!mask && sizeX <= MAX_3D && sizeY <= MAX_3D && sizeZ <= MAX_3D;
+      sectionTex.dispose();
+      sectionTex = on ? make3D(mask!, sizeX, sizeZ, sizeY) : make3D(new Uint8Array([255]), 1, 1, 1);
+      for (const m of both) {
+        m.uniforms.uSection.value = sectionTex;
+        m.uniforms.uSectionOn.value = on ? 1 : 0;
+      }
+    },
     dispose() {
+      sectionTex.dispose();
       opaque.dispose();
       translucent.dispose();
       typeMask.dispose();

@@ -11,7 +11,7 @@ import { num } from './format';
 export function LayerRail({ project: p }: { project: Project }) {
   const trackRef = useRef<HTMLDivElement>(null);
   const dragging = useRef(false);
-  const counts = p.data.analysis.layerCounts;
+  const counts = p.layerCounts;
   const n = p.layerCount;
   const max = useMemo(() => {
     let m = 1;

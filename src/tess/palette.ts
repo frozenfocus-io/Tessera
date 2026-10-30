@@ -106,6 +106,8 @@ export interface BlockHints {
 interface Variant {
   id: string;
   weight: number;
+  /** As written (`stone_bricks:6`), for rewriting the line in the app. */
+  text?: string;
 }
 
 export type Pattern = { kind: 'einzeln' } | { kind: 'flecken'; n: number } | { kind: 'lagen'; n: number };
@@ -113,6 +115,8 @@ export type Pattern = { kind: 'einzeln' } | { kind: 'flecken'; n: number } | { k
 export interface Role {
   name: string;
   line: number;
+  /** Last line of the `rolle` statement (continuation lines). */
+  lastLine?: number;
   variants: Variant[];
   overrides: Partial<Record<Member, string>>;
   pattern: Pattern;
@@ -334,7 +338,7 @@ export class Palette {
     const name = asciiKey(nameTok.text);
     if (!/^[a-z_][a-z0-9_]*$/.test(name)) throw new TessError(st.line, `„${nameTok.text}“ ist kein gültiger Rollenname (Buchstaben, Ziffern, Unterstrich).`);
     if (this.roles.has(name)) throw new TessError(st.line, `Die Rolle „${name}“ gibt es schon (Zeile ${this.roles.get(name)!.line}).`);
-    const role: Role = { name, line: st.line, variants: [], overrides: {}, pattern: { kind: 'einzeln' }, salt: stringHash(name) };
+    const role: Role = { name, line: st.line, lastLine: st.lastLine ?? st.line, variants: [], overrides: {}, pattern: { kind: 'einzeln' }, salt: stringHash(name) };
     const keys = this.version === 1 ? V1_MEMBER_KEYS : MEMBER_KEYS;
     for (const t of rest) {
       if (t.kind === 'pair') {
@@ -360,7 +364,7 @@ export class Palette {
       const m = /^(.+):(\d+)$/.exec(t.text);
       const [id, weight] = m ? [m[1], parseInt(m[2], 10)] : [t.text, 1];
       if (!(weight > 0)) throw new TessError(st.line, `„${t.text}“: Das Gewicht muss größer als 0 sein.`);
-      role.variants.push({ id: normalizeName(id), weight });
+      role.variants.push({ id: normalizeName(id), weight, text: t.text });
     }
     if (role.variants.length === 0) throw new TessError(st.line, `Die Rolle „${name}“ hat keinen Block.`);
     this.roles.set(name, role);

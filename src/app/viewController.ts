@@ -69,6 +69,10 @@ function ensureScene(p: Project): ProjectScene {
       scene.setDoneLayers(p.done.value);
     }),
     effect(() => {
+      void p.section.value;
+      scene.setSection(p.scope.mask);
+    }),
+    effect(() => {
       scene.setMarkUnknown(markUnknown.value);
     }),
     effect(() => {

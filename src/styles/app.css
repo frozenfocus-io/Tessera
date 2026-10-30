@@ -1764,3 +1764,148 @@ fieldset.choice input {
   color: var(--prismarine);
   font-weight: 600;
 }
+
+/* ---- Etappe 4c: Bauabschnitte und Bearbeiten ---- */
+.section-pick {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 10px;
+  font-size: 13px;
+}
+.section-pick select,
+.block-pick input,
+.state-edit select,
+.state-edit input {
+  min-width: 0;
+  padding: 4px 6px;
+  border: 1px solid var(--mortar);
+  border-radius: var(--r-s);
+  background: var(--night);
+  color: var(--limestone);
+  font: inherit;
+  font-size: 13px;
+}
+.section-pick select {
+  flex: 1;
+}
+.edit-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  margin-bottom: 8px;
+  font-size: 13px;
+}
+.edit-row .btn {
+  padding: 4px 9px;
+  font-size: 13px;
+}
+.edit-help {
+  margin: 0 0 8px;
+  font-size: 12.5px;
+}
+.roles-title {
+  margin: 12px 0 6px;
+  font-size: 13px;
+  color: var(--limestone-2);
+  font-weight: 600;
+}
+.roles-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 4px;
+}
+.roles-list li {
+  display: grid;
+  grid-template-columns: 84px 1fr;
+  gap: 6px;
+  align-items: start;
+  font-size: 13px;
+}
+.role-name {
+  padding-top: 3px;
+  color: var(--prismarine-hi);
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.role-sorts {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+.role-sort {
+  padding: 2px 7px;
+  border: 1px solid var(--mortar);
+  border-radius: var(--r-s);
+  background: var(--slate-2);
+  color: var(--limestone);
+  font: inherit;
+  font-size: 12.5px;
+  cursor: pointer;
+}
+.role-sort:hover {
+  border-color: var(--prismarine);
+}
+.block-pick {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  width: 100%;
+}
+.block-pick input {
+  flex: 1 1 160px;
+}
+.edit-menu {
+  position: fixed;
+  z-index: 40;
+  width: 290px;
+  padding: 10px;
+  border: 1px solid var(--float-line);
+  border-radius: var(--r-m);
+  background: var(--slate);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.45);
+  font-size: 13px;
+}
+.edit-menu-head {
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+.edit-menu-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+.state-edit {
+  display: grid;
+  gap: 6px;
+}
+.state-edit label {
+  display: grid;
+  grid-template-columns: 90px 1fr;
+  align-items: center;
+  gap: 6px;
+}
+.version-list {
+  list-style: none;
+  margin: 8px 0;
+  padding: 0;
+  display: grid;
+  gap: 4px;
+}
+.version-list li {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 4px 0;
+  border-bottom: 1px solid var(--mortar);
+}
+.version-actions {
+  display: flex;
+  gap: 6px;
+}

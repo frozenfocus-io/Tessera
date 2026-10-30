@@ -14,6 +14,7 @@ import {
 import { saveFile } from '../platform/save';
 import { openBytes, parseFile, persistWorkspace, storedOf } from './importer';
 import { saveProjectSource, saveProjectState, type FileLink } from './persistence';
+import { keepVersion, selfWrites } from './planEdit';
 import { Project } from './project';
 import { getViewer, releaseProject } from './viewController';
 import { activeId, catalog, projects, showToast } from './workspace';
@@ -28,7 +29,7 @@ import { activeId, catalog, projects, showToast } from './workspace';
 const same = (a: FileStamp, b: FileStamp): boolean => a.size === b.size && a.lastModified === b.lastModified;
 
 /** Swaps a project for a freshly built one in the same tab, keeping its view and progress. */
-function replaceProject(p: Project, bytes: Uint8Array, data: Project['data'], link: FileLink | null): Project {
+export function replaceProject(p: Project, bytes: Uint8Array, data: Project['data'], link: FileLink | null): Project {
   const state = p.persisted();
   const viewer = getViewer();
   if (p.id === activeId.value && viewer) state.camera = viewer.getCameraState();
@@ -88,7 +89,7 @@ export async function openFromFolder(name: string): Promise<void> {
 
 /** Saves a plan into the project folder and links the tab to the file. */
 export async function saveToFolder(p: Project): Promise<void> {
-  if (!p.isPlan) return;
+  if (!p.isPlan || p.readOnly) return;
   const name = p.link.value?.name ?? tessFileName(p.fileName);
   if (folderStatus.value === 'unsupported') {
     const outcome = await saveFile(new Blob([p.source as BlobPart], { type: 'text/plain' }), name);
@@ -124,7 +125,7 @@ export async function checkLinkedFiles(): Promise<void> {
   try {
     for (const p of projects.value) {
       const link = p.link.value;
-      if (!link) continue;
+      if (!link || selfWrites.has(link.name)) continue;
       let stamp: FileStamp | null;
       try {
         stamp = await fileStamp(link.name);
@@ -144,7 +145,9 @@ export async function checkLinkedFiles(): Promise<void> {
       const issue = p.fileIssue.value;
       if (issue && same(issue.stamp, stamp)) continue;
       const file = await readProjectFile(link.name);
-      if (!file) continue;
+      if (!file || selfWrites.has(link.name)) continue;
+      // Before a change from outside is taken over, the text the tab shows is kept as a version.
+      await keepVersion(p);
       const fresh = await rebuild(p, file.bytes, { name: link.name, ...file.stamp }, 'Datei geändert, neu aufgebaut');
       if (fresh) showToast('success', `„${p.name}“ neu geladen.`, fresh.data.info.warnings.length ? `${fresh.data.info.warnings.length} Hinweis(e) im Projekt.` : undefined);
     }

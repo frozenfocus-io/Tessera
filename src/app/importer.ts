@@ -129,6 +129,8 @@ export interface OpenOptions {
   persist?: boolean;
   /** The .tess file in the project folder the tab belongs to. */
   link?: FileLink | null;
+  /** A version opened from the version store: nothing can be edited or saved. */
+  readOnly?: boolean;
 }
 
 /** Reads one file into a new project and opens it in a new tab (never replaces an open tab). */
@@ -145,6 +147,7 @@ export async function openBytes(fileName: string, bytes: Uint8Array, opts: OpenO
       source: bytes,
       data: result,
       catalog: catalog.value,
+      readOnly: opts.readOnly,
     });
     if (opts.state) project.restore(opts.state);
     if (opts.link) project.link.value = opts.link;

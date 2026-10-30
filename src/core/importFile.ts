@@ -1,3 +1,4 @@
+import type { PlanMeta } from '../tess/compile';
 import { decompressAuto, type Compression } from './compression';
 import type { FormatId, FormatInfo, FormatResult } from './formats/common';
 import { looksLikeLitematic, parseLitematic } from './formats/litematic';
@@ -33,6 +34,8 @@ export interface ImportResult {
   diagnostics?: Diagnostic[];
   /** Building plans: the statement that set each block (same index order as the volume). */
   origins?: PlanOrigins;
+  /** Building plans in version 2: roles and ausrichtung, for editing. */
+  plan?: PlanMeta;
 }
 
 /** Error with a user-facing German message and optional technical detail. */
@@ -161,6 +164,7 @@ function importTess(fileName: string, bytes: Uint8Array, opts: ImportOptions, ti
     timings,
     diagnostics: parsed.diagnostics,
     origins: parsed.origins,
+    plan: parsed.plan,
   };
 }
 

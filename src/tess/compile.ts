@@ -47,6 +47,23 @@ export interface CompileOutput {
   version: 1 | 2;
   /** Statement text by first line (for the origin of blocks). */
   lineTexts: Map<number, string>;
+  /** Version 2: what the app needs to edit the file. */
+  plan?: PlanMeta;
+}
+
+/** A role of the file with its sorts as written (palette swap in the app). */
+export interface RoleMeta {
+  name: string;
+  line: number;
+  lastLine: number;
+  sorts: { id: string; text: string; weight: number }[];
+}
+
+/** Version 2: roles, `ausrichtung` and the module-free top level, for editing in the app. */
+export interface PlanMeta {
+  roles: RoleMeta[];
+  /** `ausrichtung` of the file (drehung 0–270, spiegel) and its line (0: none). */
+  orient: { turn: number; mirror: 'x' | 'z' | null; line: number };
 }
 
 
@@ -99,7 +116,8 @@ export class Compiler extends CompilerRoofs {
   private readonly instanceNames = new Set<string>();
   /** `ausrichtung` of the file (applied to the finished grid) and its line. */
   orient: Xf = Xf.ID;
-  private orientLine = 0;
+  orientLine = 0;
+  orientWritten: { turn: number; mirror: 'x' | 'z' | null } = { turn: 0, mirror: null };
   private first: Statement | undefined;
   private stopped = false;
 
@@ -355,6 +373,7 @@ export class Compiler extends CompilerRoofs {
     const mirror = a.has('spiegel') ? a.choice('spiegel', ['x', 'z'] as const, 'x') : null;
     this.orient = Xf.of(turn, mirror);
     this.orientLine = st.line;
+    this.orientWritten = { turn, mirror };
   }
 
   /** Names defined by a failed line: later lines that use them are follow-up errors. */
@@ -707,5 +726,9 @@ export function compileTess(source: string, opts: CompileOptions = {}): CompileO
   if (!found.some((d) => d.level === 'error')) found.push(...runChecks(grid, { floating: !c.allowFloating, label: (l) => `Zeile ${l}` }));
   const all = found.sort((a, b) => a.line - b.line);
   if (grid.size === 0 && !all.some((d) => d.level === 'error')) all.push({ line: 1, level: 'warn', message: 'Der Bauplan erzeugt keinen einzigen Block.' });
-  return { name: c.name, grid, diagnostics: all, statements: statements.length, version: 2, lineTexts: c.lineTexts };
+  const roles: RoleMeta[] = [...c.palette.roles.values()]
+    .filter((r) => !r.name.startsWith('_'))
+    .map((r) => ({ name: r.name, line: r.line, lastLine: r.lastLine ?? r.line, sorts: r.variants.map((v) => ({ id: v.id, text: v.text ?? v.id, weight: v.weight })) }));
+  const plan: PlanMeta = { roles, orient: { ...c.orientWritten, line: c.orientLine } };
+  return { name: c.name, grid, diagnostics: all, statements: statements.length, version: 2, lineTexts: c.lineTexts, plan };
 }
