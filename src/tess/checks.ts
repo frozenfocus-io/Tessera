@@ -192,19 +192,21 @@ export function runChecks(grid: Grid, opts: { floating: boolean; label: (line: n
   const bounds = grid.bounds()!;
   const minY = bounds.min[1];
 
-  const halt = new Map<string, { line: number; label: string; why: string; first: [number, number, number]; n: number }>();
-  const flow = new Map<number, { first: [number, number, number]; n: number; lava: boolean }>();
+  const halt = new Map<string, { line: number; ctx: string; label: string; why: string; first: [number, number, number]; n: number }>();
+  const flow = new Map<string, { line: number; ctx: string; first: [number, number, number]; n: number; lava: boolean }>();
   grid.forEach((x, y, z, sid, info) => {
     const rule = rules[sid];
     if (rule) {
       const s = states[sid];
       const why = supported(grid, x, y, z, s, rule, minY);
       if (why) {
-        const line = grid.origins[infoOrigin(info)]?.line ?? 0;
-        const key = `${line}|${rule.label}|${why}`;
+        const o = grid.origins[infoOrigin(info)];
+        const line = o?.line ?? 0;
+        const ctx = o?.ctx ?? '';
+        const key = `${line}|${ctx}|${rule.label}|${why}`;
         const e = halt.get(key);
         if (e) e.n++;
-        else halt.set(key, { line, label: rule.label, why, first: [x, y, z], n: 1 });
+        else halt.set(key, { line, ctx, label: rule.label, why, first: [x, y, z], n: 1 });
       }
     }
     if (liquid[sid]) {
@@ -218,23 +220,26 @@ export function runChecks(grid: Grid, opts: { floating: boolean; label: (line: n
         if (!grid.has(x + dx, y, z + dz)) open = true;
       if (y > minY && !grid.has(x, y - 1, z)) open = true;
       if (open) {
-        const line = grid.origins[infoOrigin(info)]?.line ?? 0;
-        const e = flow.get(line);
+        const o = grid.origins[infoOrigin(info)];
+        const key = `${o?.line ?? 0}|${o?.ctx ?? ''}`;
+        const e = flow.get(key);
         if (e) e.n++;
-        else flow.set(line, { first: [x, y, z], n: 1, lava: states[sid].name === 'minecraft:lava' });
+        else flow.set(key, { line: o?.line ?? 0, ctx: o?.ctx ?? '', first: [x, y, z], n: 1, lava: states[sid].name === 'minecraft:lava' });
       }
     }
   });
   for (const e of halt.values()) {
     out.push({
       line: e.line,
+      ...(e.ctx ? { ctx: e.ctx } : {}),
       level: 'warn',
       message: `Halt: ${e.label} bei ${e.first.join(',')} hat keinen Halt (${e.why})${e.n > 1 ? `; ebenso ${e.n - 1} weitere aus dieser Zeile` : ''}.`,
     });
   }
-  for (const [line, e] of flow) {
+  for (const e of flow.values()) {
     out.push({
-      line,
+      line: e.line,
+      ...(e.ctx ? { ctx: e.ctx } : {}),
       level: 'warn',
       message: `Fließen: ${e.lava ? 'Die Lava' : 'Das Wasser'} bei ${e.first.join(',')} fließt aus (daneben oder darunter ist Luft)${e.n > 1 ? `; ebenso ${e.n - 1} weitere Zellen aus dieser Zeile` : ''}.`,
     });
@@ -334,7 +339,7 @@ function floatingGroups(grid: Grid, minY: number, label: (line: number) => strin
   fill(() => {});
   // 2. The groups that are left.
   const out: Diagnostic[] = [];
-  const groups: { size: number; box: number[]; lines: Map<number, number> }[] = [];
+  const groups: { size: number; box: number[]; lines: Map<number | string, number> }[] = [];
   chunks.forEach((c, ci) => {
     for (let li = 0; li < CELLS; li++) {
       if (c.ids[li] === 0 || seen[ci][li]) continue;
@@ -342,7 +347,7 @@ function floatingGroups(grid: Grid, minY: number, label: (line: number) => strin
       qn = 0;
       push(ci, li);
       const box = [Infinity, Infinity, Infinity, -Infinity, -Infinity, -Infinity];
-      const lines = new Map<number, number>();
+      const lines = new Map<number | string, number>();
       let size = 0;
       fill((cj, lj) => {
         const ch = chunks[cj];
@@ -356,8 +361,11 @@ function floatingGroups(grid: Grid, minY: number, label: (line: number) => strin
         if (x > box[3]) box[3] = x;
         if (y > box[4]) box[4] = y;
         if (z > box[5]) box[5] = z;
-        const line = grid.origins[infoOrigin(ch.info[lj])]?.line ?? 0;
-        lines.set(line, (lines.get(line) ?? 0) + 1);
+        const o = grid.origins[infoOrigin(ch.info[lj])];
+        const line = o?.line ?? 0;
+        const ctx = o?.ctx ?? '';
+        const lk = ctx ? `${line}|${ctx}` : line;
+        lines.set(lk, (lines.get(lk) ?? 0) + 1);
       });
       groups.push({ size, box, lines });
     }
@@ -367,10 +375,20 @@ function floatingGroups(grid: Grid, minY: number, label: (line: number) => strin
     const top = [...g.lines].sort((a, b) => b[1] - a[1]).slice(0, 3);
     const where = g.size === 1 ? `bei ${g.box[0]},${g.box[1]},${g.box[2]}` : `von ${g.box[0]},${g.box[1]},${g.box[2]} bis ${g.box[3]},${g.box[4]},${g.box[5]}`;
     out.push({
-      line: top[0][0],
+      line: lineOf(top[0][0]),
+      ...(ctxOf(top[0][0]) ? { ctx: ctxOf(top[0][0]) } : {}),
       level: 'warn',
-      message: `Schweben: ${g.size === 1 ? 'Ein Block' : `${g.size} Blöcke`} ${where} ${g.size === 1 ? 'hat' : 'haben'} keine Verbindung zum Boden (unterste Lage y=${minY}); die meisten aus ${top.map(([l, k]) => `${label(l)} (${k})`).join(', ')}.`,
+      message: `Schweben: ${g.size === 1 ? 'Ein Block' : `${g.size} Blöcke`} ${where} ${g.size === 1 ? 'hat' : 'haben'} keine Verbindung zum Boden (unterste Lage y=${minY}); die meisten aus ${top.map(([l, k]) => `${label(lineOf(l))}${ctxOf(l) ? ` (${ctxOf(l)})` : ''} (${k})`).join(', ')}.`,
     });
   }
   return out;
+}
+
+/** Key of the lines map in floatingGroups: a line, or "line|ctx" inside modules. */
+function lineOf(k: number | string): number {
+  return typeof k === 'number' ? k : parseInt(k, 10);
+}
+
+function ctxOf(k: number | string): string {
+  return typeof k === 'number' ? '' : k.slice(k.indexOf('|') + 1);
 }

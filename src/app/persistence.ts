@@ -1,4 +1,5 @@
 import { log } from '../debug/log';
+import type { VersionBackend } from './editCore';
 import type { PersistedState } from './project';
 
 /**
@@ -8,7 +9,7 @@ import type { PersistedState } from './project';
  * here only as a fallback. The folder handle itself is stored here too.
  */
 const DB_NAME = 'tessera';
-const DB_VERSION = 1;
+const DB_VERSION = 2;
 
 /** A tab's link to a .tess file in the project folder. */
 export interface FileLink {
@@ -78,6 +79,8 @@ function openDb(): Promise<IDBDatabase> {
       if (!db.objectStoreNames.contains('projects')) db.createObjectStore('projects', { keyPath: 'id' });
       if (!db.objectStoreNames.contains('sources')) db.createObjectStore('sources');
       if (!db.objectStoreNames.contains('meta')) db.createObjectStore('meta', { keyPath: 'key' });
+      // Version 2 (Etappe 4c): versions of plans without a project folder, key "<dir>/<name>".
+      if (!db.objectStoreNames.contains('versions')) db.createObjectStore('versions');
     };
     req.onsuccess = () => resolve(req.result);
     req.onerror = () => reject(req.error ?? new Error('IndexedDB konnte nicht geöffnet werden'));
@@ -201,3 +204,29 @@ export async function requestPersistentStorage(): Promise<boolean | null> {
     return null;
   }
 }
+
+/** Versions of plans without a project folder, in the browser (key "<dir>/<name>"). */
+export const browserVersions: VersionBackend = {
+  async list(dir) {
+    const db = await openDb();
+    const keys = (await request(db.transaction('versions', 'readonly').objectStore('versions').getAllKeys())) as string[];
+    return keys.filter((k) => k.startsWith(`${dir}/`)).map((k) => k.slice(dir.length + 1));
+  },
+  async write(dir, name, bytes) {
+    const db = await openDb();
+    const tx = db.transaction('versions', 'readwrite');
+    tx.objectStore('versions').put(bytes, `${dir}/${name}`);
+    await done(tx);
+  },
+  async read(dir, name) {
+    const db = await openDb();
+    const v = await request(db.transaction('versions', 'readonly').objectStore('versions').get(`${dir}/${name}`));
+    return v instanceof Uint8Array ? v : null;
+  },
+  async remove(dir, name) {
+    const db = await openDb();
+    const tx = db.transaction('versions', 'readwrite');
+    tx.objectStore('versions').delete(`${dir}/${name}`);
+    await done(tx);
+  },
+};

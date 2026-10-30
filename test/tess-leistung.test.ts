@@ -170,4 +170,49 @@ describe('Leistung des Compilers', () => {
       expect(performance.now() - t0, f).toBeLessThan(1000);
     }
   });
+
+  describe('Grenzen (Abschnitt 10)', () => {
+    const errors = (src: string, limits: { statements?: number; blocks?: number }) =>
+      compileTess(src, { limits }).diagnostics.filter((d) => d.level === 'error');
+
+    it('bricht ab, wenn mehr Blöcke gesetzt werden als erlaubt', () => {
+      const head = 'tess 2\nrolle stein stone\n';
+      expect(errors(`${head}box 0,0,0 9,9,8 stein`, { blocks: 1000 })).toEqual([]);
+      const e = errors(`${head}box 0,0,0 9,9,10 stein\nbox 20,0,0 21,1,1 stein`, { blocks: 1000 });
+      expect(e).toHaveLength(1);
+      expect(e[0]).toMatchObject({ line: 3, message: expect.stringContaining('mehr als 1.000 Blöcke') });
+    });
+
+    it('zählt das Neuzeichnen von Dachgruppen nicht als Setzen', () => {
+      const src = rowPlan(50);
+      const blocks = compileTess(src).grid.size;
+      const was = CompilerRoofs.partFrom;
+      try {
+        // Drawing every group whole again sets far more than the finished plan has blocks.
+        CompilerRoofs.partFrom = Infinity;
+        let sets = 0;
+        const grid = compileTess(src).grid;
+        sets = grid.sets;
+        expect(sets).toBeGreaterThan(blocks * 5);
+        expect(errors(src, { blocks: Math.ceil(blocks * 1.05) })).toEqual([]);
+        expect(errors(src, { blocks: Math.floor(blocks * 0.8) })).toHaveLength(1);
+      } finally {
+        CompilerRoofs.partFrom = was;
+      }
+    });
+
+    it('bricht ab, wenn mehr Anweisungen ausgeführt werden als erlaubt', () => {
+      const src = ['tess 2', 'rolle stein stone', ...Array.from({ length: 8 }, (_, i) => `block ${i},0,0 stein`)].join('\n');
+      expect(errors(src, { statements: 10 })).toEqual([]);
+      const e = errors(src, { statements: 9 });
+      expect(e).toHaveLength(1);
+      expect(e[0]).toMatchObject({ line: 10, message: expect.stringContaining('mehr als 9 Anweisungen') });
+    });
+
+    it('hat die Grenzen 2 Millionen Anweisungen und 8 Millionen Blöcke', () => {
+      const e = errors('tess 2\nrolle stein stone\nbox 0,0,0 199,199,200 stein', {});
+      expect(e).toHaveLength(1);
+      expect(e[0].message).toContain('mehr als 8 Millionen Blöcke');
+    }, 30_000);
+  });
 });

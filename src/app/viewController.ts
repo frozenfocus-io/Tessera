@@ -69,6 +69,10 @@ function ensureScene(p: Project): ProjectScene {
       scene.setDoneLayers(p.done.value);
     }),
     effect(() => {
+      void p.section.value;
+      scene.setSection(p.scope.mask);
+    }),
+    effect(() => {
       scene.setMarkUnknown(markUnknown.value);
     }),
     effect(() => {
@@ -83,8 +87,8 @@ function ensureScene(p: Project): ProjectScene {
       else scene.hideHover();
     }),
     effect(() => {
-      const line = p.markedLine.value;
-      const cells = line === null ? null : p.lineCells(line);
+      const m = p.markedLine.value;
+      const cells = m === null ? null : p.lineCells(m.line, m.ctx);
       scene.setMarked(cells?.positions ?? null, cells?.count ?? 0);
       if (cells && viewer) focusOn(p, cells.bounds);
     }),

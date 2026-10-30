@@ -1,4 +1,5 @@
 import { makeState } from '../core/blockstate';
+import { turnWritten } from './xform';
 import { Args, NO } from './args';
 import { CompilerBase, pack3, type Vec3 } from './compile-base';
 import { hasAxis } from './connect';
@@ -26,7 +27,7 @@ export function tallPlant(spec: BlockSpec): boolean {
 export abstract class CompilerPlace extends CompilerBase {
   /** A second origin of the running statement (same line in the hover), e.g. for a dormer's roof. */
   taggedOrigin(tag: string): number {
-    const o = this.grid.originId(this.line, [], tag);
+    const o = this.grid.originId(this.line, this.chain, tag + this.iter, this.section, this.ctx);
     this.originSeq[o] ??= this.seq;
     return o;
   }
@@ -60,6 +61,7 @@ export abstract class CompilerPlace extends CompilerBase {
   put(x: number, y: number, z: number, sid: number, part: Part, origin = this.origin): void {
     this.checkCover(x, y, z, origin);
     this.grid.setId(x, y, z, sid, part, origin);
+    if (!this.roofDrawing) this.placed++;
   }
 
   /** Makes a cell air (hollow interiors, openings, leer), with the same cover check. */
@@ -83,6 +85,16 @@ export abstract class CompilerPlace extends CompilerBase {
         this.put(p[0], p[1] + 1, p[2], this.sid(spec.state.name, { ...spec.state.props, half: 'upper' }), part, origin);
       }
     }
+  }
+
+  /**
+   * Block-Angabe (3) of the running statement. Inside a turned or mirrored module the states
+   * written in the file turn with it (completed first, so facing=north by default turns too).
+   */
+  spec(text: string): BlockSpec {
+    const s = this.palette.blockSpec(text, this.line);
+    if (s.kind === 'state' && this.xf.turns) return { kind: 'state', state: turnWritten(s.state, this.xf) };
+    return s;
   }
 
   ref(text: string, what = 'Rolle'): RoleRef {
@@ -170,8 +182,13 @@ export abstract class CompilerPlace extends CompilerBase {
     const p = a.coord('Die Position');
     const what = a.word1('Der Block oder die Rolle');
     a.done();
-    const spec = this.palette.blockSpec(what, st.line);
-    if (spec.kind === 'role') this.place(p, spec.ref, spec.ref.member);
+    const spec = this.spec(what);
+    if (spec.kind === 'role' && this.xf.turns) {
+      // A role member's default state (stairs to the north …) turns with the module.
+      const id = this.palette.pick(spec.ref.role, spec.ref.member, p[0], p[1], p[2], this.line);
+      const s = turnWritten(makeState(id), this.xf);
+      this.put(p[0], p[1], p[2], this.sid(s.name, Object.keys(s.props).length ? { ...s.props } : null), Part.Plain);
+    } else if (spec.kind === 'role') this.place(p, spec.ref, spec.ref.member);
     else this.placeSpec(p, spec, Part.Plain);
   }
 

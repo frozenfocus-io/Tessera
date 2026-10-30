@@ -8,7 +8,7 @@ Diese Datei ist die maßgebliche Fassung des Konzepts. Sie ist aus Adrians Claud
 
 Tessera ist eine lokale Bauhilfe für Minecraft: Gelände um die Base einlesen, Gebäude in 3D planen und Ebene für Ebene wie in einem Slicer nachbauen. Claude erzeugt Gebäude als kompakte `.tess`-Dateien, Adrian lädt sie in Tessera und bearbeitet sie dort.
 
-**Stand:** Etappen 1 bis 3 sind fertig (Viewer, Block-Katalog mit Rohstoff-Aufschlüsselung, Bau-Sprache im Testlauf mit Projektordner). Etappe 4 ist in drei Teile gegliedert, siehe [etappe-4.md](etappe-4.md); die Teile 4a (Formen und Dächer) und 4b (Anbauten und Zier) sind umgesetzt.
+**Stand:** Etappen 1 bis 3 sind fertig (Viewer, Block-Katalog mit Rohstoff-Aufschlüsselung, Bau-Sprache im Testlauf mit Projektordner). Etappe 4 ist in drei Teile gegliedert, siehe [etappe-4.md](etappe-4.md); alle drei sind umgesetzt: 4a (Formen und Dächer), 4b (Anbauten und Zier) und 4c (Werkzeuge: Module, Freistil, Bauabschnitte, Bearbeiten).
 
 ### Rahmenbedingungen
 
@@ -157,10 +157,10 @@ Verbundene Blöcke müssen im Export bereits den richtigen Zustand haben. Für B
 1. [x] **Viewer:** `.schem` laden, 3D-Ansicht mit Grundformen, Ebenen, Hover, Materialliste, Baufortschritt, Debug-Export.
 2. [x] **Block-Katalog:** Jars einlesen; echte Namen, Farben, Familien, Rezepte; Rohstoff-Aufschlüsselung.
 3. [x] **Bau-Sprache, Testlauf:** Haus mit Fenstern, Dach und Rundturm; `.tess` im Projektordner.
-4. [ ] **Bau-Sprache, Ausbau** (Details: [etappe-4.md](etappe-4.md))
+4. [x] **Bau-Sprache, Ausbau** (Details: [etappe-4.md](etappe-4.md))
    - [x] **4a Formen und Dächer:** Ausdrücke, Anker, Vielecke und freie Grundrisse, Wandprofile mit Vorkragung und Verjüngung, Dachmaschine (Profile, alle Dachformen, Verschneidung, Biegung), Kranzdächer, Herkunftszeile im Hover, schnellerer Compiler. Zielbau: Wachturm.
    - [x] **4b Anbauten und Zier:** Fensterformen, Türen und Tore, Gesims, Pfeiler, Kopfbänder, Balkon, Umgang, Erker, Gaube, Ecktürmchen, Zinnen, Bögen, Treppen und Wendeltreppen, Deko, Farmen, Prüfungen (Überschrieben, Halt, Schweben, Fließen), Klick auf Hinweise markiert die Zeile. Zielbauten: Wachturm fertig ausgebaut, Fachwerkhaus mit Vorkragung.
-   - [ ] **4c Werkzeuge:** Module, Wiederholung, Spiegelung, Freistil per ASCII, Bauabschnitte, Bearbeiten in der App mit Undo/Redo und Versionen. Zielbau: Zauberturm.
+   - [x] **4c Werkzeuge:** Module, Wiederholung, Spiegelung, Freistil per ASCII, Bauabschnitte, Bearbeiten in der App mit Undo/Redo und Versionen. Zielbau: Zauberturm.
 5. [ ] **Gelände-Scan:** Welt-Tab, Objekte platzieren, Erdarbeiten, Ingame-Koordinaten.
 6. [ ] **Export:** `.schem`, `.nbt`, `.litematic` mit korrekt verbundenen Blöcken.
 

@@ -313,46 +313,55 @@ export function readSpots(c: Compiler, a: Args, f: FormObj, o: SpotOptions): Spo
     if (!around) throw new TessError(a.line, `${o.what}: Die Seite fehlt (n, o, s, w${round ? ', no, so, sw, nw, winkel= oder anzahl= rundum' : ''}).`);
     if (a.has('abstand')) throw new TessError(a.line, '„abstand=“ gilt nur auf einer Seite; rundum verteilt „anzahl=“ gleichmäßig.');
     for (const k of ['x', 'z']) if (a.has(k)) throw new TessError(a.line, `„${k}=“ gibt es rundum nicht; nimm „versatz=“.`);
-    const start = a.int('winkel', 0, -360, 360);
+    const start = c.xf.angle(a.int('winkel', 0, -360, 360));
+    const turn = c.xf.mirrored ? -1 : 1;
     const out: Spot[] = [];
     for (let i = 0; i < count; i++) {
-      const ang = start + (360 * i) / count;
+      const ang = start + (turn * 360 * i) / count;
       const wall = wallFor(c, f, ang, y, `winkel=${Math.round(norm(ang) * 10) / 10}`);
-      out.push({ wall, start: centredStart(a, wall, o.width, 1, o.width), width: o.width, y });
+      out.push({ wall, start: centredStart(c, a, wall, o.width, 1, o.width), width: o.width, y });
     }
     return out;
   }
+  // Inside a turned or mirrored module sides and angles are local: turn them with it.
   let angle: number;
-  if (sideWord !== null) {
-    angle = sideAngle(sideWord)!;
-    if (!round && f.kind !== 'box' && !mainOf(angle)) {
-      // umriss, grundriss: diagonals as angles are fine, too.
-    }
-  } else if (a.has('winkel')) angle = a.int('winkel', 0, -360, 360);
-  else angle = polygonSideAngle(f.shape as PolygonShape, a.int('seite', 0, -64, 64));
+  if (sideWord !== null) angle = c.xf.angle(sideAngle(sideWord)!);
+  else if (a.has('winkel')) angle = c.xf.angle(a.int('winkel', 0, -360, 360));
+  else {
+    const shape = f.shape as PolygonShape;
+    const inv = c.xf.inverse();
+    const local = c.xf.turns ? new PolygonShape(0, 0, shape.n, shape.r, inv.angle(shape.rotation)) : shape;
+    angle = c.xf.angle(polygonSideAngle(local, a.int('seite', 0, -64, 64)));
+  }
   const wall = wallFor(c, f, angle, y, label);
   const step = a.int('abstand', o.defaultStep ?? o.width + 2, o.width + (repeat ? 0 : 0), 1024);
   if (a.has('abstand') && step < o.width) throw new TessError(a.line, `„abstand=${step}“ ist kleiner als die Breite ${o.width}.`);
-  const first = centredStart(a, wall, o.width, count, step);
+  const first = centredStart(c, a, wall, o.width, count, step);
   return Array.from({ length: count }, (_, i) => ({ wall, start: first + i * step, width: o.width, y }));
 }
 
 /** First column: x=/z= (face mode), else centred on the side, moved by versatz= to the right (seen from outside). */
-function centredStart(a: Args, wall: Wall, width: number, count: number, step: number): number {
+function centredStart(c: Compiler, a: Args, wall: Wall, width: number, count: number, step: number): number {
   const span = (count - 1) * step + width;
   if (wall.mode === 'face') {
-    const other = wall.axis === 'x' ? 'z' : 'x';
+    // In a turned module x= and z= are local: the wall runs along the local axis.
+    const axis = c.xf.swaps ? (wall.axis === 'x' ? 'z' : 'x') : wall.axis;
+    const other = axis === 'x' ? 'z' : 'x';
     if (a.has(other)) {
-      throw new TessError(a.line, `Die Seite ${wall.label} läuft entlang ${wall.axis}; die Position wird mit „${wall.axis}=“ angegeben, nicht mit „${other}=“.`);
+      throw new TessError(a.line, `Die Seite ${wall.label} läuft entlang ${axis}; die Position wird mit „${axis}=“ angegeben, nicht mit „${other}=“.`);
     }
-    if (a.has(wall.axis)) {
-      if (a.has('versatz')) throw new TessError(a.line, `„${wall.axis}=“ und „versatz=“ schließen sich aus.`);
-      return a.int(wall.axis, 0, -LIMIT_V2, LIMIT_V2);
+    if (a.has(axis)) {
+      if (a.has('versatz')) throw new TessError(a.line, `„${axis}=“ und „versatz=“ schließen sich aus.`);
+      const lo = a.int(axis, 0, -LIMIT_V2, LIMIT_V2);
+      if (!c.xf.turns && c.xf.identity) return lo;
+      // Smallest absolute coordinate of the local range lo … lo+span−1.
+      return c.xf.range(axis, lo, lo + span - 1).lo;
     }
   } else {
     for (const k of ['x', 'z']) if (a.has(k)) throw new TessError(a.line, `„${k}=“ gibt es nur an geraden Seiten (n, o, s, w); an Schrägen nimm „versatz=“.`);
   }
-  const v = a.int('versatz', 0, -LIMIT_V2, LIMIT_V2);
+  // versatz= is "to the right, seen from outside": a mirror turns right into left.
+  const v = a.int('versatz', 0, -LIMIT_V2, LIMIT_V2) * (c.xf.mirrored ? -1 : 1);
   const right = ccw(wall.out);
   const sign = right === wall.plus ? 1 : -1;
   if (wall.mode === 'face') return Math.floor((wall.tMin + wall.tMax + 1 - span) / 2) + sign * v;

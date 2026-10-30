@@ -1,3 +1,5 @@
+import { editable, editTarget, undoActive } from '../app/planEdit';
+import { EditMenu } from './PlanEdit';
 import { useEffect, useRef, useState } from 'preact/hooks';
 import { openFiles } from '../app/importer';
 import { getViewer } from '../app/viewController';
@@ -29,6 +31,18 @@ export function App() {
         e.preventDefault();
         openPicker();
         return;
+      }
+      // Building plans: undo and redo of edits (not while typing in a field).
+      if ((e.ctrlKey || e.metaKey) && !e.altKey && !isTyping(e.target)) {
+        const k = e.key.toLowerCase();
+        if (k === 'z' || k === 'y') {
+          const ap = activeProject.value;
+          if (ap && editable(ap)) {
+            e.preventDefault();
+            undoActive(k === 'y' || e.shiftKey);
+            return;
+          }
+        }
       }
       if (isTyping(e.target) || e.ctrlKey || e.metaKey || e.altKey) return;
       // A keyboard-focused button keeps its own Space/Enter behaviour.
@@ -64,7 +78,8 @@ export function App() {
           p.toggleDone();
           break;
         case 'Escape':
-          if (p.markedLine.value !== null) p.markLine(null);
+          if (editTarget.value) editTarget.value = null;
+          else if (p.markedLine.value !== null) p.markLine(null);
           else if (p.pinned.value) p.togglePinned(null);
           else p.setViewMode('all');
           break;
@@ -153,6 +168,7 @@ export function App() {
       ) : null}
       <Toasts />
       <Dialogs />
+      <EditMenu />
     </div>
   );
 }

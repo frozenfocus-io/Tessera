@@ -11,6 +11,8 @@ import { browserLabel, collectEnvironment, type EnvironmentInfo } from '../debug
 import { log } from '../debug/log';
 import { BUILD_TIME, STAGE, VERSION } from '../version';
 import { IconClose, IconPackage } from './icons';
+import { versionsFor } from '../app/planEdit';
+import { VersionsContent } from './PlanEdit';
 import { num } from './format';
 
 function Dialog({ title, onClose, children, wide }: { title: string; onClose: () => void; children: ComponentChildren; wide?: boolean }) {
@@ -50,6 +52,11 @@ export function Dialogs() {
           <CatalogContent />
         </Dialog>
       ) : null}
+      {versionsFor.value && projects.value.some((p) => p.id === versionsFor.value) ? (
+        <Dialog title="Versionen" onClose={() => (versionsFor.value = null)} wide>
+          <VersionsContent project={projects.value.find((p) => p.id === versionsFor.value)!} />
+        </Dialog>
+      ) : null}
       {folderDialogOpen.value ? (
         <Dialog title="Projekte" onClose={() => (folderDialogOpen.value = false)} wide>
           <FolderContent onOpened={() => (folderDialogOpen.value = false)} />
@@ -69,6 +76,8 @@ const SHORTCUTS: [string, string][] = [
   ['F', 'ganzes Modell zeigen'],
   ['T', 'Draufsicht als Bauplan (ohne Perspektive)'],
   ['Strg + O', 'Bauplan oder Schematic öffnen'],
+  ['Strg + Z', 'Bauplan: letzte Änderung rückgängig'],
+  ['Strg + Y, Strg + Umschalt + Z', 'Bauplan: Änderung wiederholen'],
 ];
 
 const GESTURES: [string, string][] = [

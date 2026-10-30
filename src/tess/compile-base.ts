@@ -6,6 +6,7 @@ import { Grid, infoOrigin, infoPart, LIMIT_V2, Part } from './grid';
 import { Palette, type BlockHints } from './palette';
 import type { RoofGroup } from './roofgroup';
 import { asciiKey, TessError, type Diagnostic, type Statement, type Token } from './syntax';
+import { Xf } from './xform';
 
 /**
  * Compiler layer 1 of 5 (see compile.ts): the state of a run and its messages (warnings, hints
@@ -36,8 +37,34 @@ export abstract class CompilerBase {
   readonly unknownReported = new Set<string>();
   readonly stateCache = new Map<string, Map<string, number>>();
   roofCount = 0;
+  /** Statements executed so far (limit of section 10; loops and modules count every run). */
+  executed = 0;
+  /** Blocks set so far (limit of section 10); drawing roof groups again does not count. */
+  placed = 0;
+  /** > 0 while roofs are drawn: their sets are counted by the cells they fill (addRoof). */
+  roofDrawing = 0;
+  /** Limits of section 10 (lower in tests). */
+  maxStatements = 2_000_000;
+  maxBlocks = 8_000_000;
+  // ---- context of modules, loops and mirrored passes (section 10)
+  /** Local → absolute (inside modules and the mirrored pass of spiegle). */
+  xf: Xf = Xf.ID;
+  /** Lines of the module calls that led here, outermost first. */
+  chain: number[] = [];
+  /** "in modul turm, gebaut in Zeile 88" (innermost first), '' outside modules. */
+  ctx = '';
+  /** Run of loops and mirrored passes: keeps origins of repeated statements apart. */
+  iter = '';
+  /** Current Bauabschnitt (index into grid.sections). */
+  section = 0;
+  /** Name prefixes of module instances, outermost first ('' = the file). */
+  prefixes: string[] = [''];
+  /** Name suffixes of mirrored passes ('' and '_s', '_s_s' …). */
+  suffixes: string[] = [''];
   /** `erlaube schweben`: no floating check for this file. */
   allowFloating = false;
+  /** First line of the section "Änderungen in Tessera" (app edits replace blocks without a hint). */
+  editFrom = Infinity;
   /** Hints of the running statement, merged by key (several cells, one message). */
   protected readonly pending = new Map<string, { line: number; text: (n: number, first: Vec3) => string; first: Vec3; n: number }>();
   /** Cells whose overlap the running statement has reported already (no second hint). */
@@ -53,8 +80,27 @@ export abstract class CompilerBase {
 
   // ---- messages
 
-  warn(message: string, line = this.line): void {
-    this.diagnostics.push({ line, level: 'warn', message });
+  warn(message: string, line = this.line, ctx = line === this.line ? this.ctx : ''): void {
+    this.diagnostics.push(ctx ? { line, level: 'warn', message, ctx } : { line, level: 'warn', message });
+  }
+
+  /** Name for a definition here: instance prefix, name, suffix of the mirrored pass. */
+  qname(name: string): string {
+    return this.prefixes[this.prefixes.length - 1] + name + this.suffixes[this.suffixes.length - 1];
+  }
+
+  /**
+   * A name as written, resolved against the instances and mirrored passes around: first the
+   * innermost (`turm1.turm_s`), then outward, at last the name itself.
+   */
+  resolveName(name: string, has: (key: string) => boolean): string {
+    for (let i = this.prefixes.length - 1; i >= 0; i--) {
+      for (let j = this.suffixes.length - 1; j >= 0; j--) {
+        const k = this.prefixes[i] + name + this.suffixes[j];
+        if (has(k)) return k;
+      }
+    }
+    return name;
   }
 
   /**
@@ -62,6 +108,7 @@ export abstract class CompilerBase {
    * Cells the statement already reported as an overlap (windows, doors) are left out.
    */
   protected checkCover(x: number, y: number, z: number, origin: number): void {
+    if (this.line >= this.editFrom && !this.chain.length) return;
     const v = this.grid.infoAt(x, y, z);
     if (v === 0) return;
     const part = infoPart(v);

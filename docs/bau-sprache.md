@@ -1,17 +1,18 @@
 # Bau-Sprache (`.tess`)
 
-Referenz für das Schreiben von Bauplänen, Stand Etappe 4b (Tessera 0.4.1). Eine `.tess`-Datei beschreibt, *wie* ein Gebäude aufgebaut ist; Tessera übersetzt sie in Blöcke.
+Referenz für das Schreiben von Bauplänen, Stand Etappe 4c (Tessera 0.4.2). Eine `.tess`-Datei beschreibt, *wie* ein Gebäude aufgebaut ist; Tessera übersetzt sie in Blöcke.
 
-- **`tess 2`** ist die Bau-Sprache 2 im Umfang der Teile 4a und 4b: Werte und Ausdrücke, Rollen mit allen Gliedern und Mustern, sechs Formen mit Wandprofil, Konsolen und Fachwerk, die Dachmaschine mit Verschneidung und Kranzdach (4a); Bauteile an Wänden, Anbauten, Zinnen, Bögen, Treppen, Zier und Deko, Felder und die Prüfungen (4b). Freistil, Module, Wiederholung und Bauabschnitte legt die Spezifikation [bau-sprache-2.md](bau-sprache-2.md) fest; diese Befehle meldet Tessera als „noch nicht umgesetzt (kommt mit Etappe 4c)“.
+- **`tess 2`** ist die Bau-Sprache 2 aus [bau-sprache-2.md](bau-sprache-2.md), vollständig: Werte und Ausdrücke, Rollen mit allen Gliedern und Mustern, sechs Formen mit Wandprofil, Konsolen und Fachwerk, die Dachmaschine mit Verschneidung und Kranzdach (4a); Bauteile an Wänden, Anbauten, Zinnen, Bögen, Treppen, Zier und Deko, Felder und die Prüfungen (4b); Freistil, Module, Wiederholung, Spiegelung, Bauabschnitte und Ausrichtung (4c).
 - **`tess 1`** bleibt gültig und ergibt blockgenau dasselbe wie in 0.3.0, siehe [Version 1](#version-1).
 
-Beispiele: [`beispiele/wachturm.tess`](../beispiele/wachturm.tess) und [`beispiele/fachwerkhaus.tess`](../beispiele/fachwerkhaus.tess) (Version 2), [`beispiele/haus-mit-rundturm.tess`](../beispiele/haus-mit-rundturm.tess) (Version 1).
+Beispiele: [`beispiele/zauberturm.tess`](../beispiele/zauberturm.tess), [`beispiele/wachturm.tess`](../beispiele/wachturm.tess) und [`beispiele/fachwerkhaus.tess`](../beispiele/fachwerkhaus.tess) (Version 2), [`beispiele/haus-mit-rundturm.tess`](../beispiele/haus-mit-rundturm.tess) (Version 1).
 
 ## Grundregeln
 
 - Die erste Anweisung ist `tess 2`. Eine Anweisung pro Zeile; endet eine Zeile (vor einem Kommentar) mit `\`, geht die Anweisung in der nächsten Zeile weiter. Meldungen nennen die erste Zeile.
 - `#` beginnt einen Kommentar bis zum Zeilenende, außer in `"…"` und in ASCII-Zeilen.
-- ASCII-Zeilen beginnen mit `|` (Leerzeichen davor sind erlaubt) und stehen direkt unter `grundriss`. Alles nach dem `|` gehört zur Zeichnung, nachgestellte Leerzeichen zählen nicht.
+- ASCII-Zeilen beginnen mit `|` (Leerzeichen davor sind erlaubt) und stehen direkt unter `grundriss`, `ebene`, `ebenen` oder `ansicht`. Alles nach dem `|` gehört zur Zeichnung, auch ein Leerzeichen direkt nach dem `|`; nachgestellte Leerzeichen zählen nicht.
+- `modul`, `wiederhole` und `spiegle` umschließen Anweisungen bis zur passenden Zeile `ende`; sie dürfen verschachtelt werden, Einrückung ist bedeutungslos.
 - Koordinaten `x,y,z`: **x nach Osten, y nach oben, z nach Süden** (wie in Minecraft), erlaubt −4000 bis 4000. Eine Zelle hat ihren Mittelpunkt bei x+0,5 und z+0,5; ob eine Zelle innen liegt, entscheidet immer ihr Mittelpunkt.
 - Angaben `name=wert` stehen in beliebiger Reihenfolge hinter den festen Teilen. Groß/klein ist egal, Umlaute und Umschreibung sind gleich (`tür` = `tuer`).
 - Seiten: `n` (Norden, −z), `o` (Osten, +x), `s` (Süden, +z), `w` (Westen, −x), ausgeschrieben `nord`, `ost`, `sued`, `west`.
@@ -30,6 +31,7 @@ Beispiele: [`beispiele/wachturm.tess`](../beispiele/wachturm.tess) und [`beispie
 | `projekt "Name"` | Titel des Bauplans |
 | `samen 7` | Startwert für gemischte Rollen, `zufall` und Zier; gleicher Startwert, gleiches Ergebnis (Standard 1) |
 | `erlaube schweben` | schaltet die Schwebe-Prüfung für die Datei ab, z. B. für Teile, die woanders angebaut werden |
+| `ausrichtung [drehung=0\|90\|180\|270] [spiegel=x\|z]` | dreht oder spiegelt das ganze Ergebnis um 0,0,0 (siehe [Module](#module-wiederholung-spiegelung-abschnitte)) |
 
 ## Werte und Ausdrücke
 
@@ -40,7 +42,7 @@ vieleck og 0,18,0 n=8 r={r+1} h=6 putz hohl
 kranzdach og y={og.y0}
 ```
 
-- `wert name=ausdruck` legt eine ganze Zahl fest, gültig ab dieser Zeile; neu festlegen ist erlaubt.
+- `wert name=ausdruck` legt eine ganze Zahl fest, gültig ab dieser Zeile im selben Gültigkeitsbereich (Datei oder Modul); neu festlegen ist erlaubt.
 - Ausdrücke stehen in `{…}` überall, wo eine ganze Zahl stehen darf, auch als Teil einer Koordinate oder eines Namens (`turm{i}`). Innen sind Leerzeichen erlaubt; innere Klammern werden zuerst ausgerechnet.
 - Rechnen: `+ - * / %`, Klammern, einstelliges Minus. `/` teilt mit Abrunden (`-7/2` = −4), `%` liefert 0 bis Divisor−1. Funktionen: `min(…)`, `max(…)`, `abs(a)`, `clamp(v,a,b)`, `zufall(a,b,k)` (ganze Zahl von a bis b, hängt nur von `samen`, der Zeile und k ab).
 - Dezimalzahlen gibt es nur bei `drehung=` (vieleck).
@@ -395,17 +397,100 @@ feld x,y,z x,y,z [frucht=wheat|carrots|potatoes|beetroots|…] [zaun=R] [tor=<se
 feld 24,-1,0 32,-1,8 frucht=wheat zaun=holz tor=w weg=dirt_path
 ```
 
+## Freistil: Zeichnungen
+
+```
+zeichen <z> <block-angabe> [tiefe=<n>] [fest=ja] [<zustand>=<wert> …]
+ebene x,y,z            + ASCII-Zeilen
+ebenen x,y,z           + ASCII-Zeilen, Lagen getrennt durch eine Zeile "|-"
+ansicht <form> <seite> [x=|z=|versatz=] (y=|ebene=)   + ASCII-Zeilen
+```
+
+- **`zeichen`** legt ein Zeichen für die folgenden Zeichnungen fest, gültig in der Datei oder im Modul, in dem es steht. Erlaubt ist jedes einzelne sichtbare Zeichen außer `|`, auch `#`, `"` und Klammern. Fest vergeben: Leerzeichen lässt die Zelle, wie sie ist, `.` macht Luft.
+- Zustände haben Vorrang vor den ergänzten; Blickrichtungen auch als `n/o/s/w/oben/unten`. Die Verbindungsberechnung läuft danach über alles; `fest=ja` lässt den Block aus (feste Verbindungen, Treppenformen). `tiefe=n` gilt in `ansicht`.
+- **`ebene`:** x,y,z ist die Zelle des ersten Zeichens der ersten Zeile; Zeilen laufen nach Süden (+z), Zeichen nach Osten (+x). Relative Richtungen sind hier ein Fehler.
+- **`ebenen`:** wie `ebene`, jede Gruppe eine Lage höher; Gruppen trennt eine Zeile `|-`.
+- **`ansicht`:** eine Wand von außen gesehen. Die unterste Zeile liegt in der Höhe `y=`/`ebene=`, jede Zeile darüber eine Lage höher. Das erste Zeichen jeder Zeile liegt links (von außen gesehen) bei `x=`/`z=` (kleinste Koordinate wie bei Bauteilen), sonst sitzt die Zeichnung mittig. Jede Zeichenposition kommt auf die Wandzelle ihrer Lage (wie Bauteile), auch an runden Formen und mit Wandprofil. `tiefe=n` setzt den Block n Zellen nach außen (negativ nach innen). Relative Richtungen pro Wandzelle: `aussen`, `innen`, `links` (im Uhrzeigersinn neben aussen), `rechts` (gegen den Uhrzeigersinn).
+
+```
+zeichen R zier tiefe=1                          # Rahmen, steht einen Block vor
+zeichen ( zier:treppe facing=links half=top
+zeichen ) zier:treppe facing=rechts half=top
+zeichen [ zier:treppe facing=links
+zeichen ] zier:treppe facing=rechts
+zeichen G glas
+zeichen L shroomlight
+ansicht turm s y=31
+|  RRR
+| R(G)R
+|R(GGG)R
+|RGGLGGR
+|R[GGG]R
+| R[G]R
+|  RRR
+```
+
+## Module, Wiederholung, Spiegelung, Abschnitte
+
+```
+modul <name> [<angabe>=<standard> …]
+  …
+ende
+baue <modul> x,y,z [name=<instanz>] [drehung=0|90|180|270] [spiegel=x|z] [abschnitt="…"] [<angabe>=<wert> …]
+wiederhole <var>=<a>..<b> [schritt=<s>]
+  …
+ende
+spiegle (x=<achse>|z=<achse>)
+  …
+ende
+abschnitt "<name>"
+ausrichtung [drehung=0|90|180|270] [spiegel=x|z]
+```
+
+- **Module** legen eine Vorlage an, die erst bei `baue` baut. Module stehen auf oberster Ebene; `baue` darf auch vor dem `modul` stehen. Angaben sind Zahlen (in Ausdrücken: `{hoehe}`) oder Wörter. Ein Wort steht im Modul für sich: als ganzes Token (`wand`), als Wert einer Angabe (`dachrolle=wand`, `biegung=knick:2`) oder als Rolle vor einem Glied (`wand:treppe`). Standardwerte werden bei `baue` ausgerechnet.
+- Im Modul sind Koordinaten relativ zum Punkt von `baue`. Formen heißen von außen `<instanz>.<form>` (Standard-Instanzname: Modulname mit laufender Nummer, `turm1`), z. B. `{turm1.t.x0}`. Felder geben Koordinaten dort an, wo sie stehen: außen absolut, im Modul lokal (auch Felder von Formen der Datei), sodass `block {t.x1+1},0,{t.mz} …` im gedrehten Modul neben der Form landet. Das gilt auch im gespiegelten Durchlauf von `spiegle`.
+- Ein Modul sieht Rollen, `samen`, Werte und Zeichen der Datei, nicht die des Moduls, das es baut; Standardwerte der Angaben werden in der Datei ausgerechnet. Eigene Werte und Zeichen bleiben im Modul, Rollen darf ein Modul nicht anlegen. Aufruftiefe höchstens 16.
+- **Drehen und Spiegeln:** `drehung` dreht im Uhrzeigersinn von oben um den Punkt von `baue`, 90 bildet (x,z) auf (−z,x) ab. `spiegel=x` bildet x auf −x ab, `spiegel=z` z auf −z; mit beiden Angaben wird zuerst gespiegelt, dann gedreht. Formen, Dächer und Prüfungen rechnen im fertigen Bau (absolut): Dächer verschiedener Instanzen verschneiden sich wie sonst. Im Modul werden umgerechnet: Koordinaten und Höhen (`y=`, `von=`, `bis=`), Seiten und Winkel der Bauteile (auch `seite=` am vieleck, `seiten=`, `an=`, `start=`), `x=`/`z=` und `versatz=` (ein Spiegel macht rechts zu links), `richtung=` von treppe und strebe, `rechts`/`links` der Wendeltreppe, `first=`, `hoch=` und `biegung=` der Dächer, `rx=`/`rz=`, `drehung=` am vieleck, `punkte=` am umriss, grundriss- und andere Zeichnungen, die Tiefe von `bogen` und die Zustände aus der Datei (facing, axis, Ranken und Flechten, rotation, Schienen, Türangeln, Truhenhälften). Eine einzelne Tür hat im gespiegelten Modul ihre Angel rechts. Treppenformen und Verbindungen rechnet die Verbindungsberechnung danach neu.
+- **`wiederhole`** führt den Inhalt für a, a+s, … bis einschließlich b aus; `schritt` darf negativ sein, höchstens 10 000 Durchläufe. Die Variable gilt im Inhalt und lässt sich dort nicht neu festlegen.
+- **`spiegle`** führt den Inhalt zweimal aus, das zweite Mal gespiegelt: `x=10` (x' = 20 − x) oder `x=10.5` (x' = 21 − x). Namen im zweiten Durchlauf bekommen `_s`.
+- **`abschnitt "Name"`:** Alle folgenden Blöcke gehören zu diesem Bauabschnitt, bis zum nächsten `abschnitt` oder Dateiende; in einem Modul bis zu seinem Ende. `baue … abschnitt=` gilt für die Instanz. In der App gibt es pro Abschnitt Ebenen, Materialliste, Rohstoffe und Fortschritt.
+- **`ausrichtung`** dreht oder spiegelt das ganze Ergebnis um 0,0,0 (Zellen und Zustände, vor der Verbindungsberechnung). Höchstens einmal pro Datei, an beliebiger Stelle, nicht in Modulen, Schleifen oder `spiegle`. Koordinaten in Meldungen bleiben die der Datei. Die App schreibt diese Zeile beim Drehen und Spiegeln.
+- **Grenzen:** höchstens 2 Millionen ausgeführte Anweisungen (Schleifen und Module zählen jeden Durchlauf) und 8 Millionen gesetzte Blöcke pro Datei. Das Neuzeichnen von Dachgruppen zählt nicht; ein Dach zählt die Zellen, die seine Gruppe neu füllt.
+- **Meldungen im Modul** nennen die Kette: „Zeile 40 (in modul turm, gebaut in Zeile 88)“, verschachtelt innen zuerst. Gleiche Meldungen aus Schleifen erscheinen einmal.
+
+```
+modul tuermchen hoehe=6 wand=putz knick=o
+  zylinder t 0,0,0 r=3 h={hoehe} wand hohl profil=0:-1,2:0 konsolen=zier
+  fenster t s ebene=2 b=1 h=2 rahmen=holz bank=nein
+  dach helm t profil=glocke ueberstand=1 biegung=knick:2
+ende
+abschnitt "Türmchen"
+baue tuermchen 0,13,-8 drehung=180 knick=w
+baue tuermchen 8,22,0 drehung=270 hoehe=5
+```
+
+## Bearbeiten in der App
+
+Baupläne in `tess 2` lassen sich in Tessera bearbeiten (Bereich „Bearbeiten“ in der Seitenleiste). Jede Änderung landet in der `.tess`-Datei, der Rest der Datei bleibt unverändert:
+
+- **Rollen:** Ein Klick auf eine Sorte tauscht sie über die Blocksuche gegen einen anderen Block; das Gewicht bleibt. Nur dieses Token der `rolle`-Zeile ändert sich, Kommentare und Fortsetzungszeilen bleiben.
+- **Drehen 90°, Spiegeln x, Spiegeln z:** legen die Zeile `ausrichtung` unter dem Kopf an, ändern oder entfernen sie (bei 0° ohne Spiegel). Die App schreibt Spiegelungen als `spiegel=x` mit passender Drehung.
+- **Einzelblöcke:** Mit „Einzelblöcke bearbeiten“ öffnet ein Klick auf einen Block ein Menü: Entfernen, Ersetzen (Blocksuche; Zustände bleiben, wenn der neue Block von derselben Art ist), Zustand. Die Änderung steht als `block`- oder `leer`-Zeile im Bereich `# ---- Änderungen in Tessera ----` am Dateiende, in Dateikoordinaten (vor `ausrichtung`); eine weitere Änderung derselben Zelle ersetzt die Zeile. Verbindungen, Treppenecken und Zustände, die Tessera ohnehin ergänzt, schreibt Tessera nicht mit. Zeilen in diesem Bereich ersetzen Glas, Türen und Anbauten ohne den Hinweis „Überdeckt“ (sie sind gewollt); eigene Zeilen gehören deshalb davor.
+- **Rückgängig/Wiederholen:** Strg+Z, Strg+Y oder Strg+Umschalt+Z, 100 Schritte pro Tab, auf Ebene des Dateitexts. Jeder Schritt schreibt die Datei.
+- **Versionen:** Vor jedem Schreiben aus der App und vor dem Übernehmen einer Änderung von außen sichert Tessera den bisherigen Inhalt unter `projekte/.versionen/<name>/<JJJJ-MM-TT_hh-mm-ss>.tess`; die 50 neuesten bleiben. Der Dialog „Versionen“ öffnet eine Fassung als schreibgeschützten Tab oder stellt sie wieder her (die aktuelle Fassung wird vorher gesichert, Strg+Z holt sie zurück).
+- Ohne Projektordner arbeitet alles im Browser-Speicher; „Als Datei speichern“ lädt die Datei herunter.
+
 ## Verbundene Blöcke
 
 Zäune, Mauern, Glasscheiben, Eisengitter und Treppen-Ecken bekommen nach dem Aufbau ihren Zustand nach den Regeln des Spiels (Verbindungen, Mauerpfosten, niedrige oder hohe Mauerseiten, innere und äußere Treppenecken). Alle Blöcke bekommen ihre vollständigen Zustände (`waterlogged=false`, geschlossene Türen, Blätter mit `persistent=true` …). Mod-Blöcke mit eigenen Verbindungsregeln sind nur abgedeckt, wenn sie den Vanilla-Namen folgen (`…_fence`, `…_wall`, `…_pane`, `…_stairs`).
 
 ## Herkunft
 
-Für jeden Block merkt sich Tessera die Anweisung, die ihn gesetzt hat. Die Hover-Karte zeigt sie gekürzt, z. B. „Zeile 37: dach helm og profil=glocke …“; der ganze Text steht im Tooltip. Das gilt auch für Version 1. Ein Klick auf einen Hinweis in den Projektdaten umrandet die Blöcke seiner Zeile und dreht die Kamera hin; Esc oder ein zweiter Klick löst die Markierung.
+Für jeden Block merkt sich Tessera die Anweisung, die ihn gesetzt hat, mit Modulkette und Bauabschnitt. Die Hover-Karte zeigt sie gekürzt, z. B. „Zeile 37: dach helm og profil=glocke …“ oder „Zeile 28 (in modul tuermchen, gebaut in Zeile 85): …“; der ganze Text steht im Tooltip. Das gilt auch für Version 1. Ein Klick auf einen Hinweis in den Projektdaten umrandet die Blöcke seiner Zeile und dreht die Kamera hin; Esc oder ein zweiter Klick löst die Markierung.
 
 ## Meldungen
 
-- **Fehler** nennen die Zeile und verhindern das Öffnen. Tessera meldet alle Fehler auf einmal; Folgefehler (eine Form, deren eigene Zeile fehlerhaft ist) erscheinen nicht noch einmal.
+- **Fehler** nennen die Zeile (im Modul mit Kette) und verhindern das Öffnen. Tessera meldet alle Fehler auf einmal; Folgefehler (eine Form, deren eigene Zeile fehlerhaft ist) erscheinen nicht noch einmal.
 - **Hinweise** öffnen trotzdem und stehen in den Projektdaten: Fenster oder Tür nicht in der Wand, in einer Ecke, in einem Pfosten oder Balken, Überschneidung mit einem anderen Fenster, Fenster an Boden oder Oberkante, Bank oder Laden stößt an einen Block, Anbau oder Zier stößt an einen Block (mit dessen Zeile), Fachwerk an schrägen Seiten, Kranzdach an Fenstern, `spitze=` auf einem Dach ohne Spitze, Block fehlt im Katalog. Dazu die Prüfungen auf dem fertigen Bau:
   - **Überschrieben:** Eine spätere Anweisung ersetzt Glas, Tür oder Anbau einer früheren Zeile („Zeile 57 überdeckt das Fenster aus Zeile 31“).
   - **Halt:** Blöcke ohne den Halt, den das Spiel verlangt: stehende Fackel, Laterne, Kerze, Druckplatte (Block mit voller Oberseite darunter, auch Zaun, Mauer oder Kette), Teppich, Schild und Banner (irgendein Block darunter), Schiene (volle Oberseite); hängende Laterne und Hängeschild (Block darüber); Wandfackel, Leiter, Knopf (voller Block dahinter), Wandschild und Wandbanner (Block dahinter); Ranke und Flechte (Block auf einer ihrer Seiten); Tür (Block unter der unteren Hälfte); Früchte (Ackerboden), Blumen und Setzlinge (Erde oder Ackerboden), Pilze, Kakteen, Zuckerrohr und weitere Pflanzen (ihr Boden); Sand, Kies, Betonpulver, Amboss (irgendein Block darunter). Falltüren brauchen keinen Halt. In der untersten Lage gelten „darunter“, Boden und Schwerkraft als erfüllt.
@@ -468,3 +553,27 @@ Lücken der Spezifikation, so entschieden:
 - **Erweiterung:** `wandlaterne` ohne `arm=` stellt die Laterne auf einen Block aus `rahmen`.
 
 Bekannte Lücken und Schwächen stehen in [future-fixes.md](future-fixes.md) (ab Eintrag 5).
+
+## Entscheidungen und Erweiterungen (Etappe 4c)
+
+Widersprüche und Lücken der Spezifikation, so gelöst:
+
+- **Reihenfolge bei `baue`:** Mit `drehung=` und `spiegel=` wird zuerst gespiegelt, dann gedreht (die Spezifikation legt die Reihenfolge nicht fest).
+- **Module** stehen auf oberster Ebene und sind ab Dateianfang bekannt (`baue` darf vor `modul` stehen). Werte der Datei sind im Modul lesbar; `wert` im Modul legt einen eigenen Wert an, außer der Name gibt es im Modul schon.
+- **Wort-Angaben** ersetzen ein ganzes Token, den Wert einer Angabe oder die Rolle vor einem Glied, nicht Teile von Wörtern.
+- **Gültigkeit:** Ein Modul sieht die Datei, nicht das Modul, das es baut (wie es geschrieben ist, nicht wo es gebaut wird). Standardwerte der Angaben rechnet Tessera in der Datei aus, übergebene Werte dort, wo `baue` steht.
+- **Felder im Modul** sind lokal (die Spezifikation sagt nur „relativ zum Punkt von baue“ für Koordinaten); so ergibt ein Feld in eine Koordinate geschrieben wieder die Stelle der Form.
+- **Zustände im gedrehten Modul:** Was Tessera ergänzen würde, dreht mit, wenn es sich dadurch ändert (eine Treppe ohne `facing` blickt nach Norden und dreht deshalb); andere Ergänzungen (Alter von Früchten) bleiben dem Befehl überlassen.
+- **Aufruftiefe 16:** 16 verschachtelte Instanzen werden gebaut, die 17. ist ein Fehler.
+- **Höhen im Modul:** `y=`, `von=` und `bis=` sind absolute Höhen und verschieben sich mit dem Punkt von `baue`; `ebene=` bleibt relativ zur Form.
+- **`ausrichtung`** steht nicht in Modulen, Schleifen oder `spiegle` (sie gilt für die ganze Datei). Koordinaten in Meldungen bleiben Dateikoordinaten.
+- **ASCII-Zeilen:** Ein Leerzeichen direkt nach `|` gehört zur Zeichnung (wie die Spezifikation es sagt); im Beispiel der Spezifikation beginnt die Fassade deshalb eine Spalte rechts von `x=`.
+- **`zeichen`** nimmt auch `#`, `"` und Klammern (die Spezifikation erlaubt jedes sichtbare Zeichen außer `|`).
+- **`abschnitt` im Modul** gilt bis zum Ende des Moduls; danach gilt wieder der Abschnitt des Aufrufs.
+- **Grenze von 8 Millionen Blöcken:** Ein Dach zählt die Zellen, die seine Gruppe neu füllt, nicht das Neuzeichnen.
+- **Versionen:** Entstehen zwei in derselben Sekunde, bekommt die zweite `_2` (die dritte `_3` …), damit keine verloren geht.
+- **Bearbeiten** gibt es nur für `tess 2` (Version 1 kennt `ausrichtung` nicht). Der Palettentausch gilt für Sorten, nicht für Glieder (`treppe=…`).
+- **„Überdeckt“** gilt nicht für Zeilen im Bereich „Änderungen in Tessera“: Wer dort einen Block entfernt oder ersetzt, will das.
+- **Gedrehte Instanzen** entsprechen einem von Hand gedreht geschriebenen Plan (Formen, Dächer und Prüfungen rechnen im fertigen Bau). Wo Tessera bei Gleichstand rundet (Mitte einer geraden Seite bei ungerader Restbreite, Treppenrichtung bei Gleichstand, gerader Durchmesser), kann ein Block eine Zelle neben dem genauen Spiegelbild liegen.
+- **Projektordner ohne Zugriff:** Ist ein Tab mit einer Datei verbunden und der Zugriff fehlt, fragt Tessera beim Bearbeiten nach dem Zugriff; ohne ihn schreibt es nichts (Tab und Datei laufen sonst auseinander).
+- **Versionen beim Neustart:** Hat sich eine verbundene Datei geändert, während Tessera zu war, sichert Tessera die zuletzt gezeigte Fassung, bevor es die neue übernimmt.

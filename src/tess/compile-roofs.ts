@@ -108,9 +108,9 @@ export abstract class CompilerRoofs extends CompilerForms {
     if (!['treppe', 'stufe', 'keine'].includes(traufeArg)) throw new TessError(st.line, `„traufe=${traufeArg}“: möglich sind treppe, stufe und keine.`);
     const dicke = a.int('dicke', 1, 1, 8);
     const giebel = a.str('giebel') ? this.ref(a.str('giebel')!) : f.role;
-    const firstzier = a.str('firstzier') ? this.palette.blockSpec(a.str('firstzier')!, st.line) : null;
-    const spitze = a.str('spitze') ? this.palette.blockSpec(a.str('spitze')!, st.line) : null;
-    const name = a.str('name') ? asciiKey(a.str('name')!) : null;
+    const firstzier = a.str('firstzier') ? this.spec(a.str('firstzier')!) : null;
+    const spitze = a.str('spitze') ? this.spec(a.str('spitze')!) : null;
+    const name = a.str('name') ? this.qname(asciiKey(a.str('name')!)) : null;
     if (name && (this.forms.has(name) || this.roofObjs.has(name))) {
       const prev = this.forms.get(name) ?? this.roofObjs.get(name)!;
       throw new TessError(st.line, `Den Namen „${name}“ gibt es schon (Zeile ${prev.line}).`);
@@ -173,7 +173,7 @@ export abstract class CompilerRoofs extends CompilerForms {
       if (type === 'sattel' || type === 'krueppelwalm') {
         const ridgeArg = a.str('first')?.toLowerCase();
         if (ridgeArg && ridgeArg !== 'x' && ridgeArg !== 'z') throw new TessError(this.line, '„first=“ ist x oder z (Richtung des Dachfirsts).');
-        const ridge = (ridgeArg ?? (x1 - x0 >= z1 - z0 ? 'x' : 'z')) as 'x' | 'z';
+        const ridge = (ridgeArg ? this.xf.axis(ridgeArg as 'x' | 'z') : x1 - x0 >= z1 - z0 ? 'x' : 'z') as 'x' | 'z';
         crossAxis = ridge === 'x' ? 'z' : 'x';
         if (ridge === 'x') {
           const ends = (i: number, b0: number, b1: number) => CellSet.rect(xa + b0, za + i, xb - b1, zb - i);
@@ -193,7 +193,8 @@ export abstract class CompilerRoofs extends CompilerForms {
           radius = Math.floor((xb - xa) / 2);
         }
       } else if (type === 'pult') {
-        const hoch = parseSide(asciiKey(a.str('hoch')!));
+        const hochLocal = parseSide(asciiKey(a.str('hoch')!));
+        const hoch = hochLocal && this.xf.facing(hochLocal);
         if (!hoch) throw new TessError(this.line, `„hoch=${a.str('hoch')}“ ist keine Seite (n, o, s oder w).`);
         crossAxis = axisOf(hoch) === 'x' ? 'x' : 'z';
         if (hoch === 'north') {
@@ -284,7 +285,9 @@ export abstract class CompilerRoofs extends CompilerForms {
     if (a.has('biegung')) {
       const m = /^([a-zäöüß]+):(-?\d+)$/i.exec(a.str('biegung')!.trim());
       if (!m) throw new TessError(this.line, `„biegung=${a.str('biegung')}“ hat die Form Seite:n, z. B. biegung=n:3.`);
-      const vec = bendVector(asciiKey(m[1]));
+      const local = bendVector(asciiKey(m[1]));
+      // In a turned or mirrored module the side is local: turn the direction with it.
+      const vec = local && (this.xf.turns ? this.xf.dir(local[0], local[1]) : local);
       if (!vec) throw new TessError(this.line, `„biegung=${a.str('biegung')}“: „${m[1]}“ ist keine Seite (n, no, o, so, s, sw, w, nw).`);
       const n = parseInt(m[2], 10);
       const K = layers.length - 1;
@@ -321,7 +324,22 @@ export abstract class CompilerRoofs extends CompilerForms {
   }
 
   /** Adds a roof: unites it with every group whose base area it overlaps or touches. */
+  /**
+   * Adds a roof to its group and draws what changes. Drawing a group again does not count as
+   * setting blocks (limit of section 10); only cells the group newly fills do.
+   */
   addRoof(def: RoofDef, extra: RoofExtra): void {
+    const before = this.grid.size;
+    this.roofDrawing++;
+    try {
+      this.addRoofInner(def, extra);
+    } finally {
+      this.roofDrawing--;
+      this.placed += Math.max(0, this.grid.size - before);
+    }
+  }
+
+  private addRoofInner(def: RoofDef, extra: RoofExtra): void {
     this.roofIndex.add(def);
     const b = def.base;
     const near = b.isEmpty() ? [] : this.roofIndex.near(b.x0 - 1, b.z0 - 1, b.x1 + 1, b.z1 + 1);

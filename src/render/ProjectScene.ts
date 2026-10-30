@@ -256,6 +256,12 @@ export class ProjectScene {
     }
   }
 
+  /** Bauabschnitt: blocks outside the mask appear grey (null: all in colour). */
+  setSection(mask: Uint8Array | null): void {
+    this.materials.setSection(mask, this.volume.sizeX, this.volume.sizeY, this.volume.sizeZ);
+    this.onChange();
+  }
+
   setDoneLayers(done: ReadonlySet<number>): void {
     this.materials.setDoneLayers(done);
     this.onChange();

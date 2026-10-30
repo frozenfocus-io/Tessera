@@ -1,7 +1,7 @@
 import { Args } from './args';
 import { facingTowardsSet } from './cells';
 import type { Compiler, Vec3 } from './compile';
-import { cw, DIR, opposite, parseSide, ringCells, type Facing } from './geometry';
+import { ccw, cw, DIR, opposite, parseSide, ringCells, type Facing } from './geometry';
 import { Part } from './grid';
 import type { RoleRef } from './palette';
 import { asciiKey, TessError, type Statement } from './syntax';
@@ -82,6 +82,9 @@ export function archCmd(c: Compiler, st: Statement): void {
   const span = hi - lo;
   if (span < 2) throw new TessError(st.line, 'Zwischen den Bogenfüßen muss Platz sein (Abstand mindestens 2).');
   const [loDir, hiDir]: Facing[] = alongX ? ['west', 'east'] : ['north', 'south'];
+  // tiefe= goes to +z (feet along x) or +x (feet along z); in a turned module that is local.
+  const localDepth: [number, number] = c.xf.swaps ? (alongX ? [1, 0] : [0, 1]) : alongX ? [0, 1] : [1, 0];
+  const [ddx, ddz] = c.xf.turns ? c.xf.dir(localDepth[0], localDepth[1]) : alongX ? [0, 1] : [1, 0];
   const low = Array.from({ length: span + 1 }, (_, u) => Math.floor(archEdge(art, span, h, u) + 1e-9));
   for (let u = 0; u <= span; u++) {
     const e = archEdge(art, span, h, u);
@@ -92,8 +95,8 @@ export function archCmd(c: Compiler, st: Statement): void {
     const inner = u * 2 < span ? u + 1 : u * 2 > span ? u - 1 : -1;
     const fill = Math.max(dicke, inner >= 0 ? low[inner] - k0 : 0);
     for (let d = 0; d < tiefe; d++) {
-      const x = alongX ? lo + u : p[0] + d;
-      const z = alongX ? p[2] + d : lo + u;
+      const x = alongX ? lo + u : p[0] + d * ddx;
+      const z = alongX ? p[2] + d * ddz : lo + u;
       for (let k = 0; k < fill; k++) {
         const pos: Vec3 = [x, p[1] + k0 + k, z];
         if (k === 0 && stair) c.place(pos, ref, 'stairs', { facing: u * 2 < span ? loDir : hiDir, half: 'top' }, Part.Plain);
@@ -114,14 +117,17 @@ export function stairsCmd(c: Compiler, st: Statement): void {
   a.done();
   const dirWord = a.str('richtung');
   if (!dirWord) throw new TessError(st.line, 'Bei „treppe“ fehlt „richtung=“ (n, o, s oder w): die Richtung, in die die Treppe ansteigt.');
-  const dir = parseSide(asciiKey(dirWord));
-  if (!dir) throw new TessError(st.line, `„richtung=${dirWord}“ ist keine Seite (n, o, s oder w).`);
+  const side = parseSide(asciiKey(dirWord));
+  if (!side) throw new TessError(st.line, `„richtung=${dirWord}“ ist keine Seite (n, o, s oder w).`);
+  const dir = c.xf.facing(side);
+  // breite= grows to the right of the rising direction; a mirror makes that the left.
+  const mirrored = c.xf.mirrored;
   const n = a.requireInt('laenge', 1, 512, 'Die Zahl der Stufen.');
   const breite = a.int('breite', 1, 1, 64);
   const unterbau = a.choice('unterbau', ['voll', 'keiner', 'treppe'] as const, 'voll');
   const rail = a.has('gelaender') ? c.railRef(a.str('gelaender')!) : null;
   const [dx, dz] = DIR[dir];
-  const [rx, rz] = DIR[cw(dir)];
+  const [rx, rz] = DIR[mirrored ? ccw(dir) : cw(dir)];
   for (let i = 0; i < n; i++) {
     for (let j = 0; j < breite; j++) {
       const sx = x + dx * i + rx * j;
@@ -216,8 +222,8 @@ export function spiralCmd(c: Compiler, st: Statement): void {
   const r = a.requireInt('r', 1, 64, 'Der Radius des Laufrings (wie die Wand eines zylinders).');
   const bis = a.requireInt('bis', -4000, 4000, 'Die Lage, in der die Treppe ankommt.');
   if (bis < y) throw new TessError(st.line, `„bis=${bis}“ liegt unter dem Anfang (y=${y}).`);
-  const clockwise = a.choice('richtung', ['rechts', 'links'] as const, 'rechts') === 'rechts';
-  const start = startAngle(a);
+  const clockwise = (a.choice('richtung', ['rechts', 'links'] as const, 'rechts') === 'rechts') !== c.xf.mirrored;
+  const start = c.xf.angle(startAngle(a));
   const breite = a.int('breite', 1, 1, r);
   const slabs = a.choice('stufen', ['treppe', 'stufe'] as const, 'treppe') === 'stufe';
   const spindle = a.has('spindel') ? c.ref(a.str('spindel')!) : null;
@@ -300,8 +306,8 @@ function outerSpiral(c: Compiler, st: Statement, tokens: ReturnType<Compiler['to
   const bis = a.requireInt('bis', -4000, 4000, 'Die Lage, in der die Treppe ankommt.');
   if (bis < y0) throw new TessError(st.line, `„bis=${bis}“ liegt unter dem Anfang (y=${y0}).`);
   const breite = a.int('breite', 1, 1, 8);
-  const clockwise = a.choice('richtung', ['rechts', 'links'] as const, 'rechts') === 'rechts';
-  const start = startAngle(a);
+  const clockwise = (a.choice('richtung', ['rechts', 'links'] as const, 'rechts') === 'rechts') !== c.xf.mirrored;
+  const start = c.xf.angle(startAngle(a));
   const slabs = a.choice('stufen', ['treppe', 'stufe'] as const, 'treppe') === 'stufe';
   const schritt = a.int('schritt', 1, 1, 16);
   const rail = a.has('gelaender') ? c.railRef(a.str('gelaender')!) : null;

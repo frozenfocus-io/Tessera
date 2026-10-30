@@ -2,7 +2,7 @@
 
 Lokale Bauhilfe für Minecraft Java 1.21.1: Gebäude als Bauplan beschreiben oder Schematics öffnen, in 3D ansehen und Ebene für Ebene nachbauen, wie in einem Slicer. Tessera läuft komplett im Browser, ohne Server. Keine Datei verlässt deinen PC.
 
-**Stand:** Etappe 4b – Anbauten und Zier (Version 0.4.1); Etappe 4 von 6 läuft.
+**Stand:** Etappe 4c – Werkzeuge (Version 0.4.2); Etappe 4 von 6 ist fertig.
 
 ## Starten
 
@@ -30,19 +30,30 @@ Sie läuft unter <http://localhost:4173>. Gespeicherte Tabs hängen an der Adres
 
 **Baupläne (`.tess`)**
 
-- Ein Bauplan beschreibt ein Gebäude in der Bau-Sprache statt Block für Block. Tessera übersetzt ihn in Blöcke und zeigt ihn wie eine Schematic. Die Sprache ist für Claude gemacht; du musst sie nicht lesen, kannst sie aber ändern. Referenz: [docs/bau-sprache.md](docs/bau-sprache.md), Beispiele: [beispiele/wachturm.tess](beispiele/wachturm.tess), [beispiele/fachwerkhaus.tess](beispiele/fachwerkhaus.tess) und [beispiele/haus-mit-rundturm.tess](beispiele/haus-mit-rundturm.tess).
+- Ein Bauplan beschreibt ein Gebäude in der Bau-Sprache statt Block für Block. Tessera übersetzt ihn in Blöcke und zeigt ihn wie eine Schematic. Die Sprache ist für Claude gemacht; du musst sie nicht lesen, kannst sie aber ändern. Referenz: [docs/bau-sprache.md](docs/bau-sprache.md), Beispiele: [beispiele/zauberturm.tess](beispiele/zauberturm.tess), [beispiele/wachturm.tess](beispiele/wachturm.tess), [beispiele/fachwerkhaus.tess](beispiele/fachwerkhaus.tess) und [beispiele/haus-mit-rundturm.tess](beispiele/haus-mit-rundturm.tess).
 - **Formen:** Quader, Zylinder (auch elliptisch und in jeder Breite), regelmäßige Vielecke, freie Umrisse, ASCII-Grundrisse und Kugeln. Wände können sich pro Lage verschieben: vorkragen (mit Konsolen darunter), sich verjüngen oder einen Bauch bekommen. Dazu Sockel, Kranz, Eckpfeiler, Wandzonen nach Höhe und Fachwerk mit Riegeln, Streben, Kreuzen oder Rauten.
 - **Dächer:** Sattel-, Pult-, Krüppelwalm-, Walm-, Kegel-, Helm- und Flachdach, mit frei wählbarem Profil (steil, flach, Glocke, Mansarde, Zwiebel, Kuppel), Hexenhut-Biegung, Firstzier, Traufe und Spitze. Dächer, die sich berühren, verschneiden sich zu einem Dach mit Kehlen (L-Häuser, Kreuzgiebel, Turmhelme). Kranzdächer legen eine Schürze rund um einen Turm.
 - **Bauteile an Wänden:** Fenster als Rechteck, Rund- und Spitzbogen, Rundfenster, Kreuzfenster und Schießscharte, mit Bank, Sturz, Laibung, Sprossen, Läden und Blumenkästen; Türen mit Oberlicht, Bogen, Stufen und Vordach; Tore mit Fallgitter; Gesims, Lisenen, Strebepfeiler und Kopfbänder; Zinnen mit Maschikuli; Bögen, gerade Treppen und Wendeltreppen innen und außen. Sie sitzen an jeder Seite, unter jedem Winkel und in Reihen rundum.
 - **Anbauten:** Balkone mit Pultdach, Umgänge mit Geländer und Stützen, Erker (eckig, halbrund, dreieckig) mit eigenem Dach, Gauben und Ecktürmchen. Sie setzen außen nur in Luft und melden, woran sie stoßen.
 - **Zier und Farmen:** Wandlaternen, Hängelaternen, Banner, Efeu, Bewuchs, Laubwolken und gestreute Blöcke; Felder mit Wasser in Reichweite, Zaun, Tor und Weg.
+- **Freistil und Module:** Zeichen festlegen und Lagen oder ganze Wandansichten als ASCII zeichnen (Rosetten, vorstehende Rahmen, Reliefs), auch an runden Wänden. Module beschreiben Wiederkehrendes einmal und bauen es an mehreren Stellen, gedreht oder gespiegelt; dazu Schleifen und Spiegelungen. Bauabschnitte teilen große Gebäude auf, `ausrichtung` dreht den ganzen Plan.
 - **Rollen-Paletten** („stein“ = 50 % Steinziegel, 20 % bemoost, 20 % rissig) nehmen Treppen, Stufen, Zäune, Falltüren und weitere Glieder mit und mischen auf Wunsch fleckig oder in Bändern. Werte und Rechenausdrücke halten Maße an einer Stelle.
 - Bauteile rechnen Lage und Ausrichtung selbst. Tessera prüft beim Übersetzen, ob Fenster und Türen in einer Wand sitzen, keinen Pfosten oder Balken schneiden und sich nicht überschneiden, ob eine Zeile Glas, Türen oder Anbauten einer früheren überdeckt, ob Fackeln, Laternen, Türen und Pflanzen Halt haben, ob Teile ohne Verbindung zum Boden schweben und ob Wasser ausfließt. Solche Hinweise stehen mit Zeilennummer in den Projektdaten; ein Klick darauf markiert die Blöcke der Zeile und dreht die Kamera hin.
-- Zu jedem Block zeigt die Hover-Karte die Zeile des Bauplans, die ihn gesetzt hat, z. B. „Zeile 37: dach helm og profil=glocke …“. So lässt sich „das da ist falsch“ direkt einer Zeile zuordnen.
+- Zu jedem Block zeigt die Hover-Karte die Zeile des Bauplans, die ihn gesetzt hat, z. B. „Zeile 37: dach helm og profil=glocke …“, in Modulen mit der Kette („Zeile 28 (in modul tuermchen, gebaut in Zeile 85)“). So lässt sich „das da ist falsch“ direkt einer Zeile zuordnen.
 - Auch große Baupläne übersetzt Tessera schnell: zwei Millionen Blöcke in wenigen Sekunden.
 - Zäune, Mauern, Glasscheiben, Gitter und Treppen-Ecken bekommen ihre Verbindungen nach den Regeln des Spiels, alle Blöcke ihre vollständigen Zustände.
 - Fehler im Bauplan meldet Tessera mit Zeilennummer, alle auf einmal, z. B. „Zeile 12: Rolle „zier“ ist nicht festgelegt“.
 - Mit eingelesenem Katalog nimmt Tessera Treppen und Stufen aus dessen Blockfamilien, auch für Mod-Blöcke, und markiert Blöcke, die im Modpack fehlen.
+
+**Bearbeiten**
+
+- Baupläne in Bau-Sprache 2 lassen sich in Tessera ändern (Bereich „Bearbeiten“ rechts). Jede Änderung landet in der `.tess`-Datei, der Rest der Datei bleibt, wie er war.
+- **Rollen:** Eine Sorte einer Rolle per Blocksuche gegen einen anderen Block tauschen, z. B. Steinziegel gegen Andesit; die Gewichte bleiben.
+- **Drehen und Spiegeln** des ganzen Plans (schreibt die Zeile `ausrichtung`).
+- **Einzelblöcke:** Mit „Einzelblöcke bearbeiten“ öffnet ein Klick auf einen Block ein Menü: Entfernen, Ersetzen oder Zustand ändern (Blickrichtung, Hälfte …). Die Änderung steht am Ende der Datei im Bereich „Änderungen in Tessera“.
+- **Rückgängig/Wiederholen** mit Strg + Z und Strg + Y (oder Strg + Umschalt + Z), 100 Schritte pro Tab.
+- **Versionen:** Vor jedem Schreiben und vor dem Übernehmen einer Änderung von außen sichert Tessera die bisherige Fassung unter `projekte/.versionen/<name>/`; die 50 neuesten bleiben. Der Dialog „Versionen“ öffnet eine Fassung schreibgeschützt oder stellt sie wieder her.
+- Ohne Projektordner geht das alles im Browser-Speicher; „Als Datei speichern“ lädt den Bauplan herunter.
 
 **Projektordner**
 
@@ -68,6 +79,7 @@ Sie läuft unter <http://localhost:4173>. Gespeicherte Tabs hängen an der Adres
 
 **Ebenen**
 
+- **Bauabschnitte:** Hat ein Bauplan Abschnitte, wählst du rechts „Ganzes Gebäude“ oder einen Abschnitt. Ebenen-Regler, Materialliste, Rohstoffe und Fortschritt gelten dann für den Abschnitt („Nordturm, Ebene 12 von 30“), andere Abschnitte erscheinen grau.
 - Drei Ansichten: *Gesamt*, *Schnitt* (aktuelle Ebene in Farbe, darunter grau, darüber ausgeblendet) und *Einzeln* (nur die aktuelle Ebene).
 - Ebene wechseln mit den Pfeiltasten, mit dem Mausrad über dem Ebenen-Regler oder per Klick in den Regler. Der Regler zeigt als Profil, wie viele Blöcke jede Ebene hat.
 - Die Schnittfläche bleibt geschlossen, sodass die aktuelle Ebene von oben wie ein Grundriss aussieht.
@@ -147,7 +159,7 @@ So prüfst du es: In Tessera oben rechts „Projekte“ öffnen. Steht dort, das
 
 ## Datenschutz
 
-Tessera lädt nichts aus dem Internet nach und sendet nichts. Schriften und Bibliotheken sind eingebaut. Geöffnete Dateien und eingelesene Jars werden nur im Browser verarbeitet; im Browser-Speicher landen die Tabs, der fertige Katalog und der Verweis auf den Projektordner, nicht die Jars selbst. Tessera schreibt nur in den Unterordner `projekte/` des gewählten Ordners. Wenn du die Website-Daten für `localhost` löschst, sind gespeicherte Tabs, Katalog und Ordner-Verweis weg; Baupläne im Projektordner, Schematics und dein Modpack bleiben, wo sie waren.
+Tessera lädt nichts aus dem Internet nach und sendet nichts. Schriften und Bibliotheken sind eingebaut. Geöffnete Dateien und eingelesene Jars werden nur im Browser verarbeitet; im Browser-Speicher landen die Tabs, der fertige Katalog und der Verweis auf den Projektordner, nicht die Jars selbst. Tessera schreibt nur in den Unterordner `projekte/` des gewählten Ordners (Versionen in `projekte/.versionen/`). Wenn du die Website-Daten für `localhost` löschst, sind gespeicherte Tabs, Katalog und Ordner-Verweis weg; Baupläne im Projektordner, Schematics und dein Modpack bleiben, wo sie waren.
 
 Spieldateien von Mojang und den Mod-Autoren gehören nicht in dieses Repository. Tessera bringt keine mit, sondern liest sie bei dir ein.
 
@@ -212,10 +224,10 @@ Technik: TypeScript, Three.js, Preact, Vite, fflate.
 1. [x] **Viewer:** `.schem` laden, 3D-Ansicht mit Grundformen, Ebenen, Hover mit Wireframe-Highlight, Materialliste, Baufortschritt, Debug-Export
 2. [x] **Block-Katalog:** Minecraft-Jar und `mods`-Ordner einlesen; echte Namen, Farben, Familien, Rezepte; Rohstoff-Aufschlüsselung
 3. [x] **Bau-Sprache, Testlauf:** kleines Haus mit Fenstern, Dach und einem Rundturm; `.tess`-Dateien im Projektordner
-4. [ ] **Bau-Sprache, Ausbau** ([Auftrag](docs/etappe-4.md), [Spezifikation](docs/bau-sprache-2.md))
+4. [x] **Bau-Sprache, Ausbau** ([Auftrag](docs/etappe-4.md), [Spezifikation](docs/bau-sprache-2.md))
    - [x] 4a Formen und Dächer: Profile, Vielecke, Dachmaschine mit Verschneidung, Herkunft pro Block
    - [x] 4b Anbauten und Zier: Fensterformen, Balkone, Umgänge, Erker, Gauben, Ecktürme, Treppen, Deko, Farmen, Prüfungen
-   - [ ] 4c Werkzeuge: Module, ASCII-Freistil, Bauabschnitte, Bearbeiten mit Undo/Redo und Versionen
+   - [x] 4c Werkzeuge: Module, ASCII-Freistil, Bauabschnitte, Bearbeiten mit Undo/Redo und Versionen
 5. [ ] **Gelände-Scan:** Welt-Tab, Objekte platzieren, Erdarbeiten, Ingame-Koordinaten
 6. [ ] **Export:** `.schem`, `.nbt`, `.litematic` mit korrekt verbundenen Blöcken
 
@@ -231,5 +243,6 @@ Eine Desktop-App mit Tauri ist vorerst nicht geplant.
 - Alte `.schematic`-Dateien (vor 1.13) liest Tessera noch nicht.
 - Kisteninhalte, Schildertexte und Objekte wie Rüstungsständer oder Rahmen werden nicht angezeigt.
 - Verbundene Blöcke (Zäune, Mauern, Scheiben) aus Schematics erscheinen so, wie sie in der Datei gespeichert sind; nur Baupläne rechnet Tessera selbst. Mod-Blöcke mit eigenen Verbindungsregeln sind dabei nur abgedeckt, wenn sie den Vanilla-Namen folgen.
-- Die Bau-Sprache hat den Stand von Teil 4b: Module, Wiederholungen, Spiegelungen, ASCII-Ebenen und Bauabschnitte kommen mit 4c. Baupläne lassen sich in Tessera noch nicht bearbeiten (nur die Datei selbst).
+- Bearbeiten in Tessera gibt es nur für Baupläne in Bau-Sprache 2; Schematics und `tess 1` bleiben unverändert. Größere Umbauten gehen weiter über die Datei selbst.
+- Andere Bauabschnitte grau zu zeigen geht bis 2048 Blöcke Kantenlänge; größere Pläne zeigen alle Abschnitte in Farbe.
 - Banner zeigt der Viewer einen Block hoch und ohne Muster, Ranken als flache grüne Platten.

@@ -80,6 +80,10 @@ export interface Origin {
   line: number;
   /** Lines of the module calls that led here, innermost last (empty outside modules). */
   chain: readonly number[];
+  /** Bauabschnitt (index into Grid.sections; 0 = none). */
+  section: number;
+  /** Inside modules: "in modul turm, gebaut in Zeile 88" (innermost first). */
+  ctx: string;
 }
 
 const BITS = 4;
@@ -119,15 +123,19 @@ export class Grid {
   private readonly stateIndex = new Map<string, number>();
   readonly chunks = new Map<number, Chunk>();
   /** Origins of blocks; index 0 = unknown. */
-  readonly origins: Origin[] = [{ line: 0, chain: [] }];
+  readonly origins: Origin[] = [{ line: 0, chain: [], section: 0, ctx: '' }];
+  /** Bauabschnitte by index; 0 is "no section". */
+  readonly sections: string[] = [''];
   private readonly originIndex = new Map<string, number>();
   /** Watchers of chunks that do not exist yet; they move to the chunk when it is made. */
   private readonly pendingWatchers = new Map<number, ChunkWatcher[]>();
   private cells = 0;
   private last: Chunk | null = null;
   private lastKey = -1;
-  /** Counts every set (statement limits). */
+  /** Counts every set (tests). */
   sets = 0;
+  /** Cells the connection pass leaves alone (zeichen … fest=ja); a later set or clear frees them. */
+  readonly fixed = new Set<number>();
 
   constructor(readonly limit = LIMIT) {}
 
@@ -146,15 +154,25 @@ export class Grid {
    * Origin id of a statement (line and module chain). A tag keeps parts of one statement apart
    * (a dormer's roof and its walls) while the hover shows the same line.
    */
-  originId(line: number, chain: readonly number[] = [], tag = ''): number {
-    const key = (chain.length ? `${line}|${chain.join(',')}` : String(line)) + (tag ? `#${tag}` : '');
+  originId(line: number, chain: readonly number[] = [], tag = '', section = 0, ctx = ''): number {
+    const key = (chain.length ? `${line}|${chain.join(',')}` : String(line)) + (tag ? `#${tag}` : '') + (section ? `§${section}` : '');
     let i = this.originIndex.get(key);
     if (i === undefined) {
       i = this.origins.length;
-      this.origins.push({ line, chain: [...chain] });
+      this.origins.push({ line, chain: [...chain], section, ctx });
       this.originIndex.set(key, i);
     }
     return i;
+  }
+
+  /** Takes origins and sections of another grid (same ids), for a turned copy. */
+  copyMeta(from: Grid): void {
+    this.origins.length = 0;
+    this.origins.push(...from.origins);
+    this.originIndex.clear();
+    for (const [k, v] of from.originIndex) this.originIndex.set(k, v);
+    this.sections.length = 0;
+    this.sections.push(...from.sections);
   }
 
   private chunkAt(x: number, y: number, z: number, create: boolean): Chunk | null {
@@ -208,6 +226,7 @@ export class Grid {
     c.ids[i] = id;
     c.info[i] = (part | (origin << PART_BITS)) >>> 0;
     this.sets++;
+    if (this.fixed.size) this.fixed.delete(cellKey(x, y, z));
     if (c.watchers) this.changed(c.watchers, x, y, z);
   }
 
@@ -218,6 +237,7 @@ export class Grid {
     if (c.ids[i] === 0) return;
     c.ids[i] = 0;
     c.info[i] = 0;
+    if (this.fixed.size) this.fixed.delete(cellKey(x, y, z));
     c.count--;
     this.cells--;
     if (c.watchers) this.changed(c.watchers, x, y, z);

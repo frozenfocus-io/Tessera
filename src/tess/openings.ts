@@ -194,7 +194,7 @@ export function windowOpts(c: Compiler, a: Args, f: FormObj, art: WindowArt, b: 
       ? {
           soil: c.ref(box),
           front: c.memberRef(a.str('kastenfront') ?? `${frameWord}:falltuer`, 'trapdoor'),
-          flowers: a.list('blumen').map((s) => c.palette.blockSpec(s, a.line)),
+          flowers: a.list('blumen').map((s) => c.spec(s)),
         }
       : null,
     edgeCheck: true,
@@ -354,7 +354,8 @@ export function placeDoor(c: Compiler, f: FormObj, s: Spot, o: DoorOpts): void {
     const upper = c.openingCell(wall, t, y0 + 1, 'Die Tür');
     if (!lower || !upper) continue;
     if (o.door) {
-      let hinge = 'left';
+      // A single door in a mirrored module hinges on the other side (its mirror image).
+      let hinge = c.xf.mirrored ? 'right' : 'left';
       if (b === 2) {
         // Hinges outside: the leaf on the left (seen from inside) has its hinge on the left.
         const left = DIR[ccwOf(facing)];

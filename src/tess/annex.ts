@@ -275,7 +275,7 @@ export function orielCmd(c: Compiler, st: Statement): void {
   if (art === 'dreieck' && b % 2 === 0) throw new TessError(st.line, 'Ein dreieckiger Erker braucht eine ungerade Breite (Spitze in der Mitte).');
   if (art === 'halbrund' && a.has('tiefe')) throw new TessError(st.line, 'Beim halbrunden Erker ergibt sich die Tiefe aus der Breite (Radius (b−1)/2).');
   const depth = a.int('tiefe', art === 'dreieck' ? (b + 1) / 2 : 2, 1, 16);
-  const name = a.has('name') ? asciiKey(a.str('name')!) : null;
+  const name = a.has('name') ? c.qname(asciiKey(a.str('name')!)) : null;
   if (name && spots.length > 1) throw new TessError(st.line, '„name=“ geht nur bei einem einzelnen Erker (ohne „anzahl=“).');
   const consoles = optRole(c, a, 'konsolen', 'rahmen');
   const stufen = a.int('stufen', 2, 0, 16);
@@ -606,7 +606,7 @@ export function cornerTurretsCmd(c: Compiler, st: Statement): void {
     const wanted = an.split(',').map((w) => {
       const ang = CORNER_ANGLES[asciiKey(w.trim())];
       if (ang === undefined) throw new TessError(st.line, `„an=${an}“: „${w}“ ist keine Ecke (nw, no, so, sw oder alle).`);
-      return ang;
+      return c.xf.angle(ang);
     });
     const angleOf = ([x, z]: [number, number]) => (Math.atan2(x + 0.5 - px, -(z + 0.5 - pz)) * 180) / Math.PI;
     corners = wanted.map((w) => {

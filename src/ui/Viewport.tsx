@@ -1,3 +1,4 @@
+import { editTarget, isEditing } from '../app/planEdit';
 import { useEffect, useRef, useState } from 'preact/hooks';
 import type { Project } from '../app/project';
 import { attachViewer, getPool, getViewer, hoverAt } from '../app/viewController';
@@ -22,6 +23,10 @@ function selectAt(clientX: number, clientY: number): void {
   if (!p) return;
   hoverAt(p, clientX, clientY);
   const h = p.hover.value;
+  if (isEditing(p)) {
+    editTarget.value = h ? { id: p.id, x: h.x, y: h.y, z: h.z, left: clientX + 8, top: clientY + 8 } : null;
+    return;
+  }
   p.setPinned(h ? `type:${h.typeId}` : null);
 }
 
@@ -113,6 +118,11 @@ export function Viewport({ onOpen }: { onOpen: () => void }) {
           const proj = activeProject.value;
           if (!wasClick || !proj) return;
           const h = proj.hover.value;
+          // Edit mode: a click on a block opens its menu, a click into empty space closes it.
+          if (isEditing(proj)) {
+            editTarget.value = h ? { id: proj.id, x: h.x, y: h.y, z: h.z, left: e.clientX + 8, top: e.clientY + 8 } : null;
+            return;
+          }
           const key = h ? `type:${h.typeId}` : null;
           if (key) proj.togglePinned(key);
           else if (proj.pinned.value) proj.togglePinned(null);
