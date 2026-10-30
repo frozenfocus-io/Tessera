@@ -180,7 +180,7 @@ profil=<y>:<v>[~],<y>:<v>[~],…
 - Versatz des Umrisses je nach Form:
   - box: jede Seite um v
   - zylinder: Radien +v
-  - vieleck: r+v
+  - vieleck: jede gerade Seite um v; der Umkreis wächst dafür um v / cos(180°/n) (beim Achteck um v · 1,08)
   - umriss und grundriss: Erweitern oder Schrumpfen um |v| mit 8er-Nachbarschaft (Chebyshev-Abstand)
 - Ein Umriss, der dabei leer wird, ist ein Fehler.
 - Jede Lage wird mit ihrem eigenen Umriss gebaut, einschließlich `hohl`, `wand`, `ecken` und Fachwerk. Bauteile verwenden den Umriss der Lage, in der sie sitzen.
@@ -244,11 +244,11 @@ dach <typ> <form> [name=…] [ueberstand=1] [profil=…|steil=k] [dicke=1] [roll
 
 Die Dachmaschine rechnet in **Lagen**. Lage 0 ist die erste Lage über der obersten Wandlage der Form.
 
-1. **Grundfläche F:** der Umriss der Form in ihrer obersten Lage (mit Wandprofil), erweitert um `ueberstand`. Bei box als Rechteck; bei zylinder und kegel über den Radius; bei vieleck über r; sonst mit 8er-Nachbarschaft.
+1. **Grundfläche F:** der Umriss der Form in ihrer obersten Lage (mit Wandprofil), erweitert um `ueberstand`. Bei box als Rechteck; bei zylinder und kegel über den Radius; bei vieleck wie der Versatz in 4.3 (jede gerade Seite rückt um `ueberstand`, `ueberstand=1` ist an jeder Seite ein Block); sonst mit 8er-Nachbarschaft.
 2. **Profil:** `profil=dx/dy,dx/dy,…` von der Traufe aufwärts. Jedes Element verschiebt den Rand um dx Zellen nach innen, verteilt auf dy Lagen. dx ist eine ganze Zahl, auch 0 (senkrecht) oder negativ (nach außen, Bauch). dy ≥ 1. Das letzte Element wiederholt sich, bis das Dach geschlossen ist.
    - Einzug der Lage y innerhalb eines Elements, das in Lage y₀ mit Einzug a₀ beginnt: `a(y) = a₀ + floor(dx·(y−y₀)/dy)`. Nach dem Element gilt a₀+dx.
    - Beispiele: `1/1` (45°), `1/2` (steil, wie `steil=2` in Version 1), `2/1` (flach, Stufe und Treppe im Wechsel), `0/2` (zwei Lagen senkrecht).
-3. **Lagenumriss O(y):** F um a(y) geschrumpft (Typ-Metrik aus 5.1; Kreise über den Radius R−a; bei a < 0 erweitert). Optional verschoben durch `biegung` (5.4). Das Dach ist geschlossen, sobald O(y) leer ist.
+3. **Lagenumriss O(y):** F um a(y) geschrumpft (Typ-Metrik aus 5.1; Kreise und Vielecke über den Radius des Umkreises, R−a; bei a < 0 erweitert). Optional verschoben durch `biegung` (5.4). Das Dach ist geschlossen, sobald O(y) leer ist.
 4. **Blöcke einer Lage y:**
    - **Stufenkante** = O(y) ohne O(y+1).
      - Zellen, die seitlich an O(y+1) grenzen, werden Treppen der Rolle (`half=bottom`), blickend zur angrenzenden Zelle von O(y+1). Grenzt eine Zelle an zwei Seiten über Eck an O(y+1) (Innenecke, auch Kehle), blickt sie in x-Richtung, also nach Osten oder Westen; grenzt sie nur schräg an (Außenecke), in z-Richtung, wie im Walmdach von Version 1. So werden Schrägen, die in einer Lage um zwei Zellen einrücken, ein Zickzack aus Außen- und Innenecken; die Treppen-Ecken bildet die Verbindungsberechnung.

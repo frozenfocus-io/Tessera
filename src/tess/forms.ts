@@ -189,7 +189,11 @@ function nearestCell(set: CellSet, px: number, pz: number): [number, number] | n
   return best;
 }
 
-/** vieleck: regular n-gon around the centre of cell (cx, cz), circumradius r + 0.5. */
+/**
+ * vieleck: regular n-gon around the centre of cell (cx, cz), circumradius r + 0.5. A profile
+ * offset or roof overhang v moves every straight side by v (spec 4.3, 5.2), so the circumradius
+ * grows by v / cos(180°/n).
+ */
 export class PolygonShape extends Shape2D {
   constructor(
     readonly cx: number,
@@ -210,8 +214,15 @@ export class PolygonShape extends Shape2D {
   override get halfFaces(): boolean {
     return true;
   }
-  vertices(v: number): [number, number][] {
-    const R = this.r + v + 0.5;
+  /**
+   * Circumradius for the side offset v, minus `shrink` (roof layers shrink over the radius,
+   * spec 5.2).
+   */
+  circumradius(v: number, shrink = 0): number {
+    return this.r + 0.5 + v / Math.cos(Math.PI / this.n) - shrink;
+  }
+  vertices(v: number, shrink = 0): [number, number][] {
+    const R = this.circumradius(v, shrink);
     const out: [number, number][] = [];
     for (let k = 0; k < this.n; k++) {
       const a = ((this.rotation + (360 * k) / this.n) * Math.PI) / 180;
@@ -219,11 +230,12 @@ export class PolygonShape extends Shape2D {
     }
     return out;
   }
-  outline(v: number): CellSet {
-    if (this.r + v < 0) return CellSet.EMPTY;
-    const poly = this.vertices(v);
-    const R = Math.ceil(this.r + v + 1);
-    return CellSet.build(this.cx - R, this.cz - R, this.cx + R, this.cz + R, (x, z) => insidePolygon(x + 0.5, z + 0.5, poly));
+  outline(v: number, shrink = 0): CellSet {
+    const R = this.circumradius(v, shrink);
+    if (R < 0) return CellSet.EMPTY;
+    const poly = this.vertices(v, shrink);
+    const k = Math.ceil(R);
+    return CellSet.build(this.cx - k, this.cz - k, this.cx + k, this.cz + k, (x, z) => insidePolygon(x + 0.5, z + 0.5, poly));
   }
   override corners(v: number, outline: CellSet): CellSet {
     const out: [number, number][] = [];

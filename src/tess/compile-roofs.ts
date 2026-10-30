@@ -226,11 +226,18 @@ export abstract class CompilerRoofs extends CompilerForms {
         at = (i) => CellSet.rect(xa + i, za + i, xb - i, zb - i);
       }
       base = CellSet.rect(xa, za, xb, zb);
-    } else if (f.shape instanceof DiscShape || f.shape instanceof PolygonShape) {
+    } else if (f.shape instanceof DiscShape) {
       const shape = f.shape;
       const v0 = vTop + over;
       at = (i) => shape.outline(v0 - i);
-      radius = (shape instanceof DiscShape ? shape.radius : shape.r) + v0;
+      radius = shape.radius + v0;
+      base = shape.outline(v0);
+    } else if (f.shape instanceof PolygonShape) {
+      // Profile offset and overhang move the straight sides; the layers shrink over the radius.
+      const shape = f.shape;
+      const v0 = vTop + over;
+      at = (i) => shape.outline(v0, i);
+      radius = Math.round(shape.circumradius(v0) - 0.5);
       base = shape.outline(v0);
     } else {
       const F = top.dilate(over);
