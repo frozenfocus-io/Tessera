@@ -5,6 +5,7 @@ import { DiscShape } from './forms';
 import { DIR, opposite, parseSide, ringByAngle, type Facing } from './geometry';
 import { Part } from './grid';
 import type { BlockSpec, RoleRef } from './palette';
+import { Xf } from './xform';
 import { asciiKey, TessError, type Statement } from './syntax';
 import { cellAngle, heightOf, norm, sideAngle } from './wall';
 
@@ -20,13 +21,13 @@ import { cellAngle, heightOf, norm, sideAngle } from './wall';
 const MAIN: readonly Facing[] = ['north', 'east', 'south', 'west'];
 
 /** Parses `seiten=n,o` / `seiten=alle` into compass angles (null = all sides). */
-export function parseSides(a: Args, key = 'seiten'): number[] | null {
+export function parseSides(a: Args, key = 'seiten', xf: Xf = Xf.ID): number[] | null {
   const v = a.str(key);
   if (v === undefined || asciiKey(v) === 'alle') return null;
   return v.split(',').map((w) => {
     const ang = sideAngle(w.trim());
     if (ang === null) throw new TessError(a.line, `„${key}=${v}“: „${w}“ ist keine Seite (n, o, s, w, no, so, sw, nw oder alle).`);
-    return ang;
+    return xf.angle(ang);
   });
 }
 
@@ -81,7 +82,7 @@ export function corniceCmd(c: Compiler, st: Statement): void {
   const ref = roleWord ? c.ref(roleWord) : f.role;
   const y = heightOf(c, a, f, true, undefined, 'Die Lage des Gesimses');
   const art = a.choice('art', ['treppe', 'stufe', 'block', 'kragen', 'zahn'] as const, 'treppe');
-  const sides = parseSides(a);
+  const sides = parseSides(a, 'seiten', c.xf);
   if (y < f.y0 - 1 || y > f.y1 + 1) throw new TessError(st.line, `Das Gesims (y=${y}) liegt nicht an „${f.name}“ (y=${f.y0} bis ${f.y1}).`);
   const O = c.outlineAt(f, Math.max(f.y0, Math.min(f.y1, y)));
   const inO = (x: number, z: number) => O.has(x, z);
@@ -133,7 +134,7 @@ export function pillarCmd(c: Compiler, st: Statement): void {
   const f = c.bauteilForm(a);
   const ref = c.ref(a.word1('Die Rolle der Pfeiler'));
   a.done();
-  const sides = parseSides(a);
+  const sides = parseSides(a, 'seiten', c.xf);
   const an = a.choice('an', ['raster', 'ecken'] as const, 'raster');
   const step = a.int('abstand', 4, 1, 256);
   const shift = a.int('versatz', 0, -256, 256);
@@ -143,8 +144,8 @@ export function pillarCmd(c: Compiler, st: Statement): void {
   const bis = a.int('bis', f.y1, -4000, 4000);
   if (bis < von) throw new TessError(st.line, `„bis=${bis}“ liegt unter „von=${von}“.`);
   const art = a.choice('art', ['gerade', 'strebe'] as const, 'gerade');
-  const head = a.has('kopf') ? c.palette.blockSpec(a.str('kopf')!, st.line) : null;
-  const foot = a.has('fuss') ? c.palette.blockSpec(a.str('fuss')!, st.line) : null;
+  const head = a.has('kopf') ? c.spec(a.str('kopf')!) : null;
+  const foot = a.has('fuss') ? c.spec(a.str('fuss')!) : null;
   if (an === 'ecken' && (a.has('abstand') || a.has('versatz') || a.has('breite'))) throw new TessError(st.line, '„abstand=“, „versatz=“ und „breite=“ gelten bei „an=raster“; an den Ecken ist ein Pfeiler „tiefe“ × „tiefe“ groß.');
   const what = 'Der Pfeiler';
   const H = bis - von + 1;
@@ -268,8 +269,9 @@ export function buttressCmd(c: Compiler, st: Statement): void {
   a.done();
   const dirWord = a.str('richtung');
   if (!dirWord) throw new TessError(st.line, 'Bei „strebe“ fehlt „richtung=“ (n, o, s oder w): die Richtung, in die die Strebe nach oben ausläuft.');
-  const dir = parseSide(asciiKey(dirWord));
-  if (!dir) throw new TessError(st.line, `„richtung=${dirWord}“ ist keine Seite (n, o, s oder w).`);
+  const side = parseSide(asciiKey(dirWord));
+  if (!side) throw new TessError(st.line, `„richtung=${dirWord}“ ist keine Seite (n, o, s oder w).`);
+  const dir = c.xf.facing(side);
   const n = a.requireInt('laenge', 1, 256, 'Die Zahl der Schritte.');
   const [dx, dz] = DIR[dir];
   for (let i = 0; i < n; i++) c.place([x + dx * i, y + i, z + dz * i], ref, 'stairs', { facing: opposite(dir), half: 'top' }, Part.Strut);
@@ -290,7 +292,7 @@ export function crenellationsCmd(c: Compiler, st: Statement): void {
   const on = +m[1];
   const period = on + +m[2];
   const hoehe = a.int('hoehe', 1, 1, 16);
-  const cap: BlockSpec | null = a.has('kappe') ? c.palette.blockSpec(a.str('kappe')!, st.line) : null;
+  const cap: BlockSpec | null = a.has('kappe') ? c.spec(a.str('kappe')!) : null;
   const machi = a.int('vorkragung', 0, 0, 1) === 1;
   if (a.has('konsolen') && !machi) throw new TessError(st.line, '„konsolen=“ gilt nur mit „vorkragung=1“ (Maschikuli).');
   const consoles: RoleRef = a.has('konsolen') ? c.ref(a.str('konsolen')!) : ref;

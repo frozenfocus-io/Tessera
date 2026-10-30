@@ -167,7 +167,7 @@ export function ivyCmd(c: Compiler, st: Statement): void {
   const a = new Args(st, c.tokens(st), ['seiten', 'dichte', 'laenge', 'von', 'bis', 'art', 'muster']);
   const f = c.bauteilForm(a);
   a.done();
-  const sides = parseSides(a);
+  const sides = parseSides(a, 'seiten', c.xf);
   const density = a.decimal('dichte', 0.3, 0, 1);
   const len = a.int('laenge', 3, 1, 64);
   const von = a.int('von', f.y0, -4000, 4000);
@@ -236,7 +236,7 @@ export function coverCmd(c: Compiler, st: Statement): void {
   const where = a.choice('flaechen', ['oben', 'seiten', 'alle'] as const, 'oben');
   const blockWord = a.str('block');
   if (!blockWord) throw new TessError(st.line, 'Beim Bewuchs fehlt „block=“, z. B. block=moss_carpet.');
-  const spec = c.palette.blockSpec(blockWord, st.line);
+  const spec = c.spec(blockWord);
   const density = a.decimal('dichte', 0.3, 0, 1);
   const pattern = growthPattern(a, 'flecken:3');
   const salt = stringHash(`bewuchs${st.line}`);
@@ -261,7 +261,7 @@ export function scatterCmd(c: Compiler, st: Statement): void {
   a.choice('flaechen', ['oben'] as const, 'oben');
   const blockWord = a.str('block');
   if (!blockWord) throw new TessError(st.line, 'Bei „streue“ fehlt „block=“, z. B. block=brown_mushroom.');
-  const spec: BlockSpec = c.palette.blockSpec(blockWord, st.line);
+  const spec: BlockSpec = c.spec(blockWord);
   const density = a.decimal('dichte', 0.2, 0, 1);
   const salt = stringHash(`streue${st.line}`);
   for (const p of topCells(c, f)) if (cellRandom(c.palette.seed, p[0], p[1], p[2], salt) < density) c.outPlaceSpec(p, spec, Part.Attachment, 'Die Streu');
@@ -331,7 +331,7 @@ export function fieldCmd(c: Compiler, st: Statement): void {
   const z1 = Math.max(p[2], q[2]);
   const W = x1 - x0 + 1;
   const L = z1 - z0 + 1;
-  const crop = c.palette.blockSpec(a.str('frucht') ?? 'wheat', st.line);
+  const crop = c.spec(a.str('frucht') ?? 'wheat');
   const fence = a.has('zaun') ? c.memberRef(c.roleOrBlockName(a.str('zaun')!), 'fence') : null;
   const gateSide = a.has('tor') ? parseSide(asciiKey(a.str('tor')!)) : null;
   if (a.has('tor') && !gateSide) throw new TessError(st.line, `„tor=${a.str('tor')}“ ist keine Seite (n, o, s oder w).`);

@@ -16,7 +16,7 @@
 export type Token =
   | { kind: 'word'; text: string; col: number }
   | { kind: 'number'; value: number; text: string; col: number }
-  | { kind: 'coord'; values: number[]; text: string; col: number }
+  | { kind: 'coord'; values: number[]; text: string; col: number; local?: number[] }
   | { kind: 'string'; text: string; col: number }
   | { kind: 'pair'; key: string; value: string; text: string; col: number };
 
@@ -47,12 +47,28 @@ export interface Statement {
   text?: string;
   /** Version 2: ASCII drawing below the statement. */
   ascii?: AsciiLine[];
+  /** Version 2: last physical line of the statement (continuation lines, without the drawing). */
+  lastLine?: number;
+  /** Version 2: statements up to the matching `ende` (modul, wiederhole, spiegle). */
+  body?: Statement[];
+  /** Version 2: line of the matching `ende`; undefined when it is missing. */
+  endLine?: number;
 }
+
+/** Commands that enclose statements up to a matching `ende` (Bau-Sprache 2, 1.2). */
+export const BLOCK_COMMANDS = new Set(['modul', 'wiederhole', 'spiegle']);
 
 export interface Diagnostic {
   line: number;
   level: 'error' | 'warn';
   message: string;
+  /** Inside modules: "in modul turm, gebaut in Zeile 88" (innermost first). */
+  ctx?: string;
+}
+
+/** "Zeile 40" or "Zeile 40 (in modul turm, gebaut in Zeile 88)". */
+export function diagLabel(d: Pick<Diagnostic, 'line' | 'ctx'>): string {
+  return d.ctx ? `Zeile ${d.line} (${d.ctx})` : `Zeile ${d.line}`;
 }
 
 /** An error inside one statement; the compiler records it and continues with the next line. */
@@ -269,6 +285,7 @@ export function parseStatements2(source: string): { statements: Statement[]; dia
       text += stripComment(lines[i].replace(/\r$/, ''));
     }
     if (/\\\s*$/.test(text)) text = text.replace(/\\\s*$/, '');
+    const last = i + 1;
     i++;
     try {
       const raw = splitRaw(text, first);
@@ -283,6 +300,7 @@ export function parseStatements2(source: string): { statements: Statement[]; dia
         args: [],
         raw: raw.slice(1),
         text: text.replace(/\s+/g, ' ').trim(),
+        lastLine: last,
       };
       if (DRAWING_COMMANDS.has(st.cmd)) {
         st.ascii = [];
@@ -294,7 +312,45 @@ export function parseStatements2(source: string): { statements: Statement[]; dia
       else throw e;
     }
   }
-  return { statements, diagnostics };
+  return { statements: nest(statements, diagnostics), diagnostics };
+}
+
+/**
+ * Nesting (1.2): modul, wiederhole and spiegle take the statements up to the matching `ende`
+ * as their body. A block without `ende` is an error and does not run.
+ */
+function nest(flat: Statement[], diagnostics: Diagnostic[]): Statement[] {
+  const root: Statement[] = [];
+  const stack: Statement[] = [];
+  for (const st of flat) {
+    if (st.cmd === 'ende') {
+      if (st.raw?.length) diagnostics.push({ line: st.line, level: 'error', message: '„ende“ steht allein in der Zeile.' });
+      const open = stack.pop();
+      if (!open) diagnostics.push({ line: st.line, level: 'error', message: '„ende“ ohne passenden Anfang (modul, wiederhole oder spiegle).' });
+      else open.endLine = st.line;
+      continue;
+    }
+    (stack.length ? stack[stack.length - 1].body! : root).push(st);
+    if (BLOCK_COMMANDS.has(st.cmd)) {
+      st.body = [];
+      stack.push(st);
+    }
+  }
+  for (const open of stack) diagnostics.push({ line: open.line, level: 'error', message: `„${open.cmd}“ wird nicht mit „ende“ geschlossen.` });
+  return root;
+}
+
+/** All statements of a nested list, in file order (bodies included). */
+export function flatten(list: readonly Statement[]): Statement[] {
+  const out: Statement[] = [];
+  const walk = (l: readonly Statement[]) => {
+    for (const st of l) {
+      out.push(st);
+      if (st.body) walk(st.body);
+    }
+  };
+  walk(list);
+  return out;
 }
 
 /** The language version a file asks for in its first statement, null when there is none. */

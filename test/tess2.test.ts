@@ -821,7 +821,7 @@ describe('Herkunft pro Block', () => {
   });
 
   it('zeigt im Hover eine gekürzte Zeile', () => {
-    const o = { line: 57, chain: [], text: 'dach helm turm profil=glocke spitze=lightning_rod firstzier=zier:mauer biegung=n:2' };
+    const o = { line: 57, chain: [], text: 'dach helm turm profil=glocke spitze=lightning_rod firstzier=zier:mauer biegung=n:2', ctx: '', section: 0 };
     expect(originLabel(o, 200)).toBe('Zeile 57: dach helm turm profil=glocke spitze=lightning_rod firstzier=zier:mauer biegung=n:2');
     const short = originLabel(o, 40);
     expect(short.length).toBeLessThanOrEqual(40);

@@ -10,6 +10,7 @@ import { IconCheck, IconCopy, IconFolder, IconSave } from './icons';
 import { RawMaterials } from './RawMaterials';
 import { PerfLine } from './Viewport';
 import { bytes, css, num } from './format';
+import { diagLabel } from '../tess/syntax';
 
 export function Sidebar() {
   const p = activeProject.value;
@@ -271,7 +272,7 @@ function PlanHints({ project: p }: { project: Project }) {
                 p.markLine(d.line);
               }}
             >
-              <span class="plan-hint-line">Zeile {d.line}</span> {d.message}
+              <span class="plan-hint-line">{diagLabel(d)}</span> {d.message}
             </button>
           </li>
         ))}

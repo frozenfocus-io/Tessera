@@ -1,7 +1,7 @@
 import { compileTess } from '../../tess/compile';
 import { infoOrigin } from '../../tess/grid';
 import type { BlockHints } from '../../tess/palette';
-import type { Diagnostic } from '../../tess/syntax';
+import { diagLabel, type Diagnostic } from '../../tess/syntax';
 import { TARGET_DATA_VERSION } from '../versions';
 import { checkCells, PaletteBuilder, type FormatResult } from './common';
 
@@ -32,6 +32,10 @@ export interface OriginEntry {
   chain: number[];
   /** The statement, comments removed, continuation lines joined. */
   text: string;
+  /** Inside modules: "in modul turm, gebaut in Zeile 88" (innermost first); '' outside. */
+  ctx: string;
+  /** Bauabschnitt (index into PlanOrigins.sections; 0 = none). */
+  section: number;
 }
 
 /** Origin of every cell of a building plan (same index order as the volume data). */
@@ -39,6 +43,8 @@ export interface PlanOrigins {
   /** Index into `table` per cell; 0 = no block. */
   ids: Uint16Array | Uint32Array;
   table: OriginEntry[];
+  /** Names of the Bauabschnitte; index 0 is "no section". */
+  sections: string[];
 }
 
 export interface TessResult extends FormatResult {
@@ -48,7 +54,7 @@ export interface TessResult extends FormatResult {
 
 /** "Zeile 57: dach helm turm profil=glocke …", shortened to `max` characters; with modules the call chain. */
 export function originLabel(o: OriginEntry, max: number): string {
-  const chain = o.chain.length ? ` (gebaut in Zeile ${[...o.chain].reverse().join(', ')})` : '';
+  const chain = o.ctx ? ` (${o.ctx})` : o.chain.length ? ` (gebaut in Zeile ${[...o.chain].reverse().join(', ')})` : '';
   const head = `Zeile ${o.line}${chain}`;
   const text = o.text.replace(/\s+/g, ' ').trim();
   if (!text) return head;
@@ -59,7 +65,7 @@ export function originLabel(o: OriginEntry, max: number): string {
 
 /** Line-numbered messages, one per line, for error reports. */
 export function formatDiagnostics(list: readonly Diagnostic[]): string {
-  return list.map((d) => `Zeile ${d.line}: ${d.message}`).join('\n');
+  return list.map((d) => `${diagLabel(d)}: ${d.message}`).join('\n');
 }
 
 export function parseTess(bytes: Uint8Array, hints?: BlockHints): TessResult {
@@ -74,7 +80,7 @@ export function parseTess(bytes: Uint8Array, hints?: BlockHints): TessResult {
   const builder = new PaletteBuilder(TARGET_DATA_VERSION);
   const map = new Int32Array(grid.states.length).fill(-1);
   const data = new Uint16Array(sizeX * sizeY * sizeZ);
-  const table: OriginEntry[] = [{ line: 0, chain: [], text: '' }];
+  const table: OriginEntry[] = [{ line: 0, chain: [], text: '', ctx: '', section: 0 }];
   const originMap = new Map<number, number>();
   const ids = grid.origins.length < 0xffff ? new Uint16Array(data.length) : new Uint32Array(data.length);
   grid.forEach((x, y, z, sid, info) => {
@@ -88,9 +94,9 @@ export function parseTess(bytes: Uint8Array, hints?: BlockHints): TessResult {
     const o = infoOrigin(info);
     let t = originMap.get(o);
     if (t === undefined) {
-      const src = grid.origins[o] ?? { line: 0, chain: [] };
+      const src = grid.origins[o] ?? { line: 0, chain: [], ctx: '', section: 0 };
       t = table.length;
-      table.push({ line: src.line, chain: [...src.chain], text: out.lineTexts.get(src.line) ?? '' });
+      table.push({ line: src.line, chain: [...src.chain], text: out.lineTexts.get(src.line) ?? '', ctx: src.ctx, section: src.section });
       originMap.set(o, t);
     }
     ids[i] = t;
@@ -107,10 +113,10 @@ export function parseTess(bytes: Uint8Array, hints?: BlockHints): TessResult {
       blockEntityCount: 0,
       entityCount: 0,
       meta: out.name ? { name: out.name } : undefined,
-      warnings: out.diagnostics.filter((d) => d.level === 'warn').map((d) => `Zeile ${d.line}: ${d.message}`),
+      warnings: out.diagnostics.filter((d) => d.level === 'warn').map((d) => `${diagLabel(d)}: ${d.message}`),
       renames: [],
     },
     diagnostics: out.diagnostics,
-    origins: { ids, table },
+    origins: { ids, table, sections: [...grid.sections] },
   };
 }

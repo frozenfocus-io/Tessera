@@ -95,7 +95,7 @@ interface TimberCell {
 
 export abstract class CompilerForms extends CompilerPlace {
   form(name: string, what = 'Die Form'): FormObj {
-    const key = asciiKey(name);
+    const key = this.resolveName(asciiKey(name), (k) => this.forms.has(k) || this.roofObjs.has(k) || this.failedNames.has(k));
     const f = this.forms.get(key);
     const failed = this.failedNames.get(key);
     if (!f && failed !== undefined) throw new FollowUpError(this.line, `„${name}“ fehlt, weil Zeile ${failed} fehlerhaft ist.`);
@@ -231,7 +231,10 @@ export abstract class CompilerForms extends CompilerPlace {
         let mode: ConstructorParameters<typeof DiscShape>[2];
         if (given.length === 1 && given[0] === 'r') mode = { r: a.int('r', 0, 1, 500) };
         else if (given.length === 1 && given[0] === 'd') mode = { d: a.int('d', 0, 1, 1001) };
-        else if (given.length === 2 && a.has('rx') && a.has('rz')) mode = { rx: a.int('rx', 0, 0, 500), rz: a.int('rz', 0, 0, 500) };
+        else if (given.length === 2 && a.has('rx') && a.has('rz')) {
+          const [rx, rz] = [a.int('rx', 0, 0, 500), a.int('rz', 0, 0, 500)];
+          mode = this.xf.swaps ? { rx: rz, rz: rx } : { rx, rz };
+        }
         else throw new TessError(st.line, 'Der zylinder braucht genau eins von: r= (Radius), d= (Durchmesser) oder rx= und rz= (Ellipse).');
         const h = a.requireInt('h', 1, 2000, 'Die Höhe in Blöcken.');
         if (a.flag('hohl') && 'r' in mode && mode.r < 2) throw new TessError(st.line, 'Ein hohler zylinder braucht mindestens r=2.');
@@ -248,7 +251,7 @@ export abstract class CompilerForms extends CompilerPlace {
         const n = a.requireInt('n', 3, 16, 'Die Zahl der Ecken, z. B. n=8.');
         const r = a.requireInt('r', 0, 500, 'Der Radius: Der Umkreis hat r+0,5.');
         const h = a.requireInt('h', 1, 2000, 'Die Höhe in Blöcken.');
-        const rot = a.decimal('drehung', 180 / n, -360, 360);
+        const rot = this.xf.angle(a.decimal('drehung', 180 / n, -360, 360));
         shape = new PolygonShape(cx, cz, n, r, rot);
         y0 = y;
         y1 = y + h - 1;
@@ -269,7 +272,7 @@ export abstract class CompilerForms extends CompilerPlace {
         const points = raw.split(';').map((p) => {
           const m = /^(-?\d+),(-?\d+)$/.exec(p.trim());
           if (!m) throw new TessError(st.line, `„punkte=…“: „${p}“ ist kein Punkt x,z.`);
-          return [parseInt(m[1], 10), parseInt(m[2], 10)] as [number, number];
+          return this.xf.mapXZ(parseInt(m[1], 10), parseInt(m[2], 10));
         });
         if (points.length < 3) throw new TessError(st.line, 'Ein umriss braucht mindestens drei Punkte.');
         shape = new OutlineShape(points, st.line);
@@ -279,7 +282,10 @@ export abstract class CompilerForms extends CompilerPlace {
       }
       case 'grundriss': {
         name = a.optionalName();
+        const corner = a.positional.find((t) => t.kind === 'coord');
         const [x, y, z] = a.coord('Die Ecke (Zelle des ersten Zeichens)');
+        // In a module the drawing is local: draw it there, then move the cells.
+        const [lx, , lz] = corner?.kind === 'coord' && corner.local ? corner.local : [x, y, z];
         roleWord = a.word1('Die Rolle');
         a.done();
         const h = a.requireInt('h', 1, 2000, 'Die Höhe in Blöcken.');
@@ -289,7 +295,7 @@ export abstract class CompilerForms extends CompilerPlace {
         lines.forEach((l, row) => {
           for (let i = 0; i < l.text.length; i++) {
             const c = l.text[i];
-            if (c !== ' ' && c !== '.') cells.push([x + i, z + row]);
+            if (c !== ' ' && c !== '.') cells.push(this.xf.mapXZ(lx + i, lz + row));
           }
         });
         if (!cells.length) throw new TessError(st.line, 'Die Zeichnung des grundriss enthält keine Zelle (Leerzeichen und . sind außen).');
@@ -316,7 +322,7 @@ export abstract class CompilerForms extends CompilerPlace {
     const o = this.formOpts(a, kind);
     const f: FormObj = {
       kind,
-      name: name ?? '',
+      name: name ? this.qname(name) : '',
       line: st.line,
       y0,
       y1,
@@ -334,7 +340,7 @@ export abstract class CompilerForms extends CompilerPlace {
       roofs: [],
       annex: false,
     };
-    if (name && (this.forms.has(name) || this.roofObjs.has(name))) this.register(f);
+    if (f.name && (this.forms.has(f.name) || this.roofObjs.has(f.name))) this.register(f);
     // Check the outline of every layer before building anything.
     let bx0 = Infinity, bz0 = Infinity, bx1 = -Infinity, bz1 = -Infinity;
     for (let y = y0; y <= y1; y++) {

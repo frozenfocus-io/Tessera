@@ -37,7 +37,7 @@ const root = resolve(new URL('..', import.meta.url).pathname);
 const { module } = await runnerImport(resolve(root, 'src/tess/compile.ts'), { root, logLevel: 'error' });
 const out = module.compileTess(readFileSync(file, 'utf8'));
 
-for (const d of out.diagnostics) console.log(`${d.level === 'error' ? 'Fehler' : 'Hinweis'} Zeile ${d.line}: ${d.message}`);
+for (const d of out.diagnostics) console.log(`${d.level === 'error' ? 'Fehler' : 'Hinweis'} Zeile ${d.line}${d.ctx ? ` (${d.ctx})` : ''}: ${d.message}`);
 if (!out.diagnostics.length) console.log('Keine Meldungen.');
 const b = out.grid.bounds();
 if (!b) process.exit(0);
@@ -101,7 +101,9 @@ for (const p of opt('block')) {
   const s = out.grid.get(x, y, z);
   const info = out.grid.cellInfo(x, y, z);
   const text = info ? (out.lineTexts?.[info.line] ?? out.lineTexts?.get?.(info.line) ?? '') : '';
-  console.log(`\n${x},${y},${z}: ${s ? s.key : 'Luft'}${info ? `  (Zeile ${info.line}: ${String(text).trim()})` : ''}`);
+  const ctx = info ? out.grid.origins[info.origin]?.ctx : '';
+  const sec = info ? out.grid.sections[out.grid.origins[info.origin]?.section ?? 0] : '';
+  console.log(`\n${x},${y},${z}: ${s ? s.key : 'Luft'}${info ? `  (Zeile ${info.line}${ctx ? ` (${ctx})` : ''}${sec ? `, Abschnitt „${sec}“` : ''}: ${String(text).trim()})` : ''}`);
 }
 
 if (legend.size) console.log(`\nLegende: ${[...legend].map(([k, c]) => `${c} ${k.replace('minecraft:', '')}`).join(' · ')}`);
