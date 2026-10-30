@@ -8,7 +8,7 @@ Neue Einträge unten anhängen, Vorlage am Ende.
 
 ## 1. Dachtreppen an schrägen Kanten verbinden sich nicht
 
-*Beim Test von 4a gemeldet (25.10.2026). Status: offen.*
+*Beim Test von 4a gemeldet (25.10.2026). Status: Vorschlag A erledigt (30.10.2026, Commit ec8206c, Version 0.4.3), Vorschlag B offen.*
 
 **Beobachtung:** Am Helm und am Kranzdach des Wachturms bilden die Treppen an den schrägen Seiten des Achtecks keine Ecken, so wie man sie in Minecraft bauen würde. Stellenweise stehen einzelne gerade Treppen schräg hintereinander. Eigentlich müssten sie nach Südwest oder Nordwest zeigen, aber Treppen kennen nur Nord, Ost, Süd und West.
 
@@ -58,17 +58,27 @@ Legende: `v` `^` `>` `<` gerade Treppe mit Blick nach Süden, Norden, Osten, Wes
 
 **Empfehlung:** Zuerst A, weil es klein ist und klar besser aussieht. Danach B1 und B2 als Probe am Wachturm-Helm und am Kegeldach von `haus-mit-rundturm.tess` bauen und Bildschirmfotos vergleichen.
 
+**Stand nach A (0.4.3):**
+- Umgesetzt für alle Treppen der Dachmaschine, im Kranzdach und bei den Konsolen unter Vorkragungen. Konsolen an Außenecken blicken dabei in z- statt x-Richtung, sonst gäbe es dort nie Ecken (Spezifikation 4.3 angepasst).
+- Doppelschritte: Am Wachturm-Helm (jetzt mit `ueberstand=1`, siehe Nr. 2) sind die Lagen y=24 und y=25 und das Kranzdach in y=18 und y=19 auf allen vier Schrägen ein Zickzack ohne Abdichtung. Kehlen bleiben Innenecken.
+- Einfachschritte bleiben der Rest für B: In y=27 und y=30 stehen auf den Schrägen einzelne gerade Treppen, jetzt symmetrisch in x-Richtung, mit acht bzw. vier vollen Blöcken dahinter. Die Konsolen am Wachturm liegen ebenfalls auf Einfachschritten.
+- Die Lagen schrumpfen weiter über den Umkreis, eine Schräge rückt also weiterhin im Mittel um etwa 1,3 Zelldiagonalen pro Lage ein (Ursache 2 unverändert).
+- Gesims, Umgang, Zinnen, Wendeltreppe außen und die Konsolen der Ecktürmchen haben noch die alte Regel (n, o, s, w); an Schrägen mit Doppelschritt bilden sie keine Ecken.
+- Zählt die gespiegelte Hälfte eines Erkerdachs mit (Nr. 9), kann eine Treppe zur Innenecke werden, ohne dass daneben eine Treppe liegt. Am Fachwerkhaus führen deshalb linie-Zeilen die Dachfläche hinter dem Erker weiter.
+
 ---
 
 ## 2. Achteck-Profile: „zwei breiter“ ist an den geraden Seiten nur einer
 
-*Beim Bau des Wachturms aufgefallen. Status: offen.*
+*Beim Bau des Wachturms aufgefallen. Status: erledigt (30.10.2026, Commit e9ff56f, Version 0.4.3).*
 
 **Beobachtung:** `profil=0:2` beim `vieleck` soll den Turm unten um zwei Blöcke verbreitern. Die Schrägen wachsen um zwei, die geraden Seiten nur um einen: Beim Achteck mit r=5 liegen sie fünf Zellen von der Mitte, mit r=7 sechs. Dasselbe gilt für `ueberstand` bei Dächern auf Vielecken; deshalb hat der Helm des Wachturms `ueberstand=2`.
 
 **Ursache:** Die Spezifikation (4.3, 5.2) verschiebt beim Vieleck den Radius des Umkreises. Die geraden Seiten liegen um den Faktor cos(180°/n) näher an der Mitte, beim Achteck 0,92.
 
 **Vorschlag** (ändert die Spezifikation 4.3 und 5.2): Beim Vieleck beziehen sich Versatz und Überstand auf den Abstand der geraden Seiten. Der Umkreis wächst dann um v / cos(180°/n), und jede Seite rückt um v; `ueberstand=1` bedeutet dann an jeder Seite einen Block Überstand. Bestehende Dateien mit `tess 2` sähen danach etwas anders aus, das betrifft bisher nur den Wachturm.
+
+**Umgesetzt (0.4.3):** wie vorgeschlagen. Die Dachlagen schrumpfen weiter über den Umkreis. Der Wachturm hat wieder die Maße aus dem Auftrag 4a (unten zwei breiter, verjüngt bis Lage 12) und am Helm `ueberstand=1`. Bei einem Block Versatz springt eine Schräge um eine oder zwei Zelldiagonalen; zwei lassen eine hohle Wand offen (Nr. 24).
 
 ---
 
@@ -94,6 +104,8 @@ Legende: `v` `^` `>` `<` gerade Treppe mit Blick nach Süden, Norden, Osten, Wes
 **Ursache:** Der Kegel aus Version 1 lässt jede Treppe zur Mitte blicken, die Dachmaschine nimmt die Regeln aus Eintrag 1.
 
 **Vorschlag:** Eintrag 1 (A und B) macht runde Dächer symmetrisch und behebt den Großteil. Volle Gleichheit gäbe es nur mit einem Sonderfall für `dach kegel` auf dem `zylinder`; der lohnt sich vermutlich nicht.
+
+**Stand nach 1A (0.4.3):** Das Kegeldach von `haus-mit-rundturm.tess` ist mit `tess 2` jetzt symmetrisch. In Lage 14 (Doppelschritt) bilden alle vier Schrägen Außen- und Innenecken, in Lage 16 stehen einzelne gerade Treppen mit vier Abdichtungsblöcken. Version 1 lässt alle Treppen zur Mitte blicken, bildet keine Ecken und setzt in Lage 13 acht volle Blöcke, wo tess 2 Dachboden lässt. Es bleiben 32 abweichende Blöcke, so viele wie vorher. Gleichheit bringt auch B nicht, nur der Sonderfall.
 
 ---
 
@@ -225,6 +237,8 @@ Meldung: „Zeile 2: Fließen: Das Wasser bei 1,0,0 fließt aus (daneben oder da
 
 **Vorschlag:** Für `halbrund` und `dreieck` einen ganzen Helm um die Mitte des Erkers vor der Wand rechnen (Spitze über dem Erker, nicht in der Wand), dazu `dachueberstand=` beim Erker. Ändert die Umsetzung von 6.5, nicht die Syntax; Bildvergleich am Fachwerkhaus.
 
+**Nachtrag (0.4.3):** Die gespiegelte Hälfte zählt in der Vereinigung mit, wird aber nicht gebaut. Zellen der Hauptdachfläche hinter dem Erker gelten dadurch als Dachboden: Am Fachwerkhaus fehlten in Lage 14 bis 16 (x=0 bis 6) Teile der Dachfläche, man sah ins Dach. Bisher verdeckten zufällige Abdichtungsblöcke einen Teil, mit 1A entfallen sie. Das Fachwerkhaus führt die Dachfläche dort mit drei linie- und zwei block-Zeilen weiter. Vorschlag dazu: Zellen, die ein Erkerdach nicht baut, zählen für die anderen Dächer nicht zur Vereinigung.
+
 ---
 
 ## 10. Hexenhut-Biegung: Spitze endet in einer umgedrehten Treppe
@@ -304,6 +318,8 @@ Die oberste Dachtreppe liegt bei (−7,12,0), die Wand in dieser Lage bei x=−5
 **Ursache:** Das Pultdach steigt zur Wand der Balkonlage an; springt die Wand darüber zurück, bleibt eine Lücke.
 
 **Vorschlag:** Jede Dachreihe läuft bis zur Wandzelle ihrer eigenen Lage. Danach kann der Wachturm die Verjüngung bis Lage 12 bekommen, wie im Auftrag 4a. Test mit verjüngter Wand.
+
+**Stand 0.4.3:** Der Wachturm ist wieder bis Lage 12 verjüngt, der Balkon steht in Lage 8. Die Lücke bleibt (bei −6,13,0), liegt aber unter dem Boden des Umgangs; das Dach berührt diesen Boden, darum meldet Tessera kein Schweben.
 
 ---
 
@@ -427,7 +443,7 @@ Die oberste Dachtreppe liegt bei (−7,12,0), die Wand in dieser Lage bei x=−5
 - Das Obergeschoss ist zwischen Schürze und Helm gedrückt, sichtbar sind etwa drei Lagen; die Schürze wirkt schwer.
 - Das Gesims in Lage 1 wirkt wie eine Fußleiste.
 - Das Balkondach liegt direkt unter dem Boden des Umgangs; der Bereich wirkt gedrängt.
-- Die Verjüngung endet in Lage 8 statt 12 (Eintrag 13).
+- Die Verjüngung endet in Lage 8 statt 12 (Eintrag 13). Seit 0.4.3 wieder bis Lage 12.
 
 **Fachwerkhaus:**
 - Erkerhelm von der Seite eine dunkle Scheibe (Eintrag 9).
@@ -436,6 +452,26 @@ Die oberste Dachtreppe liegt bei (−7,12,0), die Wand in dieser Lage bei x=−5
 - Die Vorkragung ist zwei Blöcke tief statt üblicherweise einem (Eintrag 14).
 
 **Vorschlag:** Nach Etappe 4 eine eigene Schönheitsrunde mit Bildschirmfotos (`scripts/fotos.mjs`) und, wo nötig, den Einträgen oben.
+
+---
+
+## 24. Absatz an Schrägen: hohle Wand lässt Zellen offen
+
+*Beim Anpassen des Wachturms an Nr. 2 aufgefallen (30.10.2026). Status: offen.*
+
+**Beobachtung:** Verjüngt sich ein Vieleck um einen Block, rücken die geraden Seiten um eine Zelle, die Schrägen aber um eine oder zwei Zelldiagonalen. Bei zwei bleibt auf dem Absatz eine Reihe Zellen offen, durch die man von oben ins Innere sieht, beim Wachturm bis auf den Holzboden.
+
+```
+tess 2
+rolle stein stone_bricks
+vieleck t 0,0,0 n=8 r=5 h=6 stein hohl profil=0:2,3:1
+```
+
+In Lage 2 liegen die Schrägen bei |x|+|z| = 10, in Lage 3 bei 8. Die Zellen mit |x|+|z| = 9 sind in Lage 2 innen (Luft) und liegen in Lage 3 außerhalb: je Schräge vier offene Zellen, z. B. (3,2,−6) und (4,2,−5).
+
+**Ursache:** Die Wand der Stärke 1 umfasst nur Zellen mit einem Schritt nach außen, und jede Lage wird mit ihrem eigenen Umriss gebaut (4.3). Vor Nr. 2 gab es das bei anderen Radien ebenso (z. B. r=8 auf r=7), am Wachturm erst jetzt.
+
+**Vorschlag** (ändert 4.1 oder 4.3): Zellen einer hohlen Lage, die die Lage darüber nicht deckt, gehören zur Wand; der Absatz ist dann geschlossen. Test mit dem Beispiel oben. Bis dahin schließen am Wachturm vier linie-Zeilen den Absatz über Lage 5.
 
 ---
 

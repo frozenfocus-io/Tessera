@@ -1,6 +1,6 @@
 # Bau-Sprache (`.tess`)
 
-Referenz für das Schreiben von Bauplänen, Stand Etappe 4c (Tessera 0.4.2). Eine `.tess`-Datei beschreibt, *wie* ein Gebäude aufgebaut ist; Tessera übersetzt sie in Blöcke.
+Referenz für das Schreiben von Bauplänen, Stand Etappe 4c (Tessera 0.4.3). Eine `.tess`-Datei beschreibt, *wie* ein Gebäude aufgebaut ist; Tessera übersetzt sie in Blöcke.
 
 - **`tess 2`** ist die Bau-Sprache 2 aus [bau-sprache-2.md](bau-sprache-2.md), vollständig: Werte und Ausdrücke, Rollen mit allen Gliedern und Mustern, sechs Formen mit Wandprofil, Konsolen und Fachwerk, die Dachmaschine mit Verschneidung und Kranzdach (4a); Bauteile an Wänden, Anbauten, Zinnen, Bögen, Treppen, Zier und Deko, Felder und die Prüfungen (4b); Freistil, Module, Wiederholung, Spiegelung, Bauabschnitte und Ausrichtung (4c).
 - **`tess 1`** bleibt gültig und ergibt blockgenau dasselbe wie in 0.3.0, siehe [Version 1](#version-1).
@@ -109,7 +109,7 @@ Eine Form mit Namen nimmt Bauteile, Dächer und Felder an. Der Name steht direkt
 
 - **box:** Quader zwischen zwei Ecken (beide eingeschlossen). Hohl mindestens 3 × 3.
 - **zylinder:** `x,y,z` ist die Mitte unten. `r`: Durchmesser 2r+1, hohl ab r=2. `d`: jede Breite; bei geradem d liegt die Mitte auf der Ecke zwischen vier Zellen (Punkt x+1, z+1), innen ist, was höchstens d/2 davon entfernt ist. `rx`/`rz`: Ellipse.
-- **vieleck:** regelmäßiges n-Eck (3 bis 16), Umkreis r+0,5 um die Mitte der Zelle x,z. Ecke k liegt beim Kompasswinkel `drehung + 360·k/n` (0 = Norden, im Uhrzeigersinn). Standard-`drehung` ist 180/n; dann zeigt eine gerade Seite nach Norden, beim Achteck liegen die Seiten in den Haupt- und Nebenrichtungen. Die geraden Seiten liegen um r+0,5 mal cos(180°/n) von der Mitte: beim Achteck mit r=5 fünf Zellen weit, mit r=7 sechs.
+- **vieleck:** regelmäßiges n-Eck (3 bis 16), Umkreis r+0,5 um die Mitte der Zelle x,z. Ecke k liegt beim Kompasswinkel `drehung + 360·k/n` (0 = Norden, im Uhrzeigersinn). Standard-`drehung` ist 180/n; dann zeigt eine gerade Seite nach Norden, beim Achteck liegen die Seiten in den Haupt- und Nebenrichtungen. Die geraden Seiten liegen um r+0,5 mal cos(180°/n) von der Mitte: beim Achteck mit r=5 fünf Zellen weit, mit r=7 sechs. Wandprofil und Dachüberstand rücken jede gerade Seite (siehe unten).
 - **umriss:** freies Vieleck durch die Mittelpunkte der Punkte, in Reihenfolge, automatisch geschlossen. Rechtwinklige Umrisse (L, T, U) ergeben exakte Formen.
 - **grundriss:** ASCII-Draufsicht. `x,y,z` ist die Zelle des ersten Zeichens der ersten Zeile; Zeilen laufen nach Süden, Zeichen nach Osten. Jedes Zeichen außer Leerzeichen und `.` ist innen.
 - **kugel:** Zellen mit Abstand ≤ r+0,5 von der Mitte der Zelle x,y,z. `teil=oben` behält y ≥ Mitte (Kuppel), `teil=unten` y ≤ Mitte. `hohl` lässt eine Schale (Zellen mit einem der sechs Nachbarn außen), mit `wand=n` n dick. An einer kugel hängen keine Bauteile; Dächer nur `helm` und `flach`.
@@ -148,9 +148,9 @@ box haus 0,0,0 10,9,7 putz hohl profil=5:1 konsolen=holz fachwerk=balken
 ```
 
 - `profil=<lage>:<versatz>[~],…`: Lagen relativ zur untersten Lage der Form, aufsteigend; der Versatz ist positiv nach außen. Eine Lage nimmt den Versatz des letzten Eintrags an oder unter ihr (davor 0). Steht `~` hinter dem Eintrag, geht es linear zum nächsten, gerundet (,5 weg von null).
-- Der Versatz verschiebt bei box jede Seite, beim zylinder die Radien, beim vieleck r; umriss und grundriss wachsen oder schrumpfen mit 8er-Nachbarschaft. Ein leerer Umriss ist ein Fehler.
+- Der Versatz verschiebt bei box jede Seite, beim zylinder die Radien, beim vieleck jede gerade Seite (der Umkreis wächst um v / cos(180°/n), beim Achteck v · 1,08); umriss und grundriss wachsen oder schrumpfen mit 8er-Nachbarschaft. Ein leerer Umriss ist ein Fehler. `profil=0:2` macht ein Achteck an allen Seiten zwei breiter: bei r=5 rücken die geraden Seiten von 5 auf 7, die Schrägen von |x|+|z| ≤ 7 auf 10.
 - Jede Lage wird mit ihrem eigenen Umriss gebaut, auch `hohl`, `wand`, `ecken` und Fachwerk. Fenster und Türen nehmen den Umriss ihrer Lage, Dächer den der obersten.
-- `konsolen=R` (nur mit `profil`): Wächst der Versatz von Lage L−1 auf L um Δ, bekommt Ring j (j=1 innen bis Δ außen) in Lage L−1−(Δ−j) eine umgedrehte Treppe von R, darüber bis Lage L−1 volle Blöcke. Ring 1 blickt zur angrenzenden Wandzelle (grenzt sie nur schräg an, in x-Richtung), weitere Ringe blicken zum Ring davor.
+- `konsolen=R` (nur mit `profil`): Wächst der Versatz von Lage L−1 auf L um Δ, bekommt Ring j (j=1 innen bis Δ außen) in Lage L−1−(Δ−j) eine umgedrehte Treppe von R, darüber bis Lage L−1 volle Blöcke. Ring 1 blickt zur angrenzenden Wandzelle, weitere Ringe blicken zum Ring davor; an Ecken wie die Dachtreppen (Innenecke in x-, Außenecke in z-Richtung).
 
 ### Fachwerk
 
@@ -321,9 +321,9 @@ Für alle außer `flach`: `spitze=<block-angabe>` auf die Spitze, `firstzier=<bl
 - **Voreinstellungen:** `glocke` = `2/1,1/1,1/2,1/3` (ausgestellte Traufe, dann steil), `mansard` = `1/3,1/3,2/1` (sattel, walm), `zwiebel` = `-1/1,-1/1,0/2,1/1,1/1,1/2,1/2,1/3` (walm, kegel, helm), `kuppel` (walm, kegel): Viertelkreis, Einzug in Lage y ist R − floor(√((R+0,5)² − y²)) mit R = Radius der Grundfläche.
 - **biegung=<seite>:<n>** (walm, kegel, helm; Seiten auch `no`, `so`, `sw`, `nw`): Hexenhut. Lage y wird um round(n · max(0, 3u−2)²) Zellen zur Seite verschoben, u = y / oberste Lage. Nur das oberste Drittel wandert, die Spitze um n.
 
-**So rechnet die Dachmaschine.** Lage 0 liegt über der obersten Wandlage der Form. Die Grundfläche F ist der Umriss der obersten Lage plus `ueberstand` (box als Rechteck, zylinder und vieleck über den Radius, sonst mit 8er-Nachbarschaft). Lage y umfasst F um a(y) geschrumpft, O(y); das Dach ist zu, sobald O(y) leer ist. In jeder Lage:
+**So rechnet die Dachmaschine.** Lage 0 liegt über der obersten Wandlage der Form. Die Grundfläche F ist der Umriss der obersten Lage plus `ueberstand` (box als Rechteck, zylinder über den Radius, vieleck an jeder geraden Seite um `ueberstand` wie beim Wandprofil, sonst mit 8er-Nachbarschaft). Lage y umfasst F um a(y) geschrumpft (zylinder und vieleck über den Radius des Umkreises), O(y); das Dach ist zu, sobald O(y) leer ist. In jeder Lage:
 
-- **Stufenkante** (O(y) ohne O(y+1)): Treppen, die zur angrenzenden Zelle von O(y+1) blicken; bei mehreren Möglichkeiten in der Reihenfolge n, o, s, w, grenzt die Zelle nur schräg an, in z-Richtung. Bei flachen Profilen werden Zellen ab Abstand 2 untere Stufen.
+- **Stufenkante** (O(y) ohne O(y+1)): Treppen, die zur angrenzenden Zelle von O(y+1) blicken. Grenzt eine Zelle an zwei Seiten über Eck an O(y+1) (Innenecke, Kehle), blickt sie in x-Richtung (Osten oder Westen); grenzt sie nur schräg an (Außenecke), in z-Richtung. Rückt eine Schräge in einer Lage um zwei Zellen ein, entsteht so ein Zickzack aus Außen- und Innenecken. Bei flachen Profilen werden Zellen ab Abstand 2 untere Stufen.
 - **Schale:** Randzellen von O(y), die keine Stufenkante sind, werden volle Blöcke (senkrechte Abschnitte); `dicke=n` macht sie n dick.
 - **Bauch:** Wo eine Lage nach außen wächst, entstehen umgedrehte Treppen.
 - **Abschluss:** Die letzte Lage wird First: eine Zelle breit untere Stufen, zwei Zellen breit zwei Treppen gegeneinander, eine einzelne Zelle ein voller Block (Spitze). Eine breitere letzte Lage (Walm, Kegel, Helm) bekommt Treppen um ihre Mitte.
@@ -347,11 +347,11 @@ dach sattel haus first=x
 dach krueppelwalm fluegel first=z        # L-Haus mit einer Kehle
 ```
 
-**Kranzdach** (Dachschürze): ein Ring außen um die Form, der zur Wand hin ansteigt und an ihr endet, typisch für gestaffelte Türme. Grundfläche sind die Zellen außerhalb des Umrisses in Lage `y` mit Abstand (8er-Nachbarschaft) ≤ `breite`; Lage k umfasst die Zellen mit Abstand ≤ breite − a(k), Standardprofil `1/1`. Treppen blicken zur Wand. `kante=ja` (Standard nein) setzt unter den äußersten Ring umgedrehte Treppen. Wo die Schürze auf Fenster oder Türen trifft oder direkt davor liegt, setzt sie nur in Luft und meldet einen Hinweis.
+**Kranzdach** (Dachschürze): ein Ring außen um die Form, der zur Wand hin ansteigt und an ihr endet, typisch für gestaffelte Türme. Grundfläche sind die Zellen außerhalb des Umrisses in Lage `y` mit Abstand (8er-Nachbarschaft) ≤ `breite`; Lage k umfasst die Zellen mit Abstand ≤ breite − a(k), Standardprofil `1/1`. Treppen blicken zur Wand, an Ecken wie in der Dachmaschine. `kante=ja` (Standard nein) setzt unter den äußersten Ring umgedrehte Treppen. Wo die Schürze auf Fenster oder Türen trifft oder direkt davor liegt, setzt sie nur in Luft und meldet einen Hinweis.
 
 ```
 kranzdach og y={og.y0} breite=2
-dach helm og profil=glocke ueberstand=2 spitze=lightning_rod
+dach helm og profil=glocke ueberstand=1 spitze=lightning_rod
 ```
 
 **Flachdach:** eine Lage über dem Umriss samt Überstand aus `rolle` (`art=stufe`: untere Stufen); `rand=R` setzt einen Ring eine Lage höher, z. B. eine Mauer.
@@ -513,13 +513,12 @@ Mit `tess 2` in der ersten Zeile gilt eine Datei aus Version 1 weiter: Formen, B
 
 ## Entscheidungen und Erweiterungen (Etappe 4a)
 
-Wo die Spezifikation eine Lücke lässt, hat Tessera so entschieden; Erweiterungen verändern keine bestehende Datei. Die Abweichungen „Dichte Dächer“ (5.2) und „Verschneidung“ (5.3) hat Adrian nach 4a bestätigt. Vorschlag 1A aus [future-fixes.md](future-fixes.md) (Innenecken blicken in x-Richtung) bleibt offen, ebenso die Einträge 2 bis 4.
+Wo die Spezifikation eine Lücke lässt, hat Tessera so entschieden; Erweiterungen verändern keine bestehende Datei. Die Abweichungen „Dichte Dächer“ (5.2) und „Verschneidung“ (5.3) hat Adrian nach 4a bestätigt. Vorschlag 1A und Eintrag 2 aus [future-fixes.md](future-fixes.md) sind seit 0.4.3 umgesetzt (unten), Vorschlag 1B und die Einträge 3 und 4 bleiben offen.
 
 - **Erweiterungen:** `ringbalken=ja` beim Fachwerk; `x=`/`z=` bei Fenster und Tür an allen Formen; der Kranzdach-Hinweis gilt auch direkt vor Fenstern und Türen; Feld `r` auch bei der kugel.
 - **Dichte Dächer:** Eine Dachboden-Zelle hinter einer offenen Treppenseite wird ein voller Block. Sonst bleiben an schrägen Kanten (Vieleck, Kreis, Kehlen), wo sich Treppen nur über Eck berühren, Lücken, durch die man ins Dach sieht.
 - **Verschneidung:** Dächer bilden eine Gruppe, sobald sich ihre Grundflächen überlappen oder berühren, auch ohne gemeinsame Lage. Giebel entfallen auch, wenn ein anderes Dach die Zelle vor dem Giebel in derselben Lage bedeckt. Geräumte Zellen bleiben geräumt. Der Krüppelwalm walmt nur an freien Giebelseiten (geprüft in der ersten Walmlage).
 - **Abschluss:** Eine letzte Lage, die breiter als zwei Zellen ist (Walm, Kegel, Helm), wird wie eine weitere Stufe gerechnet: Treppen um die verbleibende Mitte, eine einzelne Zelle ist die Spitze.
-- **Treppenrichtung bei Gleichstand:** wörtlich n, o, s, w. Runde und achteckige Dächer sind dadurch nicht ganz symmetrisch.
 - **Biegung:** u = y / oberste Lage, damit die Spitze genau um n wandert; Nebenrichtungen verschieben je Achse um n/√2, gerundet ,5 weg von null.
 - **Konsolen:** Ringe ab j=2 blicken zum Ring davor.
 - **Fachwerk:** Streben sind Stämme mit Achse y. Die Spezifikation verlangt Streben „von unten außen nach oben innen“, deren Richtung von Feld zu Feld wechselt; Tessera wechselt ab dem West- bzw. Nordende, bei gerader Feldzahl stimmt das an beiden Enden. `raute` braucht Felder ab 3 × 3.
@@ -577,3 +576,16 @@ Widersprüche und Lücken der Spezifikation, so gelöst:
 - **Gedrehte Instanzen** entsprechen einem von Hand gedreht geschriebenen Plan (Formen, Dächer und Prüfungen rechnen im fertigen Bau). Wo Tessera bei Gleichstand rundet (Mitte einer geraden Seite bei ungerader Restbreite, Treppenrichtung bei Gleichstand, gerader Durchmesser), kann ein Block eine Zelle neben dem genauen Spiegelbild liegen.
 - **Projektordner ohne Zugriff:** Ist ein Tab mit einer Datei verbunden und der Zugriff fehlt, fragt Tessera beim Bearbeiten nach dem Zugriff; ohne ihn schreibt es nichts (Tab und Datei laufen sonst auseinander).
 - **Versionen beim Neustart:** Hat sich eine verbundene Datei geändert, während Tessera zu war, sichert Tessera die zuletzt gezeigte Fassung, bevor es die neue übernimmt.
+
+## Änderungen der Spezifikation (0.4.3)
+
+Von Adrian freigegeben, aus [future-fixes.md](future-fixes.md):
+
+- **Treppen an Ecken (Nr. 1A; 4.3, 5.2, 5.5):** Grenzt eine Treppe an zwei Seiten über Eck an ihr Ziel (Innenecke, auch Kehle), blickt sie in x-Richtung, grenzt sie nur schräg an (Außenecke), in z-Richtung. Das gilt für alle Treppen der Dachmaschine (Stufenkante, letzte Lage, Bauch, Traufe), im Kranzdach und für die Konsolen unter Vorkragungen. Konsolen an Außenecken blicken damit in z- statt x-Richtung; an Ecken einer box bleibt die Form gleich, nur die Zustände ändern sich.
+- **Vieleck (Nr. 2; 4.3, 5.2):** Versatz im Wandprofil und `ueberstand` rücken jede gerade Seite, `ueberstand=1` ist an jeder Seite ein Block. Die Dachlagen schrumpfen weiter über den Radius des Umkreises.
+
+Lücken, so entschieden:
+
+- **Gegenüberliegende Seiten:** Grenzt eine Treppe nur an zwei gegenüberliegende Seiten (Lücke zwischen zwei Lagenteilen), gilt Osten vor Westen und Norden vor Süden.
+- **Andere Treppenringe** (Gesims, Umgang, Zinnen, Wendeltreppe außen, Konsolen der Ecktürmchen) folgen weiter der Regel aus Etappe 4: bei mehreren Seiten die Reihenfolge n, o, s, w, bei nur schräger Nachbarschaft das Gesims in z-, die übrigen in x-Richtung.
+- **kuppel auf dem vieleck:** R ist der Radius des Umkreises von F (ohne die halbe Zelle), gerundet.
