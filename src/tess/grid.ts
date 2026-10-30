@@ -132,8 +132,10 @@ export class Grid {
   private cells = 0;
   private last: Chunk | null = null;
   private lastKey = -1;
-  /** Counts every set (statement limits). */
+  /** Counts every set (tests). */
   sets = 0;
+  /** Cells the connection pass leaves alone (zeichen … fest=ja); a later set or clear frees them. */
+  readonly fixed = new Set<number>();
 
   constructor(readonly limit = LIMIT) {}
 
@@ -224,6 +226,7 @@ export class Grid {
     c.ids[i] = id;
     c.info[i] = (part | (origin << PART_BITS)) >>> 0;
     this.sets++;
+    if (this.fixed.size) this.fixed.delete(cellKey(x, y, z));
     if (c.watchers) this.changed(c.watchers, x, y, z);
   }
 
@@ -234,6 +237,7 @@ export class Grid {
     if (c.ids[i] === 0) return;
     c.ids[i] = 0;
     c.info[i] = 0;
+    if (this.fixed.size) this.fixed.delete(cellKey(x, y, z));
     c.count--;
     this.cells--;
     if (c.watchers) this.changed(c.watchers, x, y, z);

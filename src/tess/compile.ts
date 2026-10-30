@@ -6,6 +6,7 @@ import { connectBlocks } from './connect';
 import { bannerCmd, coverCmd, fieldCmd, hangingLanternCmd, ivyCmd, leavesCmd, scatterCmd, wallLanternCmd } from './decor';
 import { evalExpr, substitute, type ExprEnv } from './expr';
 import { DiscShape, PolygonShape } from './forms';
+import { charCmd, layerCmd, layersCmd, viewCmd } from './freestyle';
 import { Grid } from './grid';
 import { doorCmd, gateCmd, windowCmd } from './openings';
 import { stringHash, type BlockHints } from './palette';
@@ -48,8 +49,6 @@ export interface CompileOutput {
   lineTexts: Map<number, string>;
 }
 
-/** Commands of Bau-Sprache 2 that a later part of Etappe 4 brings. */
-const LATER: Record<string, string> = Object.fromEntries('zeichen ebene ebenen ansicht'.split(' ').map((c) => [c, '4c']));
 
 const KNOWN =
   'tess, projekt, samen, wert, rolle, box, zylinder, vieleck, umriss, grundriss, kugel, linie, block, leer, fenster, tür, tor, dach, kranzdach, ' +
@@ -541,12 +540,19 @@ export class Compiler extends CompilerRoofs {
         return this.allowCmd(st);
       case 'abschnitt':
         return this.sectionCmd(st);
+      case 'zeichen':
+        return charCmd(this, st);
+      case 'ebene':
+        return layerCmd(this, st);
+      case 'ebenen':
+        return layersCmd(this, st);
+      case 'ansicht':
+        return viewCmd(this, st);
+      case 'ende':
+        throw new TessError(st.line, '„ende“ ohne passenden Anfang (modul, wiederhole oder spiegle).');
       case 'ausrichtung':
         return this.orientCmd(st);
       default:
-        if (LATER[st.cmd]) {
-          throw new TessError(st.line, `„${st.cmd}“ gehört zu Bau-Sprache 2, ist in dieser Tessera-Version aber noch nicht umgesetzt (kommt mit Etappe ${LATER[st.cmd]}).`);
-        }
         throw new TessError(st.line, `Unbekannter Befehl „${st.cmd}“. Bekannt sind: ${KNOWN}.`);
     }
   }

@@ -1,5 +1,5 @@
 import { completeState } from './connect';
-import { Grid, infoOrigin, infoPart } from './grid';
+import { cellKey, Grid, infoOrigin, infoPart, keyToCell } from './grid';
 import { turnState, type Xf } from './xform';
 
 /**
@@ -20,5 +20,6 @@ export function turnGrid(src: Grid, xf: Xf): Grid {
     const [tx, ty, tz] = xf.map(x, y, z);
     out.setId(tx, ty, tz, n, infoPart(info), infoOrigin(info));
   });
+  for (const k of src.fixed) out.fixed.add(cellKey(...xf.map(...keyToCell(k))));
   return out;
 }

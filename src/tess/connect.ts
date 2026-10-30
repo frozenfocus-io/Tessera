@@ -1,3 +1,4 @@
+import { cellKey } from './grid';
 import { makeState, shortName, type BlockState } from '../core/blockstate';
 import { resolveShape } from '../blocks/shapes';
 import { ccw, DIR, FACINGS, opposite, type Facing } from './geometry';
@@ -464,9 +465,11 @@ export function connectBlocks(grid: Grid, version: 1 | 2 = 2): void {
   // types: both are order-independent. Walls look at the wall above, so they go top-down.
   const walls: number[] = [];
   const updates: [number, number, number, BlockState][] = [];
+  const fixed = grid.fixed.size ? grid.fixed : null;
   grid.forEach((x, y, z, sid) => {
     const k = kinds[sid];
     if (k === KIND_NONE) return;
+    if (fixed?.has(cellKey(x, y, z))) return;
     const s = grid.states[sid];
     if (k === KIND_STAIRS) {
       const shape = stairShape(s, grid, x, y, z);

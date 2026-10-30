@@ -53,6 +53,8 @@ export interface Statement {
   body?: Statement[];
   /** Version 2: line of the matching `ende`; undefined when it is missing. */
   endLine?: number;
+  /** Version 2, `zeichen`: the character as written (any visible one, also #, " or {). */
+  glyph?: string;
 }
 
 /** Commands that enclose statements up to a matching `ende` (Bau-Sprache 2, 1.2). */
@@ -277,8 +279,10 @@ export function parseStatements2(source: string): { statements: Statement[]; dia
       continue;
     }
     drawing = null;
+    // `zeichen <z> …`: the character is taken as it is, even #, " or a bracket.
+    const glyph = /^(\s*zeichen\s+)(\S)(?=\s|$)/i.exec(physical);
     // Logical line: join continuations.
-    let text = stripComment(physical);
+    let text = glyph ? `${glyph[1]}\u0001${stripComment(physical.slice(glyph[0].length))}` : stripComment(physical);
     while (/\\\s*$/.test(text) && i + 1 < lines.length) {
       text = text.replace(/\\\s*$/, ' ');
       i++;
@@ -302,6 +306,11 @@ export function parseStatements2(source: string): { statements: Statement[]; dia
         text: text.replace(/\s+/g, ' ').trim(),
         lastLine: last,
       };
+      if (glyph && st.cmd === 'zeichen' && st.raw![0]?.text === '\u0001') {
+        st.glyph = glyph[2];
+        st.raw = st.raw!.slice(1);
+        st.text = st.text!.replace('\u0001', glyph[2]);
+      }
       if (DRAWING_COMMANDS.has(st.cmd)) {
         st.ascii = [];
         drawing = st;
