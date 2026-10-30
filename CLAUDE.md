@@ -10,8 +10,8 @@ Tessera ist eine lokale Bauhilfe für Minecraft Java 1.21.1 (NeoForge 21.1.252, 
 4. `docs/bau-sprache-2.md` – Bau-Sprache 2, Soll-Spezifikation für Etappe 4 (verbindlich)
 5. `docs/etappe-4.md` – Auftrag Etappe 4 mit Teilen 4a, 4b, 4c, Zielbauten und Abnahme
 6. `docs/future-fixes.md` – Verbesserungsvorschläge, bewusst noch nicht umgesetzt (nur auf Adrians Anweisung anfassen)
-7. die jüngste Übergabe `docs/uebergabe-*.md` (Stand, Abweichungen, offene Punkte des letzten Teils), falls es eine gibt
-8. `docs/vorarbeit-4c.md` – Aufteilung von `compile.ts`, Dachgruppen in Teilen zeichnen, was in 4c zu beachten ist
+7. die jüngste Übergabe `docs/uebergabe-*.md` (Stand, Abweichungen, offene Punkte des letzten Teils): zuletzt `docs/uebergabe-4c.md` (Etappe 4 fertig, Module, Freistil, Bearbeiten in der App)
+8. `docs/vorarbeit-4c.md` – Aufteilung von `compile.ts`, Dachgruppen in Teilen zeichnen
 
 Im Code gezielt lesen, was die Aufgabe berührt; nicht alles auf Vorrat.
 
@@ -41,7 +41,9 @@ Häufige Stolperstellen beim Schreiben und Prüfen von Bauplänen:
 
 - **Anbauten setzen nur in Luft:** Balkon, Umgang, Erker, Gaube, Ecktürmchen, Gesims, Pfeiler und Zier lassen stehen, was außen schon da ist, und melden es mit der Zeile des Hindernisses. Was getragen wird, sieht nur frühere Blöcke: Obergeschoss und Schürze vor `umgang`, Wände vor `efeu`, der Block über einer `haengelaterne` vor ihr.
 - **`hohl` räumt innen:** Eine hohle Form räumt pro Lage ihr Inneres, auch was frühere Zeilen dort gesetzt haben. Kreuzen sich zwei hohle boxen, bleiben ihre Innenwände stehen (mit `leer` räumen).
-- **Dächer verschneiden sich über die Grundfläche:** Berühren oder überlappen sich die Grundflächen zweier Dächer, werden sie ein Dach (Vereinigung der Lagen). Auch Erker-, Gauben- und Türmchendächer gehören dazu; ein Dach, das frei stehen soll, braucht Abstand.
+- **Dächer verschneiden sich über die Grundfläche:** Berühren oder überlappen sich die Grundflächen zweier Dächer, werden sie ein Dach (Vereinigung der Lagen). Auch Erker-, Gauben- und Türmchendächer gehören dazu; ein Dach, das frei stehen soll, braucht Abstand. Das gilt auch zwischen Modulinstanzen.
+- **Module rechnen absolut:** Im Modul sind Koordinaten und Felder lokal, Formen, Dächer und Prüfungen entstehen aber im fertigen Bau. Eine gedrehte Instanz entspricht einem von Hand gedreht geschriebenen Plan.
+- **Bereich „Änderungen in Tessera“ am Dateiende** gehört der App (Einzelblöcke aus dem Bearbeiten-Modus). Eigene Zeilen davor schreiben.
 
 ## Befehle
 
