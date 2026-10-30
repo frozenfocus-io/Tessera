@@ -430,8 +430,8 @@ describe('Bau-Sprache 2: Wandprofile und Konsolen', () => {
     expect(at(out, 7, 2, 3)?.props).toMatchObject({ facing: 'west', half: 'top' });
     expect(name(out, 3, 2, -1)).toBe('spruce_stairs');
     expect(at(out, 3, 1, -1)).toBeNull();
-    // Corner with only a diagonal neighbour: along x.
-    expect(at(out, -1, 2, -1)?.props.facing).toBe('east');
+    // Corner with only a diagonal neighbour: along z, as on roofs (an outer corner either way).
+    expect(at(out, -1, 2, -1)?.props).toMatchObject({ facing: 'south', shape: expect.stringMatching(/^outer_/) });
     expect(errors(c2('box b 0,0,0 6,5,6 stein konsolen=holz'))[0].message).toContain('profil');
   });
 
@@ -667,7 +667,10 @@ describe('Bau-Sprache 2: Dachmaschine', () => {
   it('verschneidet Dächer: Vereinigung der Lagen, Kehle als Treppen-Innenecke, innere Giebel entfallen', () => {
     const out = c2('box a 0,0,0 10,3,6 stein hohl\ndach sattel a first=x\nbox b 3,0,6 7,3,15 stein hohl\ndach sattel b first=z');
     clean(out);
-    expect(at(out, 4, 6, 5)?.props).toMatchObject({ facing: 'north', half: 'bottom', shape: expect.stringMatching(/^inner_/) });
+    // The valley stays an inner corner; it touches the next layer on two sides around a corner,
+    // so it faces along x.
+    expect(at(out, 4, 6, 5)?.props).toMatchObject({ facing: 'east', half: 'bottom', shape: expect.stringMatching(/^inner_/) });
+    expect(at(out, 6, 6, 5)?.props.facing).toBe('west');
     expect(at(out, 6, 6, 5)?.props.shape).toMatch(/^inner_/);
     expect(at(out, 3, 5, 6)?.props.shape).toMatch(/^inner_/);
     for (let z = 5; z <= 16; z++) expect(name(out, 5, 7, z)).toBe('spruce_slab'); // ridge of b runs into a
@@ -676,6 +679,30 @@ describe('Bau-Sprache 2: Dachmaschine', () => {
     // Roofs that neither overlap nor touch stay apart.
     const apart = c2('box a 0,0,0 4,2,4 stein hohl\ndach walm a\nbox b 20,0,0 24,2,4 stein hohl\ndach walm b');
     same(apart, c2('box a 0,0,0 4,2,4 stein hohl\ndach walm a\nbox b 20,0,0 24,2,4 stein hohl\nbox c 20,0,0 24,2,4 stein hohl\ndach walm c'));
+  });
+
+  it('Innenecken blicken in x-Richtung, Außenecken in z-Richtung: Zickzack an Achteck-Schrägen mit Doppelschritt', () => {
+    // Layer 3: the slants step from |x|+|z| = 7 to 5, two cells at a time.
+    const out = c2('vieleck v 0,0,0 n=8 r=6 h=2 stein hohl\ndach walm v ueberstand=0');
+    clean(out);
+    const Y = 3;
+    for (const [sx, sz] of [[1, -1], [1, 1], [-1, 1], [-1, -1]]) {
+      const slant = `Schräge ${sx},${sz}`;
+      // Outer corners touch the next layer only diagonally: z-direction.
+      for (const [i, j] of [[2, 5], [3, 4], [4, 3], [5, 2]]) {
+        const p = at(out, sx * i, Y, sz * j)?.props;
+        expect(p?.shape, `${slant}: ${sx * i},${sz * j}`).toMatch(/^outer_/);
+        expect(p?.facing).toBe(sz < 0 ? 'south' : 'north');
+      }
+      // Inner corners touch it on two sides around a corner: x-direction.
+      for (const [i, j] of [[2, 4], [3, 3], [4, 2]]) {
+        const p = at(out, sx * i, Y, sz * j)?.props;
+        expect(p?.shape, `${slant}: ${sx * i},${sz * j}`).toMatch(/^inner_/);
+        expect(p?.facing).toBe(sx < 0 ? 'east' : 'west');
+      }
+    }
+    // The zigzag is closed: no sealing blocks behind the stairs in this layer.
+    for (const [, , , s] of blocksIn(out, Y)) expect(s.name).toBe('minecraft:spruce_stairs');
   });
 
   it('Krüppelwalm an einem anderen Dach: Walm nur an der freien Giebelseite', () => {
@@ -950,7 +977,7 @@ describe('Zielbau 4b: beispiele/wachturm.tess', () => {
   });
 
   it('Anbau: L aus zwei boxen, Kehle als Innenecke, Krüppelwalm nur an der freien Seite', () => {
-    expect(at(out, 8, 5, 4)?.props).toMatchObject({ facing: 'north', shape: expect.stringMatching(/^inner_/) });
+    expect(at(out, 8, 5, 4)?.props).toMatchObject({ facing: 'east', shape: expect.stringMatching(/^inner_/) });
     expect(at(out, 11, 7, 10)?.props).toMatchObject({ facing: 'north', half: 'bottom' });
     expect([name(out, 11, 8, 2), name(out, 11, 8, 3)]).toEqual(['deepslate_tile_slab', 'deepslate_tile_slab']);
   });

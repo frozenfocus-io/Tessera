@@ -1,5 +1,5 @@
 import { Args, NO, YES } from './args';
-import { CellSet, ChebDistance, facingTowardsSet } from './cells';
+import { CellSet, ChebDistance, cornerFacing } from './cells';
 import type { Vec3 } from './compile-base';
 import { CompilerPlace } from './compile-place';
 import {
@@ -586,7 +586,7 @@ export abstract class CompilerForms extends CompilerPlace {
       over.forEach((x, z) => {
         const j = Math.max(1, Math.min(dv, dist.get(x, z)));
         const ys = L - 1 - (dv - j);
-        const facing = facingTowardsSet(x, z, (a, c) => (j === 1 ? inner.has(a, c) : dist.get(a, c) === j - 1), 'x') ?? 'north';
+        const facing = cornerFacing(x, z, (a, c) => (j === 1 ? inner.has(a, c) : dist.get(a, c) === j - 1)) ?? 'north';
         for (let yy = Math.max(0, ys); yy <= L - 1; yy++) {
           const Y = f.y0 + yy;
           if (this.outlineAt(f, Y).has(x, z)) continue;

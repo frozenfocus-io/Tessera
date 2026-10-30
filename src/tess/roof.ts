@@ -1,5 +1,5 @@
 import { stairQuarters } from '../blocks/shapes';
-import { CellSet, ChebDistance, facingTowardsSet, SIDES } from './cells';
+import { CellSet, ChebDistance, cornerFacing, SIDES } from './cells';
 import { ccw, opposite, type Facing } from './geometry';
 import { TessError } from './syntax';
 
@@ -228,7 +228,7 @@ function finalCell(r: RoofDef, S: CellSet, x: number, z: number): { kind: RoofBl
     const inner = S.erode(1);
     if (!inner.isEmpty()) {
       if (inner.has(x, z)) return inner.count === 1 ? { kind: 'tip' } : finalCell(r, inner, x, z);
-      const f = facingTowardsSet(x, z, (a, c) => inner.has(a, c), 'z');
+      const f = cornerFacing(x, z, (a, c) => inner.has(a, c));
       return f ? { kind: 'stair', facing: f } : { kind: 'slab' };
     }
   }
@@ -432,12 +432,12 @@ export function renderRoofs(group: readonly RoofDef[], opts: { spires?: boolean 
         return b;
       };
       if (belly.has(key(x, 0, z))) {
-        let f = facingTowardsSet(x, z, (a, c) => prev.has(a, c), 'z');
+        let f = cornerFacing(x, z, (a, c) => prev.has(a, c));
         if (!f) {
           // Wide belly: face the neighbour that is closer to the layer below.
           bellyDist ??= new ChebDistance(prev, cur, 64);
           const d = bellyDist.get(x, z);
-          f = facingTowardsSet(x, z, (a, c) => bellyDist!.get(a, c) < d, 'z');
+          f = cornerFacing(x, z, (a, c) => bellyDist!.get(a, c) < d);
           add('belly', f ?? 'north').wide = true;
           return;
         }
@@ -446,7 +446,7 @@ export function renderRoofs(group: readonly RoofDef[], opts: { spires?: boolean 
       }
       if (!next.has(x, z)) {
         // Step edge.
-        const f = facingTowardsSet(x, z, (a, c) => next.has(a, c), 'z');
+        const f = cornerFacing(x, z, (a, c) => next.has(a, c));
         if (f) return add('stair', f);
         const closing = owners.filter((i) => Y - roofs[i].yb === roofs[i].layers.length - 1);
         if (closing.length === owners.length) {
@@ -544,7 +544,7 @@ export function renderRoofs(group: readonly RoofDef[], opts: { spires?: boolean 
       const Y = r.yb - 1;
       if (surface.has(key(x, Y, z))) return;
       const d = dist.get(x, z);
-      const f = facingTowardsSet(x, z, (a, c) => r.wall.has(a, c) || dist.get(a, c) < d, 'z') ?? 'north';
+      const f = cornerFacing(x, z, (a, c) => r.wall.has(a, c) || dist.get(a, c) < d) ?? 'north';
       const eb: RoofBlock = { x, y: Y, z, kind: 'eave', facing: f, slab: r.traufe === 'stufe', roof: ri };
       blocks.push(eb);
       surface.set(key(x, Y, z), eb);
@@ -604,12 +604,12 @@ export function renderSkirt(
     const prev = k > 0 ? layers[k - 1] : null;
     cur.forEach((x, z) => {
       if (prev && !prev.has(x, z)) {
-        const f = facingTowardsSet(x, z, (a, c) => prev.has(a, c) || inWall(a, c), 'z') ?? 'north';
+        const f = cornerFacing(x, z, (a, c) => prev.has(a, c) || inWall(a, c)) ?? 'north';
         out.push({ x, z, k, kind: 'belly', facing: f });
         return;
       }
       if (!next.has(x, z)) {
-        const f = facingTowardsSet(x, z, (a, c) => next.has(a, c) || inWall(a, c), 'z');
+        const f = cornerFacing(x, z, (a, c) => next.has(a, c) || inWall(a, c));
         out.push(f ? { x, z, k, kind: 'stair', facing: f } : { x, z, k, kind: 'slab' });
         return;
       }
@@ -626,7 +626,7 @@ export function renderSkirt(
   if (kante && layers[0]) {
     layers[0].forEach((x, z) => {
       if (dist.get(x, z) !== breite) return;
-      const f = facingTowardsSet(x, z, (a, c) => dist.get(a, c) < breite, 'z') ?? 'north';
+      const f = cornerFacing(x, z, (a, c) => dist.get(a, c) < breite) ?? 'north';
       out.push({ x, z, k: -1, kind: 'verge', facing: f });
     });
   }
