@@ -11,6 +11,7 @@ Tessera ist eine lokale Bauhilfe für Minecraft Java 1.21.1 (NeoForge 21.1.252, 
 5. `docs/etappe-4.md` – Auftrag Etappe 4 mit Teilen 4a, 4b, 4c, Zielbauten und Abnahme
 6. `docs/future-fixes.md` – Verbesserungsvorschläge, bewusst noch nicht umgesetzt (nur auf Adrians Anweisung anfassen)
 7. die jüngste Übergabe `docs/uebergabe-*.md` (Stand, Abweichungen, offene Punkte des letzten Teils), falls es eine gibt
+8. `docs/vorarbeit-4c.md` – Aufteilung von `compile.ts`, Dachgruppen in Teilen zeichnen, was in 4c zu beachten ist
 
 Im Code gezielt lesen, was die Aufgabe berührt; nicht alles auf Vorrat.
 
