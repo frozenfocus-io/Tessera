@@ -109,6 +109,8 @@ export interface RoofDef {
   hip?: HipEnds;
   /** Roofs of Anbauten against a wall: only cells in front of the wall are built. */
   keep?: (x: number, z: number) => boolean;
+  /** Drawing a window of a group (compile-roofs.ts): the whole layers, while `layers` are cut to the window. */
+  full?: CellSet[];
 }
 
 export interface HipEnds {
@@ -131,15 +133,18 @@ export function layerOf(r: RoofDef, Y: number): CellSet {
  * hip either; the roof runs on there like a gable roof and its ridge meets the other roof.
  */
 export function resolveHips(roofs: readonly RoofDef[]): RoofDef[] {
+  const owners = new Map<number, LayerOwners>();
   return roofs.map((r, ri) => {
     const h = r.hip;
     if (!h || roofs.length < 2) return r;
     const Y = r.yb + h.from;
+    const at = owners.get(Y) ?? new LayerOwners(roofs, Y);
+    owners.set(Y, at);
     const free = h.ends.map((g) => {
       const [ox, oz] = FACING_STEP[g.out];
       for (let t = g.lo; t <= g.hi; t++) {
         const [x, z] = g.axis === 'x' ? [t, g.fixed] : [g.fixed, t];
-        if (roofs.some((o, oi) => oi !== ri && (layerOf(o, Y).has(x, z) || layerOf(o, Y).has(x + ox, z + oz)))) return false;
+        if (at.other(x, z, ri) || at.other(x + ox, z + oz, ri)) return false;
       }
       return true;
     });
@@ -147,6 +152,25 @@ export function resolveHips(roofs: readonly RoofDef[]): RoofDef[] {
     const v = h.variant(free[0], free[1]);
     return { ...r, layers: v.layers, dirs: v.dirs };
   });
+}
+
+/**
+ * Whether the two gable ends of a Krüppelwalm roof are free, by the test of resolveHips: none
+ * of the other roofs (those of `roofs` that `other` accepts by index) covers the wall line of the
+ * end or the cells in front of it at the first hipped layer. For a few roofs near r.
+ */
+export function hipFree(r: RoofDef, other: (index: number) => boolean, roofs: readonly RoofDef[]): [boolean, boolean] {
+  const h = r.hip!;
+  const Y = r.yb + h.from;
+  const free = h.ends.map((g) => {
+    const [ox, oz] = FACING_STEP[g.out];
+    for (let t = g.lo; t <= g.hi; t++) {
+      const [x, z] = g.axis === 'x' ? [t, g.fixed] : [g.fixed, t];
+      if (roofs.some((o, oi) => other(oi) && (layerOf(o, Y).has(x, z) || layerOf(o, Y).has(x + ox, z + oz)))) return false;
+    }
+    return true;
+  });
+  return [free[0], free[1]];
 }
 
 export type RoofBlockKind =
@@ -173,6 +197,12 @@ export interface RoofBlock {
   slab?: boolean;
   /** Roof the block belongs to (index into the group's roofs). */
   roof: number;
+  /** Gables and verges: index of the line in the roof's gables or verge (drawing order). */
+  line?: number;
+  /** Full block that seals the attic next to an open stair side (drawn after the layer). */
+  seal?: true;
+  /** Belly facing taken from the distance to the layer below (wide belly). */
+  wide?: true;
 }
 
 const FACING_STEP: Record<Facing, [number, number]> = { north: [0, -1], east: [1, 0], south: [0, 1], west: [-1, 0] };
@@ -256,31 +286,122 @@ function opensTowards(n: RoofBlock, dir: Facing, get: (x: number, z: number) => 
   return (q & need) !== need;
 }
 
+/**
+ * The roofs that cover the cells of one layer, in the order of the group: the union of their
+ * outlines, and per cell the first roof (cells of several roofs also list all of them). Sparse
+ * layers (a long diagonal row of roofs) keep the first roofs in a map instead of an array.
+ */
+class LayerOwners {
+  readonly union: CellSet;
+  private readonly x0: number = 0;
+  private readonly z0: number = 0;
+  private readonly w: number = 0;
+  private readonly h: number = 0;
+  private readonly dense: Int32Array | null = null;
+  private readonly sparse = new Map<number, number>();
+  private readonly more = new Map<number, number[]>();
+
+  constructor(roofs: readonly RoofDef[], Y: number) {
+    let x0 = Infinity, z0 = Infinity, x1 = -Infinity, z1 = -Infinity;
+    let cells = 0;
+    for (const r of roofs) {
+      const L = layerOf(r, Y);
+      if (L.isEmpty()) continue;
+      x0 = Math.min(x0, L.x0);
+      z0 = Math.min(z0, L.z0);
+      x1 = Math.max(x1, L.x1);
+      z1 = Math.max(z1, L.z1);
+      cells += L.count;
+    }
+    if (x0 === Infinity) {
+      this.union = CellSet.EMPTY;
+      return;
+    }
+    this.x0 = x0;
+    this.z0 = z0;
+    const w = (this.w = x1 - x0 + 1);
+    this.h = z1 - z0 + 1;
+    const dense = w * this.h <= 4 * cells + 4096 ? (this.dense = new Int32Array(w * this.h).fill(-1)) : null;
+    const list: [number, number][] = [];
+    roofs.forEach((r, i) => {
+      layerOf(r, Y).forEach((x, z) => {
+        const k = (z - z0) * w + (x - x0);
+        const f = dense ? dense[k] : (this.sparse.get(k) ?? -1);
+        if (f < 0) {
+          if (dense) dense[k] = i;
+          else {
+            this.sparse.set(k, i);
+            list.push([x, z]);
+          }
+        } else {
+          const m = this.more.get(k);
+          if (m) m.push(i);
+          else this.more.set(k, [f, i]);
+        }
+      });
+    });
+    this.union = dense ? CellSet.build(x0, z0, x1, z1, (x, z) => dense[(z - z0) * w + (x - x0)] >= 0) : CellSet.fromCells(list);
+  }
+
+  private first(k: number): number {
+    return this.dense ? this.dense[k] : (this.sparse.get(k) ?? -1);
+  }
+
+  private index(x: number, z: number): number {
+    const dx = x - this.x0;
+    const dz = z - this.z0;
+    return dx < 0 || dz < 0 || dx >= this.w || dz >= this.h ? -1 : dz * this.w + dx;
+  }
+
+  /** Roofs covering the cell, in group order. */
+  owners(x: number, z: number): readonly number[] {
+    const k = this.index(x, z);
+    const f = k < 0 ? -1 : this.first(k);
+    if (f < 0) return NONE;
+    return this.more.get(k) ?? [f];
+  }
+
+  /** Whether a roof other than ri covers the cell. */
+  other(x: number, z: number, ri: number): boolean {
+    const k = this.index(x, z);
+    const f = k < 0 ? -1 : this.first(k);
+    return f >= 0 && (f !== ri || this.more.has(k));
+  }
+}
+
+const NONE: readonly number[] = [];
+const NO_OWNERS = new LayerOwners([], 0);
+
+/** Number key of a cell (surface map, belly cells). */
+function surfaceKey(x: number, y: number, z: number): number {
+  return ((x + 8192) * 16384 + (y + 8192)) * 16384 + (z + 8192);
+}
+
 export interface GroupRender {
   blocks: RoofBlock[];
   /** Per roof: whether it ends in a single tip cell, and where. */
   tips: (readonly [number, number, number] | null)[];
+  /** The roofs with their Krüppelwalm hips resolved for the group. */
+  roofs: RoofDef[];
 }
 
 /**
  * Renders a group of roofs (one roof or several that touch) as the union of their layer
  * outlines. Returns the blocks in placing order: roof surface first, then gables, verges,
- * eaves and decorations (those only go into empty cells).
+ * eaves and decorations (those only go into empty cells). `spires: false` leaves out the spires
+ * (drawing a window of a group, where the caller sets them).
  */
-export function renderRoofs(group: readonly RoofDef[]): GroupRender {
+export function renderRoofs(group: readonly RoofDef[], opts: { spires?: boolean } = {}): GroupRender {
   const roofs = resolveHips(group);
   const blocks: RoofBlock[] = [];
   const yLo = Math.min(...roofs.map((r) => r.yb));
   const yHi = Math.max(...roofs.map((r) => r.yb + r.layers.length - 1));
-  const U: CellSet[] = [];
-  for (let Y = yLo; Y <= yHi; Y++) {
-    let u = CellSet.EMPTY;
-    for (const r of roofs) u = u.union(layerOf(r, Y));
-    U.push(u);
-  }
-  const unionAt = (Y: number) => (Y < yLo || Y > yHi ? CellSet.EMPTY : U[Y - yLo]);
-  const surface = new Map<string, RoofBlock>();
-  const key = (x: number, y: number, z: number) => `${x},${y},${z}`;
+  const O: LayerOwners[] = [];
+  for (let Y = yLo; Y <= yHi; Y++) O.push(new LayerOwners(roofs, Y));
+  const ownersAt = (Y: number) => (Y < yLo || Y > yHi ? NO_OWNERS : O[Y - yLo]);
+  const unionAt = (Y: number) => ownersAt(Y).union;
+  const surface = new Map<number, RoofBlock>();
+  const key = surfaceKey;
   const tips: (readonly [number, number, number] | null)[] = roofs.map(() => null);
 
   for (let Y = yLo; Y <= yHi; Y++) {
@@ -289,33 +410,36 @@ export function renderRoofs(group: readonly RoofDef[]): GroupRender {
     const prev = unionAt(Y - 1);
     if (cur.isEmpty()) continue;
     // Belly: cells that a roof adds in this layer and that no roof covered below.
-    const belly = new Set<string>();
+    const belly = new Set<number>();
     for (const r of roofs) {
       if (Y <= r.yb) continue;
       const here = layerOf(r, Y);
       const below = layerOf(r, Y - 1);
       here.forEach((x, z) => {
-        if (!below.has(x, z) && !prev.has(x, z)) belly.add(`${x},${z}`);
+        if (!below.has(x, z) && !prev.has(x, z)) belly.add(key(x, 0, z));
       });
     }
     let bellyDist: ChebDistance | null = null;
     const inner: [number, number][] = [];
+    const at = ownersAt(Y);
     cur.forEach((x, z) => {
-      const owners: number[] = [];
-      for (let i = 0; i < roofs.length; i++) if (layerOf(roofs[i], Y).has(x, z)) owners.push(i);
+      const owners = at.owners(x, z);
       const roof = owners[0];
       const add = (kind: RoofBlockKind, facing?: Facing) => {
         const b: RoofBlock = { x, y: Y, z, kind, facing, roof };
         blocks.push(b);
         surface.set(key(x, Y, z), b);
+        return b;
       };
-      if (belly.has(`${x},${z}`)) {
+      if (belly.has(key(x, 0, z))) {
         let f = facingTowardsSet(x, z, (a, c) => prev.has(a, c), 'z');
         if (!f) {
           // Wide belly: face the neighbour that is closer to the layer below.
           bellyDist ??= new ChebDistance(prev, cur, 64);
           const d = bellyDist.get(x, z);
           f = facingTowardsSet(x, z, (a, c) => bellyDist!.get(a, c) < d, 'z');
+          add('belly', f ?? 'north').wide = true;
+          return;
         }
         add('belly', f ?? 'north');
         return;
@@ -327,7 +451,7 @@ export function renderRoofs(group: readonly RoofDef[]): GroupRender {
         const closing = owners.filter((i) => Y - roofs[i].yb === roofs[i].layers.length - 1);
         if (closing.length === owners.length) {
           const r = roofs[closing[0]];
-          const c = finalCell(r, layerOf(r, Y), x, z);
+          const c = finalCell(r, r.full ? r.full[Y - r.yb] : layerOf(r, Y), x, z);
           const b: RoofBlock = { x, y: Y, z, kind: c.kind, facing: c.facing, roof: closing[0] };
           blocks.push(b);
           surface.set(key(x, Y, z), b);
@@ -362,7 +486,7 @@ export function renderRoofs(group: readonly RoofDef[]): GroupRender {
       for (const s of SIDES) {
         const n = get(x - s.dx, z - s.dz);
         if (!n || !opensTowards(n, s.facing, get)) continue;
-        const b: RoofBlock = { x, y: Y, z, kind: 'full', roof: n.roof };
+        const b: RoofBlock = { x, y: Y, z, kind: 'full', roof: n.roof, seal: true };
         blocks.push(b);
         surface.set(key(x, Y, z), b);
         break;
@@ -372,7 +496,7 @@ export function renderRoofs(group: readonly RoofDef[]): GroupRender {
 
   // Gables: wall lines of gable roofs, under the next layer's outline, where still empty.
   for (const [ri, r] of roofs.entries()) {
-    for (const g of r.gables) {
+    for (const [gi, g] of r.gables.entries()) {
       const [ox, oz] = FACING_STEP[g.out];
       for (let y = 0; y < r.layers.length; y++) {
         const Y = r.yb + y;
@@ -382,11 +506,9 @@ export function renderRoofs(group: readonly RoofDef[]): GroupRender {
           if (!above.has(x, z) || surface.has(key(x, Y, z))) continue;
           // Gables inside the united roof body fall away: another roof passes over the cell, or
           // covers the cell in front of the gable (in this layer or the next).
-          const inside = roofs.some(
-            (o, oi) => oi !== ri && (layerOf(o, Y + 1).has(x, z) || layerOf(o, Y + 1).has(x + ox, z + oz) || layerOf(o, Y).has(x + ox, z + oz)),
-          );
+          const inside = ownersAt(Y + 1).other(x, z, ri) || ownersAt(Y + 1).other(x + ox, z + oz, ri) || ownersAt(Y).other(x + ox, z + oz, ri);
           if (inside) continue;
-          blocks.push({ x, y: Y, z, kind: 'gable', roof: ri });
+          blocks.push({ x, y: Y, z, kind: 'gable', roof: ri, line: gi });
           surface.set(key(x, Y, z), blocks[blocks.length - 1]);
         }
       }
@@ -396,7 +518,7 @@ export function renderRoofs(group: readonly RoofDef[]): GroupRender {
   // Verge: under each stair of the outermost column at the gable ends.
   for (const [ri, r] of roofs.entries()) {
     if (!r.kante) continue;
-    for (const v of r.verge) {
+    for (const [vi, v] of r.verge.entries()) {
       for (let y = 1; y < r.layers.length; y++) {
         const Y = r.yb + y;
         r.layers[y].forEach((x, z) => {
@@ -404,8 +526,8 @@ export function renderRoofs(group: readonly RoofDef[]): GroupRender {
           const b = surface.get(key(x, Y, z));
           if (!b || (b.kind !== 'stair' && b.kind !== 'ridgeStair')) return;
           if (surface.has(key(x, Y - 1, z))) return;
-          if (roofs.some((o, oi) => oi !== ri && layerOf(o, Y - 1).has(x, z))) return;
-          const vb: RoofBlock = { x, y: Y - 1, z, kind: 'verge', facing: v.towards, roof: ri };
+          if (ownersAt(Y - 1).other(x, z, ri)) return;
+          const vb: RoofBlock = { x, y: Y - 1, z, kind: 'verge', facing: v.towards, roof: ri, line: vi };
           blocks.push(vb);
           surface.set(key(x, Y - 1, z), vb);
         });
@@ -442,7 +564,7 @@ export function renderRoofs(group: readonly RoofDef[]): GroupRender {
   }
   for (const [ri, r] of roofs.entries()) {
     const t = tips[ri];
-    if (!r.hasTip || !t) continue;
+    if (opts.spires === false || !r.hasTip || !t) continue;
     const [x, y, z] = t;
     const k = key(x, y + 1, z);
     const existing = surface.get(k);
@@ -452,7 +574,7 @@ export function renderRoofs(group: readonly RoofDef[]): GroupRender {
     blocks.push(sb);
     surface.set(k, sb);
   }
-  return { blocks, tips };
+  return { blocks, tips, roofs };
 }
 
 /** Kranzdach: ring roof outside a form, rising towards the wall it ends at. */

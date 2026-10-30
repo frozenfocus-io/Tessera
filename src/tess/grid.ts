@@ -89,12 +89,19 @@ const CELLS = SIZE * SIZE * SIZE;
 const COFF = 512; // chunk coordinate offset
 const CSPAN = 1024;
 
+/** Told about every change of a cell in a watched chunk (roof groups of the compiler). */
+export interface ChunkWatcher {
+  cellChanged(x: number, y: number, z: number): void;
+}
+
 export class Chunk {
   /** State index per cell, 0 = empty. */
   readonly ids = new Uint16Array(CELLS);
   /** part | origin << 4 */
   readonly info = new Uint32Array(CELLS);
   count = 0;
+  /** Watchers of the chunk (Grid.watch), null when nobody watches. */
+  watchers: ChunkWatcher[] | null = null;
   constructor(
     readonly cx: number,
     readonly cy: number,
@@ -114,6 +121,8 @@ export class Grid {
   /** Origins of blocks; index 0 = unknown. */
   readonly origins: Origin[] = [{ line: 0, chain: [] }];
   private readonly originIndex = new Map<string, number>();
+  /** Watchers of chunks that do not exist yet; they move to the chunk when it is made. */
+  private readonly pendingWatchers = new Map<number, ChunkWatcher[]>();
   private cells = 0;
   private last: Chunk | null = null;
   private lastKey = -1;
@@ -159,6 +168,11 @@ export class Grid {
       if (!create) return null;
       c = new Chunk(cx, cy, cz);
       this.chunks.set(k, c);
+      const w = this.pendingWatchers.get(k);
+      if (w) {
+        c.watchers = w;
+        this.pendingWatchers.delete(k);
+      }
     }
     this.last = c;
     this.lastKey = k;
@@ -194,6 +208,7 @@ export class Grid {
     c.ids[i] = id;
     c.info[i] = (part | (origin << PART_BITS)) >>> 0;
     this.sets++;
+    if (c.watchers) this.changed(c.watchers, x, y, z);
   }
 
   clear(x: number, y: number, z: number): void {
@@ -205,6 +220,38 @@ export class Grid {
     c.info[i] = 0;
     c.count--;
     this.cells--;
+    if (c.watchers) this.changed(c.watchers, x, y, z);
+  }
+
+  private changed(watchers: ChunkWatcher[], x: number, y: number, z: number): void {
+    for (const w of watchers) w.cellChanged(x, y, z);
+  }
+
+  /** Tells w about every later change of a cell in the chunk of (x, y, z). */
+  watch(x: number, y: number, z: number, w: ChunkWatcher): void {
+    const k = chunkKey(x >> BITS, y >> BITS, z >> BITS);
+    const c = this.chunks.get(k);
+    if (c) {
+      c.watchers ??= [];
+      if (!c.watchers.includes(w)) c.watchers.push(w);
+      return;
+    }
+    const p = this.pendingWatchers.get(k);
+    if (!p) this.pendingWatchers.set(k, [w]);
+    else if (!p.includes(w)) p.push(w);
+  }
+
+  /** Ends watch(x, y, z, w). */
+  unwatch(x: number, y: number, z: number, w: ChunkWatcher): void {
+    const k = chunkKey(x >> BITS, y >> BITS, z >> BITS);
+    const c = this.chunks.get(k);
+    const list = c ? c.watchers : this.pendingWatchers.get(k);
+    if (!list) return;
+    const i = list.indexOf(w);
+    if (i >= 0) list.splice(i, 1);
+    if (list.length) return;
+    if (c) c.watchers = null;
+    else this.pendingWatchers.delete(k);
   }
 
   getId(x: number, y: number, z: number): number {
@@ -254,7 +301,9 @@ export class Grid {
     const c = this.chunkAt(x, y, z, false);
     if (!c) return;
     const i = ((y & MASK) << 8) | ((z & MASK) << 4) | (x & MASK);
-    if (c.ids[i] !== 0) c.ids[i] = id;
+    if (c.ids[i] === 0) return;
+    c.ids[i] = id;
+    if (c.watchers) this.changed(c.watchers, x, y, z);
   }
 
   replace(x: number, y: number, z: number, state: BlockState): void {
