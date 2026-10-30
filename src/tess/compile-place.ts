@@ -60,6 +60,7 @@ export abstract class CompilerPlace extends CompilerBase {
   put(x: number, y: number, z: number, sid: number, part: Part, origin = this.origin): void {
     this.checkCover(x, y, z, origin);
     this.grid.setId(x, y, z, sid, part, origin);
+    if (!this.roofDrawing) this.placed++;
   }
 
   /** Makes a cell air (hollow interiors, openings, leer), with the same cover check. */

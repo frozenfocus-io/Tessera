@@ -36,6 +36,15 @@ export abstract class CompilerBase {
   readonly unknownReported = new Set<string>();
   readonly stateCache = new Map<string, Map<string, number>>();
   roofCount = 0;
+  /** Statements executed so far (limit of section 10; loops and modules count every run). */
+  executed = 0;
+  /** Blocks set so far (limit of section 10); drawing roof groups again does not count. */
+  placed = 0;
+  /** > 0 while roofs are drawn: their sets are counted by the cells they fill (addRoof). */
+  roofDrawing = 0;
+  /** Limits of section 10 (lower in tests). */
+  maxStatements = 2_000_000;
+  maxBlocks = 8_000_000;
   /** `erlaube schweben`: no floating check for this file. */
   allowFloating = false;
   /** Hints of the running statement, merged by key (several cells, one message). */

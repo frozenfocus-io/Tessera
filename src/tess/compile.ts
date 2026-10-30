@@ -29,6 +29,8 @@ export type { Face, FormObj } from './compile-forms';
 
 export interface CompileOptions {
   hints?: BlockHints;
+  /** Lower limits than section 10 (tests). */
+  limits?: { statements?: number; blocks?: number };
 }
 
 export interface CompileOutput {
@@ -84,6 +86,10 @@ export class Compiler extends CompilerRoofs {
     }
     for (const st of statements) {
       this.line = st.line;
+      if (++this.executed > this.maxStatements) {
+        this.diagnostics.push({ line: st.line, level: 'error', message: `Der Bauplan führt mehr als ${millions(this.maxStatements)} Anweisungen aus; Tessera bricht hier ab.` });
+        break;
+      }
       this.seq++;
       this.origin = this.grid.originId(st.line);
       this.originSeq[this.origin] ??= this.seq;
@@ -100,8 +106,8 @@ export class Compiler extends CompilerRoofs {
         if (e instanceof FollowUpError) continue;
         this.diagnostics.push({ line: e.line || st.line, level: 'error', message: e.message });
       }
-      if (this.grid.sets > 8_000_000) {
-        this.diagnostics.push({ line: st.line, level: 'error', message: 'Der Bauplan setzt mehr als 8 Millionen Blöcke; Tessera bricht hier ab.' });
+      if (this.placed > this.maxBlocks) {
+        this.diagnostics.push({ line: st.line, level: 'error', message: `Der Bauplan setzt mehr als ${millions(this.maxBlocks)} Blöcke; Tessera bricht hier ab.` });
         break;
       }
     }
@@ -314,6 +320,11 @@ export class Compiler extends CompilerRoofs {
 
 // ---------------------------------------------------------------------------
 
+/** "2 Millionen", "8 Millionen"; smaller limits (tests) as plain numbers. */
+function millions(n: number): string {
+  return n >= 1_000_000 && n % 1_000_000 === 0 ? `${n / 1_000_000} Millionen` : n.toLocaleString('de-DE');
+}
+
 function hashUnit(seed: number, line: number, k: number): number {
   let h = (seed ^ 0x2545f491) >>> 0;
   for (const v of [line, k, stringHash('zufall')]) {
@@ -355,6 +366,8 @@ export function compileTess(source: string, opts: CompileOptions = {}): CompileO
   }
   const { statements, diagnostics } = parseStatements2(source);
   const c = new Compiler(opts.hints);
+  if (opts.limits?.statements !== undefined) c.maxStatements = opts.limits.statements;
+  if (opts.limits?.blocks !== undefined) c.maxBlocks = opts.limits.blocks;
   c.run(statements);
   c.stopWatching();
   connectBlocks(c.grid, 2);

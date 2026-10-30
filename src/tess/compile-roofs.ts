@@ -321,7 +321,22 @@ export abstract class CompilerRoofs extends CompilerForms {
   }
 
   /** Adds a roof: unites it with every group whose base area it overlaps or touches. */
+  /**
+   * Adds a roof to its group and draws what changes. Drawing a group again does not count as
+   * setting blocks (limit of section 10); only cells the group newly fills do.
+   */
   addRoof(def: RoofDef, extra: RoofExtra): void {
+    const before = this.grid.size;
+    this.roofDrawing++;
+    try {
+      this.addRoofInner(def, extra);
+    } finally {
+      this.roofDrawing--;
+      this.placed += Math.max(0, this.grid.size - before);
+    }
+  }
+
+  private addRoofInner(def: RoofDef, extra: RoofExtra): void {
     this.roofIndex.add(def);
     const b = def.base;
     const near = b.isEmpty() ? [] : this.roofIndex.near(b.x0 - 1, b.z0 - 1, b.x1 + 1, b.z1 + 1);
