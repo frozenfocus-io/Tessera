@@ -356,6 +356,7 @@ export function compileTess(source: string, opts: CompileOptions = {}): CompileO
   const { statements, diagnostics } = parseStatements2(source);
   const c = new Compiler(opts.hints);
   c.run(statements);
+  c.stopWatching();
   connectBlocks(c.grid, 2);
   const found = [...diagnostics, ...c.diagnostics];
   // Checks of section 11 on the finished grid (only when the file has no errors).

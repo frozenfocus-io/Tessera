@@ -16,6 +16,11 @@ import type { Wall } from './wall';
 /** Two blocks high plants: placing the lower half brings the upper one. */
 const TALL_PLANTS = new Set(['sunflower', 'lilac', 'rose_bush', 'peony', 'tall_grass', 'large_fern', 'pitcher_plant'].map((n) => `minecraft:${n}`));
 
+/** Whether placeSpec also sets the cell above (lower half of a tall plant). */
+export function tallPlant(spec: BlockSpec): boolean {
+  return spec.kind !== 'role' && TALL_PLANTS.has(spec.state.name) && (spec.state.props.half ?? 'lower') === 'lower';
+}
+
 // ---------------------------------------------------------------------------
 
 export abstract class CompilerPlace extends CompilerBase {

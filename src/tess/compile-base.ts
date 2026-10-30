@@ -1,9 +1,10 @@
 import { Args } from './args';
 import { CellSet } from './cells';
 import type { FormObj } from './compile-forms';
-import type { RoofGroup, RoofObj } from './compile-roofs';
+import type { RoofObj } from './compile-roofs';
 import { Grid, infoOrigin, infoPart, LIMIT_V2, Part } from './grid';
 import { Palette, type BlockHints } from './palette';
+import type { RoofGroup } from './roofgroup';
 import { asciiKey, TessError, type Diagnostic, type Statement, type Token } from './syntax';
 
 /**
@@ -24,7 +25,8 @@ export abstract class CompilerBase {
   readonly failedNames = new Map<string, number>();
   readonly values = new Map<string, number>();
   readonly failedValues = new Map<string, number>();
-  readonly groups: RoofGroup[] = [];
+  /** Roof groups, in the order they were last changed. */
+  readonly groups = new Set<RoofGroup>();
   readonly lineTexts = new Map<number, string>();
   name: string | null = null;
   line = 0;
